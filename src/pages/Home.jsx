@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  CheckSquare, FolderKanban, LayoutGrid, Activity as ActivityIcon,
-  CalendarDays, ArrowRight, Clock, AlertCircle, Plus, Users,
-  TrendingUp, Building2,
+  LayoutGrid, Activity as ActivityIcon, CalendarDays, Clock, AlertCircle,
+  Plus, Users, TrendingUp, Building2, FolderKanban, CheckSquare,
+  ArrowRight, Star, Workflow, Target,
 } from 'lucide-react';
 import WorkspaceFormDialog from '@/components/shared/WorkspaceFormDialog';
 
@@ -83,55 +83,68 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
+      {/* Workspace Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Welcome back, {firstName}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Good morning, {firstName}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {currentWorkspace ? `${currentWorkspace.workspace_name} workspace` : 'Tuesday Workspace'}
+            {currentWorkspace?.workspace_name || 'Tuesday Workspace'}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/my-work"><Button variant="outline" size="sm">My Work</Button></Link>
-          <Link to="/workboards"><Button size="sm">View Workboards</Button></Link>
+          <Link to="/my-work">
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <Target className="w-4 h-4" /> My Work
+            </Button>
+          </Link>
+          <Link to="/workboards">
+            <Button size="sm" className="gap-1.5">
+              <Plus className="w-4 h-4" /> New
+            </Button>
+          </Link>
         </div>
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard icon={CheckSquare} label="Open Tasks" value={openTaskCount} color="text-blue-600 dark:text-blue-400" />
-        <StatCard icon={FolderKanban} label="Active Projects" value={activeProjects} color="text-violet-600 dark:text-violet-400" />
-        <StatCard icon={Clock} label="Due This Week" value={upcomingDeadlines} color="text-amber-600 dark:text-amber-400" />
-        <StatCard icon={AlertCircle} label="Overdue" value={overdueTasks} color="text-red-600 dark:text-red-400" />
+        <StatCard icon={CheckSquare} label="My Open Tasks" value={openTaskCount} trend="+2 this week" color="text-blue-600" />
+        <StatCard icon={FolderKanban} label="Active Projects" value={activeProjects} trend="On track" color="text-violet-600" />
+        <StatCard icon={Clock} label="Due This Week" value={upcomingDeadlines} trend={`${overdueTasks} overdue`} color="text-amber-600" />
+        <StatCard icon={ActivityIcon} label="Activity Today" value={activity.filter(a => new Date(a.created_date).toDateString() === now.toDateString()).length} trend="Last 24h" color="text-emerald-600" />
       </div>
 
+      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* My Open Tasks */}
+        {/* My Work */}
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base">My Open Tasks</CardTitle>
+            <div>
+              <CardTitle className="text-base">My Work</CardTitle>
+              <CardDescription className="text-xs">Tasks assigned to you</CardDescription>
+            </div>
             <Link to="/my-work" className="text-xs text-primary hover:underline flex items-center gap-1">
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </CardHeader>
           <CardContent className="pt-0">
             {tasks.length === 0 ? (
-              <EmptyBlock message="No open tasks. You're all caught up!" />
+              <EmptyState message="No open tasks" subtitle="You're all caught up!" />
             ) : (
               <div className="space-y-1">
-                {tasks.slice(0, 5).map(task => (
-                  <Link key={task.id} to="/tasks/table" className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-accent transition-colors">
+                {tasks.slice(0, 6).map(task => (
+                  <Link key={task.id} to={`/workboards/${task.board || 'tasks'}`} className="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/50 transition-colors">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${
                       task.priority === 'critical' ? 'bg-red-500' :
                       task.priority === 'high' ? 'bg-orange-500' :
                       task.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'
                     }`} />
-                    <span className="text-sm flex-1 truncate">{task.title}</span>
+                    <span className="text-sm flex-1 truncate group-hover:text-foreground transition-colors">{task.title}</span>
                     {task.due_date && (
-                      <span className={`text-[11px] flex items-center gap-1 ${new Date(task.due_date) < now ? 'text-red-500' : 'text-muted-foreground'}`}>
+                      <span className={`text-[11px] flex items-center gap-1 shrink-0 ${new Date(task.due_date) < now ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}>
                         <CalendarDays className="w-3 h-3" />
                         {new Date(task.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
                       </span>
                     )}
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">{task.status.replace('_', ' ')}</span>
                   </Link>
                 ))}
               </div>
@@ -139,50 +152,50 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        {/* Quick Actions */}
+        {/* Quick Start */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Quick Actions</CardTitle>
+            <CardTitle className="text-base">Quick Start</CardTitle>
+            <CardDescription className="text-xs">Jump into your work</CardDescription>
           </CardHeader>
-          <CardContent className="pt-0">
-            <div className="grid grid-cols-2 gap-2">
-              {quickActions.map(action => (
-                <Link key={action.label} to={action.path}
-                  className="flex flex-col items-center gap-2 p-3 rounded-lg border hover:bg-accent transition-colors text-center">
-                  <action.icon className="w-5 h-5 text-primary" />
-                  <span className="text-xs font-medium">{action.label}</span>
-                </Link>
-              ))}
-            </div>
+          <CardContent className="pt-0 space-y-2">
+            <QuickLink icon={LayoutGrid} label="Workboards" path="/workboards" description="View all boards" />
+            <QuickLink icon={ActivityIcon} label="Activity Feed" path="/activity" description="Recent updates" />
+            <QuickLink icon={Users} label="Teams" path="/teams" description="Your teams" />
+            <QuickLink icon={CalendarDays} label="Calendar" path="/calendar" description="Schedule & deadlines" />
           </CardContent>
         </Card>
       </div>
 
+      {/* Workboards & Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Upcoming Deadlines */}
+        {/* Active Workboards */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CalendarDays className="w-4 h-4" /> Upcoming Deadlines
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <div>
+              <CardTitle className="text-base">Active Workboards</CardTitle>
+              <CardDescription className="text-xs">Your workspace boards</CardDescription>
+            </div>
+            <Link to="/workboards" className="text-xs text-primary hover:underline flex items-center gap-1">
+              View all <ArrowRight className="w-3 h-3" />
+            </Link>
           </CardHeader>
           <CardContent className="pt-0">
-            {tasks.filter(t => t.due_date && new Date(t.due_date) >= now).length === 0 ? (
-              <EmptyBlock message="No upcoming deadlines" />
+            {workboards.length === 0 ? (
+              <EmptyState message="No workboards yet" subtitle="Create your first board to get started" actionLabel="Create Board" actionPath="/workboards" />
             ) : (
-              <div className="space-y-1">
-                {tasks.filter(t => t.due_date && new Date(t.due_date) >= now)
-                  .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
-                  .slice(0, 5)
-                  .map(task => (
-                    <Link key={task.id} to="/tasks/table" className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-accent transition-colors">
-                      <CalendarDays className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <span className="text-sm flex-1 truncate">{task.title}</span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {new Date(task.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
-                      </span>
-                    </Link>
-                  ))}
+              <div className="grid grid-cols-2 gap-2">
+                {workboards.slice(0, 4).map(wb => (
+                  <Link key={wb.id} to={`/workboards/${wb.id}`} className="group p-3 rounded-lg border hover:border-primary/50 hover:bg-accent/50 transition-all">
+                    <div className="flex items-center gap-2 mb-1">
+                      <BoardTypeIcon type={wb.board_type} />
+                      <span className="text-sm font-medium truncate group-hover:text-primary transition-colors">{wb.name}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {wb.board_type?.replace('_', ' ') || 'Board'}
+                    </p>
+                  </Link>
+                ))}
               </div>
             )}
           </CardContent>
@@ -192,22 +205,29 @@ export default function Home() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Recent Activity</CardTitle>
+            <CardDescription className="text-xs">What's happening in your workspace</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             {activity.length === 0 ? (
-              <EmptyBlock message="No recent activity" />
+              <EmptyState message="No activity yet" subtitle="Activity will appear here" />
             ) : (
               <div className="space-y-3">
                 {activity.slice(0, 5).map(act => (
                   <div key={act.id} className="flex items-start gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <ActivityIcon className="w-3 h-3 text-primary" />
+                    <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <ActivityIcon className="w-3.5 h-3.5 text-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-foreground">
-                        <span className="font-medium">{act.user_name || 'Someone'}</span> {act.action}
+                        <span className="font-medium">{act.user_name || 'Someone'}</span>{' '}
+                        <span className="text-muted-foreground">{act.action}</span>
                       </p>
-                      <p className="text-[11px] text-muted-foreground truncate">{act.record_name || act.record_type}</p>
+                      <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                        {act.record_name || act.record_type}
+                      </p>
+                      <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+                        {new Date(act.created_date).toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -217,114 +237,91 @@ export default function Home() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Workboards */}
+      {/* Teams */}
+      {teams.length > 0 && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base">Recent Workboards</CardTitle>
-            <Link to="/workboards" className="text-xs text-primary hover:underline flex items-center gap-1">
-              View all <ArrowRight className="w-3 h-3" />
-            </Link>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Your Teams</CardTitle>
+            <CardDescription className="text-xs">Collaborate with your team members</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
-            {workboards.length === 0 ? (
-              <EmptyBlock message="No workboards yet" />
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {workboards.slice(0, 4).map(wb => (
-                  <Link key={wb.id} to={`/workboards/${wb.id}`} className="flex items-center gap-2.5 p-3 rounded-lg border hover:bg-accent transition-colors">
-                    <LayoutGrid className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <span className="text-sm font-medium truncate">{wb.name}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Active Projects */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base">Active Projects</CardTitle>
-            <Link to="/projects" className="text-xs text-primary hover:underline flex items-center gap-1">
-              View all <ArrowRight className="w-3 h-3" />
-            </Link>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {projects.length === 0 ? (
-              <EmptyBlock message="No projects yet" />
-            ) : (
-              <div className="space-y-1">
-                {projects.slice(0, 4).map(proj => (
-                  <Link key={proj.id} to="/projects" className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-accent transition-colors">
-                    <FolderKanban className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <span className="text-sm flex-1 truncate">{proj.project_name}</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">{proj.status}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Team Updates */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <TrendingUp className="w-4 h-4" /> Team Updates
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {teams.length === 0 ? (
-            <EmptyBlock message="No teams in this workspace yet" />
-          ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {teams.slice(0, 6).map(team => {
-                const teamActivity = activity.filter(a => a.record_type === 'Team' || a.action?.includes('team'));
-                return (
-                  <div key={team.id} className="p-3 rounded-lg border">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Users className="w-3 h-3 text-primary" />
-                      </div>
-                      <p className="text-sm font-medium truncate">{team.name}</p>
+              {teams.slice(0, 6).map(team => (
+                <Link key={team.id} to="/teams" className="group p-3 rounded-lg border hover:border-primary/50 hover:bg-accent/50 transition-all">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Users className="w-4 h-4 text-primary" />
                     </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      {team.members?.length || 0} members · {team.department || 'No department'}
-                    </p>
-                    {teamActivity.length > 0 && (
-                      <p className="text-[10px] text-muted-foreground/60 mt-1 truncate">
-                        Last: {teamActivity[0].action}
-                      </p>
-                    )}
+                    <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{team.name}</p>
                   </div>
-                );
-              })}
+                  <p className="text-[11px] text-muted-foreground">
+                    {team.members?.length || 0} members · {team.department || 'No department'}
+                  </p>
+                </Link>
+              ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
 
-function StatCard({ icon: Icon, label, value, color }) {
+function StatCard({ icon: Icon, label, value, trend, color }) {
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <div>
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Icon className={`w-5 h-5 ${color}`} />
             <p className="text-[11px] text-muted-foreground uppercase tracking-wider">{label}</p>
-            <p className="text-2xl font-bold mt-1">{value}</p>
           </div>
-          <Icon className={`w-5 h-5 ${color}`} />
+          <p className="text-2xl font-bold">{value}</p>
+          {trend && <p className="text-[10px] text-muted-foreground mt-1">{trend}</p>}
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function EmptyBlock({ message }) {
-  return <div className="py-8 text-center text-sm text-muted-foreground">{message}</div>;
+function QuickLink({ icon: Icon, label, path, description }) {
+  return (
+    <Link to={path} className="group flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/50 transition-colors">
+      <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+        <Icon className="w-4 h-4 text-primary" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium group-hover:text-primary transition-colors truncate">{label}</p>
+        <p className="text-[10px] text-muted-foreground truncate">{description}</p>
+      </div>
+    </Link>
+  );
+}
+
+function BoardTypeIcon({ type }) {
+  const icons = {
+    project_board: FolderKanban,
+    task_board: LayoutGrid,
+    client_board: Building2,
+    process_board: Workflow,
+    operations_board: Target,
+  };
+  const Icon = icons[type] || LayoutGrid;
+  return <Icon className="w-4 h-4 text-muted-foreground" />;
+}
+
+function EmptyState({ message, subtitle, actionLabel, actionPath }) {
+  return (
+    <div className="py-8 text-center">
+      <p className="text-sm font-medium text-foreground">{message}</p>
+      {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+      {actionLabel && actionPath && (
+        <Link to={actionPath}>
+          <Button size="sm" variant="outline" className="mt-3">
+            {actionLabel}
+          </Button>
+        </Link>
+      )}
+    </div>
+  );
 }

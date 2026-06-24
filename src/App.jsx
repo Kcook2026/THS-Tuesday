@@ -16,30 +16,21 @@ import Home from '@/pages/Home';
 import MyWork from '@/pages/MyWork';
 import UsersAccess from '@/pages/UsersAccess';
 import WorkspaceSettings from '@/pages/WorkspaceSettings';
-import SecuritySettings from '@/pages/SecuritySettings';
+import Workboards from '@/pages/Workboards';
+import WorkboardDetail from '@/pages/WorkboardDetail';
+import Teams from '@/pages/Teams';
+import ActivityFeed from '@/pages/ActivityFeed';
+import Notifications from '@/pages/Notifications';
+import Processes from '@/pages/Processes';
+import ProcessDetail from '@/pages/ProcessDetail';
 import Projects from '@/pages/Projects';
 import TaskBoard from '@/pages/TaskBoard';
 import TaskTable from '@/pages/TaskTable';
 import Calendar from '@/pages/Calendar';
-import Teams from '@/pages/Teams';
 import Documents from '@/pages/Documents';
-import Reports from '@/pages/Reports';
-import ActivityFeed from '@/pages/ActivityFeed';
-import Workboards from '@/pages/Workboards';
-import WorkboardDetail from '@/pages/WorkboardDetail';
-import Processes from '@/pages/Processes';
-import ProcessDetail from '@/pages/ProcessDetail';
-import Notifications from '@/pages/Notifications';
-import AutomationCenter from '@/pages/AutomationCenter';
 import Portfolios from '@/pages/Portfolios';
 import PortfolioDetail from '@/pages/PortfolioDetail';
 import Goals from '@/pages/Goals';
-import Resources from '@/pages/Resources';
-import Timesheets from '@/pages/Timesheets';
-import Finance from '@/pages/Finance';
-import Roadmap from '@/pages/Roadmap';
-import Risks from '@/pages/Risks';
-import Templates from '@/pages/Templates';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -72,34 +63,30 @@ const AuthenticatedApp = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<AppLayout />}>
+          {/* Primary */}
           <Route path="/" element={<Home />} />
           <Route path="/my-work" element={<MyWork />} />
-          <Route path="/users-access" element={<UsersAccess />} />
-          <Route path="/workspace-settings" element={<WorkspaceSettings />} />
-          <Route path="/security" element={<SecuritySettings />} />
           <Route path="/workboards" element={<Workboards />} />
           <Route path="/workboards/:id" element={<WorkboardDetail />} />
+          <Route path="/activity" element={<ActivityFeed />} />
+          <Route path="/teams" element={<Teams />} />
+          <Route path="/notifications" element={<Notifications />} />
+          {/* Administration */}
+          <Route path="/users-access" element={<UsersAccess />} />
+          <Route path="/workspace-settings" element={<WorkspaceSettings />} />
+          {/* Workboard Views (Projects, Tasks, Calendar surface through workboards) */}
           <Route path="/projects" element={<Projects />} />
           <Route path="/tasks/board" element={<TaskBoard />} />
           <Route path="/tasks/table" element={<TaskTable />} />
           <Route path="/calendar" element={<Calendar />} />
+          <Route path="/documents" element={<Documents />} />
+          {/* SOPs */}
           <Route path="/processes" element={<Processes />} />
           <Route path="/processes/:id" element={<ProcessDetail />} />
-          <Route path="/teams" element={<Teams />} />
-          <Route path="/documents" element={<Documents />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/activity" element={<ActivityFeed />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/automations" element={<AutomationCenter />} />
+          {/* Portfolio & Goals */}
           <Route path="/portfolios" element={<Portfolios />} />
           <Route path="/portfolios/:id" element={<PortfolioDetail />} />
           <Route path="/goals" element={<Goals />} />
-          <Route path="/resources" element={<Resources />} />
-          <Route path="/timesheets" element={<Timesheets />} />
-          <Route path="/finance" element={<Finance />} />
-          <Route path="/roadmap" element={<Roadmap />} />
-          <Route path="/risks" element={<Risks />} />
-          <Route path="/templates" element={<Templates />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />

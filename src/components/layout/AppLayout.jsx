@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar';
-import Topbar from './Topbar';
+import GlobalRail from './GlobalRail';
+import WorkspaceSidebar from './WorkspaceSidebar';
 import GlobalSearch from './GlobalSearch';
 import { WorkspaceProvider } from '@/lib/WorkspaceContext';
 import useTheme from '@/hooks/useTheme';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 export default function AppLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
@@ -27,13 +28,22 @@ export default function AppLayout() {
   return (
     <WorkspaceProvider>
       <div className="min-h-screen bg-background flex">
-        {/* Desktop Sidebar */}
-        <div className="hidden lg:block shrink-0 sticky top-0 h-screen">
-          <Sidebar
-            collapsed={collapsed}
-            onToggle={() => setCollapsed(c => !c)}
+        {/* Global Rail - Always visible */}
+        <div className="hidden lg:block shrink-0 sticky top-0 h-screen z-50">
+          <GlobalRail
+            collapsed={railCollapsed}
+            onToggle={() => setRailCollapsed(c => !c)}
             theme={theme}
             onToggleTheme={toggleTheme}
+            onSearchOpen={() => setSearchOpen(true)}
+          />
+        </div>
+
+        {/* Workspace Sidebar */}
+        <div className="hidden lg:block shrink-0 sticky top-0 h-screen">
+          <WorkspaceSidebar
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed(c => !c)}
             onSearchOpen={() => setSearchOpen(true)}
             onNavigate={() => {}}
           />
@@ -42,11 +52,9 @@ export default function AppLayout() {
         {/* Mobile Sidebar */}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetContent side="left" className="w-72 p-0 overflow-hidden">
-            <Sidebar
+            <WorkspaceSidebar
               collapsed={false}
               mobile
-              theme={theme}
-              onToggleTheme={toggleTheme}
               onSearchOpen={() => { setSearchOpen(true); setMobileOpen(false); }}
               onNavigate={() => setMobileOpen(false)}
               className="h-full border-r-0"
@@ -56,11 +64,7 @@ export default function AppLayout() {
 
         {/* Main Content */}
         <div className="flex-1 min-w-0 flex flex-col">
-          <Topbar
-            onMobileMenuClick={() => setMobileOpen(true)}
-            onSearchOpen={() => setSearchOpen(true)}
-          />
-          <main className="flex-1 p-4 sm:p-6 max-w-[1400px] w-full mx-auto">
+          <main className="flex-1 p-4 sm:p-6 max-w-[1600px] w-full mx-auto">
             <Outlet />
           </main>
         </div>
