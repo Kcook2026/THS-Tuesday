@@ -10,27 +10,52 @@
       "type": "string",
       "title": "Description"
     },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "board": {
+      "type": "string",
+      "title": "Board",
+      "relationType": "Workboard"
+    },
     "project": {
       "type": "string",
       "title": "Project",
       "relationType": "Project"
+    },
+    "parent_task": {
+      "type": "string",
+      "title": "Parent Task",
+      "relationType": "Task"
     },
     "assignee": {
       "type": "string",
       "title": "Assignee",
       "relationType": "User"
     },
+    "owner": {
+      "type": "string",
+      "title": "Owner",
+      "relationType": "User"
+    },
     "status": {
       "type": "string",
       "title": "Status",
       "enum": [
-        "backlog",
-        "todo",
-        "in_progress",
-        "review",
+        "not_started",
+        "working_on_it",
+        "stuck",
+        "waiting",
         "done"
       ],
-      "default": "todo"
+      "default": "not_started"
+    },
+    "status_color": {
+      "type": "string",
+      "title": "Status Color",
+      "default": "gray"
     },
     "priority": {
       "type": "string",
@@ -43,18 +68,46 @@
       ],
       "default": "medium"
     },
+    "priority_color": {
+      "type": "string",
+      "title": "Priority Color",
+      "default": "gray"
+    },
     "due_date": {
       "type": "string",
       "format": "date",
       "title": "Due Date"
     },
-    "estimated_hours": {
-      "type": "number",
-      "title": "Estimated Hours"
+    "start_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Start Date"
     },
-    "actual_hours": {
+    "completion_percentage": {
       "type": "number",
-      "title": "Actual Hours"
+      "title": "Completion %",
+      "default": 0
+    },
+    "item_type": {
+      "type": "string",
+      "title": "Item Type",
+      "enum": [
+        "main_item",
+        "sub_item",
+        "milestone",
+        "task",
+        "sop_step"
+      ],
+      "default": "main_item"
+    },
+    "group_name": {
+      "type": "string",
+      "title": "Group Name"
+    },
+    "sort_order": {
+      "type": "number",
+      "title": "Sort Order",
+      "default": 0
     },
     "tags": {
       "type": "array",
@@ -62,50 +115,6 @@
       "items": {
         "type": "string"
       }
-    },
-    "parent_task": {
-      "type": "string",
-      "title": "Parent Task",
-      "relationType": "Task"
-    },
-    "dependencies": {
-      "type": "array",
-      "title": "Dependencies",
-      "items": {
-        "type": "string",
-        "relationType": "Task"
-      }
-    },
-    "blockers": {
-      "type": "array",
-      "title": "Blockers",
-      "items": {
-        "type": "string"
-      }
-    },
-    "watchers": {
-      "type": "array",
-      "title": "Watchers",
-      "items": {
-        "type": "string",
-        "relationType": "User"
-      }
-    },
-    "recurring": {
-      "type": "boolean",
-      "title": "Recurring",
-      "default": false
-    },
-    "recurring_interval": {
-      "type": "string",
-      "title": "Recurring Interval",
-      "enum": [
-        "daily",
-        "weekly",
-        "monthly",
-        "none"
-      ],
-      "default": "none"
     },
     "health": {
       "type": "string",
@@ -119,31 +128,13 @@
       ],
       "default": "on_track"
     },
-    "checklist": {
-      "type": "array",
-      "title": "Checklist",
-      "items": {
-        "type": "object",
-        "properties": {
-          "text": {
-            "type": "string"
-          },
-          "completed": {
-            "type": "boolean",
-            "default": false
-          }
-        }
-      }
+    "estimated_hours": {
+      "type": "number",
+      "title": "Estimated Hours"
     },
-    "board": {
-      "type": "string",
-      "title": "Board",
-      "relationType": "Workboard"
-    },
-    "workspace": {
-      "type": "string",
-      "title": "Workspace",
-      "relationType": "Workspace"
+    "actual_hours": {
+      "type": "number",
+      "title": "Actual Hours"
     }
   },
   "required": [
