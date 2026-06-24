@@ -56,9 +56,9 @@ export default function UsersAccess() {
     setLoading(true);
     try {
       const [allUsers, invs, mems] = await Promise.all([
-        base44.asServiceRole.entities.User.list().catch(() => []),
-        base44.asServiceRole.entities.Invitation.filter({ workspace: currentWorkspaceId }, '-created_date').catch(() => []),
-        base44.asServiceRole.entities.WorkspaceMember.filter({ workspace: currentWorkspaceId }, '-created_date').catch(() => []),
+        base44.entities.User.list().catch(() => []),
+        base44.entities.Invitation.filter({ workspace: currentWorkspaceId }, '-created_date').catch(() => []),
+        base44.entities.WorkspaceMember.filter({ workspace: currentWorkspaceId }, '-created_date').catch(() => []),
       ]);
       setUsers(allUsers);
       setInvitations(invs);
@@ -86,12 +86,12 @@ export default function UsersAccess() {
       await base44.users.inviteUser(email, appRole);
       const expires = new Date();
       expires.setDate(expires.getDate() + 7);
-      await base44.asServiceRole.entities.Invitation.create({
+      await base44.entities.Invitation.create({
         email, invited_by: user.id, invited_by_name: user.full_name,
         workspace: currentWorkspaceId, workspace_name: currentWorkspace?.workspace_name,
         role, department, status: 'pending', expires_date: expires.toISOString(),
       });
-      await base44.asServiceRole.entities.WorkspaceMember.create({
+      await base44.entities.WorkspaceMember.create({
         workspace: currentWorkspaceId, workspace_name: currentWorkspace?.workspace_name,
         user_email: email, role, department, status: 'invited', invited_by: user.id,
       });
@@ -106,7 +106,7 @@ export default function UsersAccess() {
 
   const handleRevoke = async (inv) => {
     try {
-      await base44.asServiceRole.entities.Invitation.update(inv.id, { status: 'revoked' });
+      await base44.entities.Invitation.update(inv.id, { status: 'revoked' });
       logAudit(AUDIT_ACTIONS.RECORD_UPDATED, { record_type: 'Invitation', record_id: inv.id, after_value: { status: 'revoked' } });
       toast({ title: 'Invitation revoked' });
       loadData();
@@ -117,7 +117,7 @@ export default function UsersAccess() {
     try {
       const member = members.find(m => m.id === memberId);
       const oldRole = member?.role;
-      await base44.asServiceRole.entities.WorkspaceMember.update(memberId, { role: newRole });
+      await base44.entities.WorkspaceMember.update(memberId, { role: newRole });
       logAudit(AUDIT_ACTIONS.ROLE_CHANGED, { record_type: 'WorkspaceMember', record_id: memberId, before_value: { role: oldRole }, after_value: { role: newRole } });
       toast({ title: 'Role updated' });
       loadData();
@@ -126,7 +126,7 @@ export default function UsersAccess() {
 
   const handleSuspendMember = async (member) => {
     try {
-      await base44.asServiceRole.entities.WorkspaceMember.update(member.id, { status: 'suspended' });
+      await base44.entities.WorkspaceMember.update(member.id, { status: 'suspended' });
       logAudit(AUDIT_ACTIONS.USER_DISABLED, { record_type: 'WorkspaceMember', record_id: member.id });
       toast({ title: 'Member suspended' });
       loadData();
@@ -135,7 +135,7 @@ export default function UsersAccess() {
 
   const handleRemoveMember = async (member) => {
     try {
-      await base44.asServiceRole.entities.WorkspaceMember.update(member.id, { status: 'removed' });
+      await base44.entities.WorkspaceMember.update(member.id, { status: 'removed' });
       logAudit(AUDIT_ACTIONS.USER_DISABLED, { record_type: 'WorkspaceMember', record_id: member.id, after_value: { status: 'removed' } });
       toast({ title: 'Access removed' });
       loadData();
@@ -144,7 +144,7 @@ export default function UsersAccess() {
 
   const handleReactivateMember = async (member) => {
     try {
-      await base44.asServiceRole.entities.WorkspaceMember.update(member.id, { status: 'active' });
+      await base44.entities.WorkspaceMember.update(member.id, { status: 'active' });
       logAudit(AUDIT_ACTIONS.USER_ENABLED, { record_type: 'WorkspaceMember', record_id: member.id });
       toast({ title: 'Member reactivated' });
       loadData();
