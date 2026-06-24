@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
+import usePermissions from '@/hooks/usePermissions';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
 import NotificationBell from '@/components/shared/NotificationBell';
 import QuickCreate from '@/components/shared/QuickCreate';
@@ -104,15 +105,19 @@ function NavSection({ label, items, collapsed, isPathActive, onNavigate }) {
 
 export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onSearchOpen, mobile, onNavigate }) {
   const { currentWorkspace, currentWorkspaceId, isAdmin } = useWorkspace();
+  const { canAccessWorkboard, accessibleWorkboards, loading: permLoading } = usePermissions();
   const location = useLocation();
   const [workboards, setWorkboards] = useState([]);
 
   useEffect(() => {
-    if (!currentWorkspaceId) return;
+    if (!currentWorkspaceId || permLoading) return;
     base44.entities.Workboard.filter({ workspace: currentWorkspaceId }, '-updated_date', 20)
-      .then(setWorkboards)
+      .then(all => {
+        const filtered = all.filter(wb => canAccessWorkboard(wb.id));
+        setWorkboards(filtered);
+      })
       .catch(() => setWorkboards([]));
-  }, [currentWorkspaceId]);
+  }, [currentWorkspaceId, permLoading, canAccessWorkboard]);
 
   const favorites = workboards.filter(w => w.is_favorite);
   const recent = workboards.filter(w => !w.is_favorite).slice(0, 5);

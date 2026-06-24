@@ -40,6 +40,35 @@
       "type": "string",
       "title": "Department"
     },
+    "invitation_scope": {
+      "type": "string",
+      "title": "Invitation Scope",
+      "enum": [
+        "workspace",
+        "workboards_only",
+        "workspace_with_selected_workboards"
+      ],
+      "default": "workspace"
+    },
+    "workboards": {
+      "type": "array",
+      "title": "Workboards",
+      "items": {
+        "type": "string",
+        "relationType": "Workboard"
+      }
+    },
+    "workboard_names": {
+      "type": "array",
+      "title": "Workboard Names",
+      "items": {
+        "type": "string"
+      }
+    },
+    "message": {
+      "type": "string",
+      "title": "Message"
+    },
     "status": {
       "type": "string",
       "title": "Status",
@@ -64,6 +93,7 @@
   },
   "required": [
     "email",
-    "workspace"
+    "workspace",
+    "invitation_scope"
   ]
 }

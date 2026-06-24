@@ -18,7 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/auditLogger';
-import { UserPlus, Mail, Shield, Ban, Trash2, Clock, Check, Crown, Eye } from 'lucide-react';
+import { UserPlus, Mail, Shield, Ban, Trash2, Clock, Check, Crown, Eye, Target, LayoutGrid } from 'lucide-react';
+import InviteUserDialog from '@/components/shared/InviteUserDialog';
 
 const ROLE_LABELS = {
   admin: 'Admin', executive: 'Executive', manager: 'Manager',
@@ -156,7 +157,7 @@ export default function UsersAccess() {
         <Button onClick={() => setInviteOpen(true)} size="sm"><UserPlus className="w-4 h-4" /> Invite User</Button>
       </PageHeader>
 
-      <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} onInvite={handleInvite} />
+      <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
 
       <Tabs defaultValue="users">
         <TabsList>
@@ -305,56 +306,7 @@ export default function UsersAccess() {
   );
 }
 
-function InviteDialog({ open, onOpenChange, onInvite }) {
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('member');
-  const [department, setDepartment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!email.trim()) return;
-    setSubmitting(true);
-    try {
-      await onInvite(email.trim(), role, department.trim() || undefined);
-      setEmail(''); setRole('member'); setDepartment('');
-    } finally { setSubmitting(false); }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Invite User</DialogTitle></DialogHeader>
-        <div className="space-y-4 py-2">
-          <div>
-            <Label htmlFor="invite-email">Email Address</Label>
-            <Input id="invite-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="colleague@company.com" />
-          </div>
-          <div>
-            <Label>Workspace Role</Label>
-            <Select value={role} onValueChange={setRole}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="workspace_admin">Workspace Admin</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="member">Member</SelectItem>
-                <SelectItem value="viewer">Viewer</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="invite-dept">Department (optional)</Label>
-            <Input id="invite-dept" value={department} onChange={e => setDepartment(e.target.value)} placeholder="e.g. Engineering" />
-          </div>
-          <p className="text-xs text-muted-foreground">The invitee will receive an email invitation to join Tuesday Workspace.</p>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={submitting || !email.trim()}>{submitting ? 'Sending...' : 'Send Invitation'}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function EmptyRow({ message }) {
   return <div className="py-10 text-center text-sm text-muted-foreground">{message}</div>;
