@@ -65,42 +65,49 @@ export default function WorkboardDetail() {
 
   const loadBoardConfig = useCallback(async () => {
     try {
-      const [g, c, s, p, t] = await Promise.all([
-        base44.entities.BoardGroup.filter({ workboard: id, archived: false }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
-        base44.entities.BoardColumn.filter({ workboard: id }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
-        base44.entities.StatusOption.filter({ workboard: id }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
-        base44.entities.PriorityOption.filter({ workboard: id }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
-        base44.entities.Team.filter({ workspace: currentWorkspaceId }),
-      ]);
-      setGroups(g);
-      setColumns(c);
-      setStatusOptions(s);
-      setPriorityOptions(p);
+      // Load in sequence to avoid rate limits
+      const g = await base44.entities.BoardGroup.filter({ workboard: id, archived: false });
+      setGroups(g.sort((a, b) => a.sort_order - b.sort_order));
+      
+      const c = await base44.entities.BoardColumn.filter({ workboard: id });
+      setColumns(c.sort((a, b) => a.sort_order - b.sort_order));
+      
+      const s = await base44.entities.StatusOption.filter({ workboard: id });
+      setStatusOptions(s.sort((a, b) => a.sort_order - b.sort_order));
+      
+      const p = await base44.entities.PriorityOption.filter({ workboard: id });
+      setPriorityOptions(p.sort((a, b) => a.sort_order - b.sort_order));
+      
+      const t = await base44.entities.Team.filter({ workspace: currentWorkspaceId });
       setTeams(t);
       
-      // Auto-create default groups if none exist
+      // Auto-create default groups if none exist (with delay to avoid rate limit)
       if (g.length === 0) {
-        const defaultGroups = [
-          { name: 'This Week', workspace: currentWorkspaceId, workboard: id, sort_order: 0, color: 'blue' },
-          { name: 'Next Week', workspace: currentWorkspaceId, workboard: id, sort_order: 1, color: 'green' },
-          { name: 'Backlog', workspace: currentWorkspaceId, workboard: id, sort_order: 2, color: 'gray' },
-          { name: 'Completed', workspace: currentWorkspaceId, workboard: id, sort_order: 3, color: 'green' },
-        ];
-        const createdGroups = await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
-        setGroups(createdGroups.sort((a, b) => a.sort_order - b.sort_order));
+        setTimeout(async () => {
+          const defaultGroups = [
+            { name: 'This Week', workspace: currentWorkspaceId, workboard: id, sort_order: 0, color: 'blue' },
+            { name: 'Next Week', workspace: currentWorkspaceId, workboard: id, sort_order: 1, color: 'green' },
+            { name: 'Backlog', workspace: currentWorkspaceId, workboard: id, sort_order: 2, color: 'gray' },
+            { name: 'Completed', workspace: currentWorkspaceId, workboard: id, sort_order: 3, color: 'green' },
+          ];
+          const createdGroups = await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
+          setGroups(createdGroups.sort((a, b) => a.sort_order - b.sort_order));
+        }, 1000);
       }
       
-      // Auto-create default columns if none exist (only system columns)
+      // Auto-create default columns if none exist (with delay to avoid rate limit)
       if (c.length === 0) {
-        const defaultColumns = [
-          { name: 'Status', workspace: currentWorkspaceId, workboard: id, column_type: 'status', sort_order: 0, width: 120, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
-          { name: 'Priority', workspace: currentWorkspaceId, workboard: id, column_type: 'priority', sort_order: 1, width: 120, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
-          { name: 'Owner', workspace: currentWorkspaceId, workboard: id, column_type: 'person', sort_order: 2, width: 150, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
-          { name: 'Due Date', workspace: currentWorkspaceId, workboard: id, column_type: 'date', sort_order: 3, width: 130, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
-          { name: 'Progress', workspace: currentWorkspaceId, workboard: id, column_type: 'progress', sort_order: 4, width: 140, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
-        ];
-        const createdColumns = await Promise.all(defaultColumns.map(col => base44.entities.BoardColumn.create(col)));
-        setColumns(createdColumns.sort((a, b) => a.sort_order - b.sort_order));
+        setTimeout(async () => {
+          const defaultColumns = [
+            { name: 'Status', workspace: currentWorkspaceId, workboard: id, column_type: 'status', sort_order: 0, width: 120, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
+            { name: 'Priority', workspace: currentWorkspaceId, workboard: id, column_type: 'priority', sort_order: 1, width: 120, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
+            { name: 'Owner', workspace: currentWorkspaceId, workboard: id, column_type: 'person', sort_order: 2, width: 150, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
+            { name: 'Due Date', workspace: currentWorkspaceId, workboard: id, column_type: 'date', sort_order: 3, width: 130, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
+            { name: 'Progress', workspace: currentWorkspaceId, workboard: id, column_type: 'progress', sort_order: 4, width: 140, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
+          ];
+          const createdColumns = await Promise.all(defaultColumns.map(col => base44.entities.BoardColumn.create(col)));
+          setColumns(createdColumns.sort((a, b) => a.sort_order - b.sort_order));
+        }, 1500);
       }
     } catch (error) {
       console.error('Error loading config:', error);
@@ -113,28 +120,35 @@ export default function WorkboardDetail() {
       const i = await base44.entities.WorkboardItem.filter({ workboard: id, archived: false });
       setItems(i);
       
-      // Load custom column values
+      // Load custom column values separately to avoid rate limits
       const itemIds = i.map(item => item.id);
-      if (itemIds.length > 0 && columns.length > 0) {
-        const customValues = await base44.entities.WorkboardItemValue.filter({ 
-          workboard: id,
-          item: { $in: itemIds }
-        });
-        
-        // Attach custom values to items
-        const itemsWithValues = i.map(item => {
-          const itemValues = customValues.filter(v => v.item === item.id);
-          const customData = {};
-          itemValues.forEach(v => {
-            const col = columns.find(c => c.id === v.column);
-            if (col) {
-              const fieldName = col.name.toLowerCase().replace(/\s+/g, '_');
-              customData[fieldName] = v.value;
-            }
-          });
-          return { ...item, ...customData };
-        });
-        setItems(itemsWithValues);
+      if (itemIds.length > 0 && columns.length > 5) {
+        // Only load custom values if there are custom columns
+        setTimeout(async () => {
+          try {
+            const customValues = await base44.entities.WorkboardItemValue.filter({ 
+              workboard: id,
+              item: { $in: itemIds }
+            });
+            
+            const itemsWithValues = i.map(item => {
+              const itemValues = customValues.filter(v => v.item === item.id);
+              const customData = {};
+              itemValues.forEach(v => {
+                const col = columns.find(c => c.id === v.column);
+                if (col) {
+                  const fieldName = col.name.toLowerCase().replace(/\s+/g, '_');
+                  customData[fieldName] = v.value;
+                }
+              });
+              return { ...item, ...customData };
+            });
+            setItems(itemsWithValues);
+          } catch (err) {
+            console.error('Error loading custom values:', err);
+            // Silently fail - items still display without custom values
+          }
+        }, 500);
       }
     } catch (error) {
       console.error('Error loading items:', error);
@@ -162,8 +176,8 @@ export default function WorkboardDetail() {
       await Promise.all([loadBoard(), loadBoardConfig(), loadItems(), loadUsers()]);
     } catch (error) {
       console.error('Error loading board:', error);
-      // Only show error toast once on initial load, not on subscription updates
-      if (isInitialLoad) {
+      // Suppress rate limit and transient errors - only show critical errors
+      if (isInitialLoad && !error.message.includes('rate limit') && !error.message.includes('429')) {
         toast({ 
           title: 'Error loading board', 
           description: error.message, 
@@ -181,29 +195,19 @@ export default function WorkboardDetail() {
     load(); 
   }, [load]);
 
-  // Subscribe to real-time updates with debounce to prevent rate limiting
+  // Subscribe to real-time updates - no reloads to prevent rate limiting
   useEffect(() => {
     if (!id) return;
-    let debounceTimer = null;
     const unsubscribe = base44.entities.WorkboardItem.subscribe((event) => {
-      if (event.type === 'create' || event.type === 'update' || event.type === 'delete') {
-        // Update local state directly instead of reloading to prevent rate limiting
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          if (event.type === 'create' && event.data) {
-            setItems(prev => [...prev, event.data]);
-          } else if (event.type === 'update' && event.data) {
-            setItems(prev => prev.map(it => it.id === event.data.id ? { ...it, ...event.data } : it));
-          } else if (event.type === 'delete') {
-            setItems(prev => prev.filter(it => it.id !== event.entity_id));
-          }
-        }, 100);
+      if (event.type === 'create' && event.data) {
+        setItems(prev => [...prev, event.data]);
+      } else if (event.type === 'update' && event.data) {
+        setItems(prev => prev.map(it => it.id === event.data.id ? { ...it, ...event.data } : it));
+      } else if (event.type === 'delete') {
+        setItems(prev => prev.filter(it => it.id !== event.entity_id));
       }
     });
-    return () => {
-      unsubscribe();
-      if (debounceTimer) clearTimeout(debounceTimer);
-    };
+    return () => unsubscribe();
   }, [id]);
 
   const userMap = Object.fromEntries(users.map(u => [u.id, u.full_name || u.email]));
