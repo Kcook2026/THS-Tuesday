@@ -201,12 +201,15 @@ export default function WorkspaceSettings() {
       await base44.entities.Workspace.delete(currentWorkspaceId);
       
       toast({ title: 'Workspace deleted', description: currentWorkspace?.workspace_name, duration: 3000 });
+      setConfirmName('');
       setDeleteOpen(false);
-      refresh();
+      
       // Switch to another workspace or show create workspace
       const remainingActive = workspaces.filter(w => w.id !== currentWorkspaceId && w.status !== 'archived');
       if (remainingActive.length > 0) {
-        switchWorkspace(remainingActive[0].id);
+        setTimeout(() => switchWorkspace(remainingActive[0].id), 100);
+      } else {
+        setTimeout(() => refresh(), 100);
       }
     } catch (e) {
       toast({ title: 'Failed to delete', description: e.message, variant: 'destructive', duration: 6000 });
