@@ -114,25 +114,36 @@ export default function Workboards() {
         logActivity(user, 'updated workboard', 'Workboard', editBoard.id, editBoard.name);
         toast({ title: 'Workboard updated', duration: 3000 });
       } else {
-        // Create the workboard
-        const newBoard = await base44.entities.Workboard.create({ ...data, workspace: currentWorkspaceId, owner: user?.id });
+        // Create the workboard with proper owner assignment
+        const newBoard = await base44.entities.Workboard.create({ 
+          ...data, 
+          workspace: currentWorkspaceId, 
+          owner: user?.id,
+        });
         logActivity(user, 'created workboard', 'Workboard', newBoard.id, form.name);
         toast({ title: 'Workboard created', duration: 3000 });
         
-        // Create WorkboardMember for creator as owner
-        await base44.entities.WorkboardMember.create({
-          workspace: currentWorkspaceId,
-          workspace_name: '',
+        // Create WorkboardMember for creator as owner (prevent duplicates)
+        const existingMembers = await base44.entities.WorkboardMember.filter({
           workboard: newBoard.id,
-          workboard_name: newBoard.name,
           user: user.id,
-          user_name: user.full_name,
-          user_email: user.email,
-          role: 'workboard_owner',
-          status: 'active',
-          added_by: user.id,
-          joined_date: new Date().toISOString().split('T')[0],
         });
+        
+        if (existingMembers.length === 0) {
+          await base44.entities.WorkboardMember.create({
+            workspace: currentWorkspaceId,
+            workspace_name: '',
+            workboard: newBoard.id,
+            workboard_name: newBoard.name,
+            user: user.id,
+            user_name: user.full_name || user.email || 'Unknown User',
+            user_email: user.email || '',
+            role: 'workboard_owner',
+            status: 'active',
+            added_by: user.id,
+            joined_date: new Date().toISOString().split('T')[0],
+          });
+        }
         
         // Create default groups
         const defaultGroups = [

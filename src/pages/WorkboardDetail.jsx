@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Plus, Search, MoreHorizontal, ChevronRight, ChevronDown, X, Save,
   Calendar, LayoutList, LayoutGrid, GanttChartSquare, BarChart3, Activity,
-  User, Users, Paperclip, Shield, Trash2
+  User, Users, Shield, Trash2, Users as UsersIcon
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -30,6 +30,7 @@ export default function WorkboardDetail() {
   const { toast } = useToast();
   const permissions = usePermissions();
 
+  // Board state
   const [board, setBoard] = useState(null);
   const [items, setItems] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -37,7 +38,9 @@ export default function WorkboardDetail() {
   const [statusOptions, setStatusOptions] = useState([]);
   const [priorityOptions, setPriorityOptions] = useState([]);
   const [users, setUsers] = useState([]);
-  const [teams, setTeams] = useState([]);
+  const [user, setUser] = useState(null);
+  
+  // UI state
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('list');
   const [search, setSearch] = useState('');
@@ -47,154 +50,62 @@ export default function WorkboardDetail() {
   const [showNewItem, setShowNewItem] = useState(false);
   const [newItemTitle, setNewItemTitle] = useState('');
   const [newItemGroup, setNewItemGroup] = useState(null);
-  const [user, setUser] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Prevent duplicate operations
+  const isInitialLoadRef = useRef(true);
   const isLoadingRef = useRef(false);
 
-  // Split loading functions to prevent rate limiting
+  // Load board metadata
   const loadBoard = useCallback(async () => {
-    try {
-      const b = await base44.entities.Workboard.get(id);
-      setBoard(b);
-      return b;
-    } catch (error) {
-      console.error('Error loading board:', error);
-      throw error;
-    }
+    const b = await base44.entities.Workboard.get(id);
+    setBoard(b);
+    return b;
   }, [id]);
 
+  // Load board configuration (groups, columns, status/priority options)
   const loadBoardConfig = useCallback(async () => {
-    if (isLoadingRef.current) return;
-    isLoadingRef.current = true;
+    const [g, c, s, p] = await Promise.all([
+      base44.entities.BoardGroup.filter({ workboard: id, archived: false }),
+      base44.entities.BoardColumn.filter({ workboard: id }),
+      base44.entities.StatusOption.filter({ workboard: id }),
+      base44.entities.PriorityOption.filter({ workboard: id }),
+    ]);
     
-    try {
-      // Load in sequence to avoid rate limits
-      const g = await base44.entities.BoardGroup.filter({ workboard: id, archived: false });
-      setGroups(g.sort((a, b) => a.sort_order - b.sort_order));
-      
-      const c = await base44.entities.BoardColumn.filter({ workboard: id });
-      setColumns(c.sort((a, b) => a.sort_order - b.sort_order));
-      
-      const s = await base44.entities.StatusOption.filter({ workboard: id });
-      setStatusOptions(s.sort((a, b) => a.sort_order - b.sort_order));
-      
-      const p = await base44.entities.PriorityOption.filter({ workboard: id });
-      setPriorityOptions(p.sort((a, b) => a.sort_order - b.sort_order));
-      
-      const t = await base44.entities.Team.filter({ workspace: currentWorkspaceId });
-      setTeams(t);
-      
-      // Auto-create default groups if none exist (with delay to avoid rate limit)
-      if (g.length === 0) {
-        setTimeout(async () => {
-          const defaultGroups = [
-            { name: 'This Week', workspace: currentWorkspaceId, workboard: id, sort_order: 0, color: 'blue' },
-            { name: 'Next Week', workspace: currentWorkspaceId, workboard: id, sort_order: 1, color: 'green' },
-            { name: 'Backlog', workspace: currentWorkspaceId, workboard: id, sort_order: 2, color: 'gray' },
-            { name: 'Completed', workspace: currentWorkspaceId, workboard: id, sort_order: 3, color: 'green' },
-          ];
-          try {
-            const createdGroups = await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
-            setGroups(createdGroups.sort((a, b) => a.sort_order - b.sort_order));
-          } catch (err) {
-            console.error('Error creating default groups:', err);
-          }
-        }, 1000);
-      }
-      
-      // Auto-create default columns if none exist (with delay to avoid rate limit)
-      if (c.length === 0) {
-        setTimeout(async () => {
-          const defaultColumns = [
-            { name: 'Status', workspace: currentWorkspaceId, workboard: id, column_type: 'status', sort_order: 0, width: 120, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
-            { name: 'Priority', workspace: currentWorkspaceId, workboard: id, column_type: 'priority', sort_order: 1, width: 120, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
-            { name: 'Owner', workspace: currentWorkspaceId, workboard: id, column_type: 'person', sort_order: 2, width: 150, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
-            { name: 'Due Date', workspace: currentWorkspaceId, workboard: id, column_type: 'date', sort_order: 3, width: 130, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
-            { name: 'Progress', workspace: currentWorkspaceId, workboard: id, column_type: 'progress', sort_order: 4, width: 140, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
-          ];
-          try {
-            const createdColumns = await Promise.all(defaultColumns.map(col => base44.entities.BoardColumn.create(col)));
-            setColumns(createdColumns.sort((a, b) => a.sort_order - b.sort_order));
-          } catch (err) {
-            console.error('Error creating default columns:', err);
-          }
-        }, 1500);
-      }
-    } catch (error) {
-      console.error('Error loading config:', error);
-      throw error;
-    } finally {
-      isLoadingRef.current = false;
-    }
-  }, [id, currentWorkspaceId, user]);
+    setGroups(g.sort((a, b) => a.sort_order - b.sort_order));
+    setColumns(c.sort((a, b) => a.sort_order - b.sort_order));
+    setStatusOptions(s.sort((a, b) => a.sort_order - b.sort_order));
+    setPriorityOptions(p.sort((a, b) => a.sort_order - b.sort_order));
+  }, [id]);
 
+  // Load items
   const loadItems = useCallback(async () => {
-    if (isLoadingRef.current) return;
-    
-    try {
-      const i = await base44.entities.WorkboardItem.filter({ workboard: id, archived: false });
-      setItems(i);
-      
-      // Load custom column values separately to avoid rate limits
-      const itemIds = i.map(item => item.id);
-      if (itemIds.length > 0 && columns.length > 5) {
-        // Only load custom values if there are custom columns
-        setTimeout(async () => {
-          try {
-            const customValues = await base44.entities.WorkboardItemValue.filter({ 
-              workboard: id,
-              item: { $in: itemIds }
-            });
-            
-            const itemsWithValues = i.map(item => {
-              const itemValues = customValues.filter(v => v.item === item.id);
-              const customData = {};
-              itemValues.forEach(v => {
-                const col = columns.find(c => c.id === v.column);
-                if (col) {
-                  const fieldName = col.name.toLowerCase().replace(/\s+/g, '_');
-                  customData[fieldName] = v.value;
-                }
-              });
-              return { ...item, ...customData };
-            });
-            setItems(itemsWithValues);
-          } catch (err) {
-            console.error('Error loading custom values:', err);
-          }
-        }, 500);
-      }
-    } catch (error) {
-      console.error('Error loading items:', error);
-      throw error;
-    }
-  }, [id, columns, currentWorkspaceId]);
+    const i = await base44.entities.WorkboardItem.filter({ workboard: id, archived: false });
+    setItems(i);
+  }, [id]);
 
+  // Load users
   const loadUsers = useCallback(async () => {
-    try {
-      const [u, me] = await Promise.all([
-        base44.entities.User.list(),
-        base44.auth.me(),
-      ]);
-      setUsers(u);
-      setUser(me);
-    } catch (error) {
-      console.error('Error loading users:', error);
-      throw error;
-    }
+    const [u, me] = await Promise.all([
+      base44.entities.User.list(),
+      base44.auth.me(),
+    ]);
+    setUsers(u);
+    setUser(me);
   }, []);
 
+  // Initial load - runs once
   const load = useCallback(async () => {
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
     setLoading(true);
+    
     try {
       await Promise.all([loadBoard(), loadBoardConfig(), loadItems(), loadUsers()]);
     } catch (error) {
       console.error('Error loading board:', error);
-      // Suppress rate limit and transient errors - only show critical errors on initial load
-      if (isInitialLoad && !error.message.includes('rate limit') && !error.message.includes('429')) {
+      if (isInitialLoadRef.current) {
         toast({ 
           title: 'Error loading board', 
           description: error.message, 
@@ -204,22 +115,27 @@ export default function WorkboardDetail() {
       }
     } finally {
       setLoading(false);
-      setIsInitialLoad(false);
+      isInitialLoadRef.current = false;
       isLoadingRef.current = false;
     }
-  }, [loadBoard, loadBoardConfig, loadItems, loadUsers, isInitialLoad, toast]);
+  }, [loadBoard, loadBoardConfig, loadItems, loadUsers, toast]);
 
   useEffect(() => { 
     load(); 
   }, [load]);
 
-  // Subscribe to real-time updates - ONLY update items, NEVER reload config
+  // Subscribe to real-time updates - ONLY update items array, never trigger reloads
   useEffect(() => {
     if (!id) return;
     const unsubscribe = base44.entities.WorkboardItem.subscribe((event) => {
-      // Only update the items array - no full reloads
       if (event.type === 'create' && event.data) {
-        setItems(prev => [...prev, event.data]);
+        setItems(prev => {
+          // Prevent duplicates by checking if item already exists
+          if (prev.some(item => item.id === event.data.id)) {
+            return prev;
+          }
+          return [...prev, event.data];
+        });
       } else if (event.type === 'update' && event.data) {
         setItems(prev => prev.map(it => it.id === event.data.id ? { ...it, ...event.data } : it));
       } else if (event.type === 'delete') {
@@ -229,9 +145,8 @@ export default function WorkboardDetail() {
     return () => unsubscribe();
   }, [id]);
 
+  // Helper maps
   const userMap = Object.fromEntries(users.map(u => [u.id, u.full_name || u.email]));
-  const teamMap = Object.fromEntries(teams.map(t => [t.id, t.name]));
-
   const mainItems = items.filter(item => !item.parent_item);
   const subItemsMap = items.reduce((acc, item) => {
     if (item.parent_item) {
@@ -254,49 +169,74 @@ export default function WorkboardDetail() {
     setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
   };
 
+  // Get or create default options
+  const ensureDefaults = async () => {
+    let targetGroups = groups;
+    let targetStatusOptions = statusOptions;
+    let targetPriorityOptions = priorityOptions;
+
+    if (groups.length === 0) {
+      const defaultGroups = [
+        { name: 'This Week', workspace: currentWorkspaceId, workboard: id, sort_order: 0, color: 'blue' },
+        { name: 'Next Week', workspace: currentWorkspaceId, workboard: id, sort_order: 1, color: 'green' },
+        { name: 'Backlog', workspace: currentWorkspaceId, workboard: id, sort_order: 2, color: 'gray' },
+        { name: 'Completed', workspace: currentWorkspaceId, workboard: id, sort_order: 3, color: 'green' },
+      ];
+      const createdGroups = await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
+      targetGroups = createdGroups.sort((a, b) => a.sort_order - b.sort_order);
+      setGroups(targetGroups);
+    }
+    
+    if (statusOptions.length === 0) {
+      const defaultStatuses = [
+        { label: 'Not Started', workspace: currentWorkspaceId, workboard: id, color: 'gray', sort_order: 0, is_default: true, created_by: user?.id },
+        { label: 'Working On It', workspace: currentWorkspaceId, workboard: id, color: 'blue', sort_order: 1, created_by: user?.id },
+        { label: 'Stuck', workspace: currentWorkspaceId, workboard: id, color: 'red', sort_order: 2, created_by: user?.id },
+        { label: 'Waiting', workspace: currentWorkspaceId, workboard: id, color: 'yellow', sort_order: 3, created_by: user?.id },
+        { label: 'Done', workspace: currentWorkspaceId, workboard: id, color: 'green', sort_order: 4, created_by: user?.id },
+      ];
+      const createdStatuses = await Promise.all(defaultStatuses.map(s => base44.entities.StatusOption.create(s)));
+      targetStatusOptions = createdStatuses.sort((a, b) => a.sort_order - b.sort_order);
+      setStatusOptions(targetStatusOptions);
+    }
+    
+    if (priorityOptions.length === 0) {
+      const defaultPriorities = [
+        { label: 'Low', workspace: currentWorkspaceId, workboard: id, color: 'blue', sort_order: 0, created_by: user?.id },
+        { label: 'Medium', workspace: currentWorkspaceId, workboard: id, color: 'yellow', sort_order: 1, is_default: true, created_by: user?.id },
+        { label: 'High', workspace: currentWorkspaceId, workboard: id, color: 'orange', sort_order: 2, created_by: user?.id },
+        { label: 'Critical', workspace: currentWorkspaceId, workboard: id, color: 'red', sort_order: 3, created_by: user?.id },
+      ];
+      const createdPriorities = await Promise.all(defaultPriorities.map(p => base44.entities.PriorityOption.create(p)));
+      targetPriorityOptions = createdPriorities.sort((a, b) => a.sort_order - b.sort_order);
+      setPriorityOptions(targetPriorityOptions);
+    }
+
+    return { targetGroups, targetStatusOptions, targetPriorityOptions };
+  };
+
+  // Handle inline cell editing
   const handleInlineEdit = async (itemId, field, value, column = null) => {
     setSaving(true);
     try {
-      // For system fields (status, priority, owner, due_date, progress_percentage)
-      if (['status', 'priority', 'owner', 'due_date', 'progress_percentage'].includes(field)) {
-        const updateData = { [field]: value };
-        
-        if (field === 'status') {
-          const status = statusOptions.find(s => s.label === value);
-          if (status) updateData.status_color = status.color;
-        }
-        if (field === 'priority') {
-          const priority = priorityOptions.find(p => p.label === value);
-          if (priority) updateData.priority_color = priority.color;
-        }
-        if (field === 'progress_percentage') {
-          updateData.progress_percentage = parseInt(value) || 0;
-        }
-        
-        await base44.entities.WorkboardItem.update(itemId, updateData);
-        setItems(prev => prev.map(it => it.id === itemId ? { ...it, ...updateData } : it));
-      } else {
-        // For custom columns, use WorkboardItemValue entity
-        const existingValue = await base44.entities.WorkboardItemValue.filter({ 
-          item: itemId, 
-          column: column.id 
-        }).then(res => res[0]);
-        
-        if (existingValue) {
-          await base44.entities.WorkboardItemValue.update(existingValue.id, { value: String(value) });
-        } else {
-          await base44.entities.WorkboardItemValue.create({
-            workspace: currentWorkspaceId,
-            workboard: id,
-            item: itemId,
-            column: column.id,
-            value: String(value),
-            value_type: column.column_type,
-            created_by: user?.id,
-          });
-        }
+      const updateData = { [field]: value };
+      
+      if (field === 'status') {
+        const status = statusOptions.find(s => s.label === value);
+        if (status) updateData.status_color = status.color;
+      }
+      if (field === 'priority') {
+        const priority = priorityOptions.find(p => p.label === value);
+        if (priority) updateData.priority_color = priority.color;
+      }
+      if (field === 'progress_percentage') {
+        updateData.progress_percentage = parseInt(value) || 0;
       }
       
+      await base44.entities.WorkboardItem.update(itemId, updateData);
+      
+      // Update local state
+      setItems(prev => prev.map(it => it.id === itemId ? { ...it, ...updateData } : it));
       toast({ title: 'Updated', description: 'Item updated successfully', duration: 2000 });
     } catch (error) {
       console.error('Error updating:', error);
@@ -307,52 +247,20 @@ export default function WorkboardDetail() {
     }
   };
 
+  // Create new item - prevents duplicates
   const handleCreateItem = async () => {
-    if (!newItemTitle.trim()) {
-      toast({ title: 'Title required', description: 'Please enter a title for the item', variant: 'destructive', duration: 4000 });
+    if (!newItemTitle.trim() || isCreating) {
+      if (!newItemTitle.trim()) {
+        toast({ title: 'Title required', description: 'Please enter a title for the item', variant: 'destructive', duration: 4000 });
+      }
       return;
     }
+    
+    setIsCreating(true);
     setSaving(true);
+    
     try {
-      let targetGroups = groups;
-      if (groups.length === 0) {
-        const defaultGroups = [
-          { name: 'This Week', workspace: currentWorkspaceId, workboard: id, sort_order: 0, color: 'blue' },
-          { name: 'Next Week', workspace: currentWorkspaceId, workboard: id, sort_order: 1, color: 'green' },
-          { name: 'Backlog', workspace: currentWorkspaceId, workboard: id, sort_order: 2, color: 'gray' },
-          { name: 'Completed', workspace: currentWorkspaceId, workboard: id, sort_order: 3, color: 'green' },
-        ];
-        const createdGroups = await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
-        targetGroups = createdGroups;
-        setGroups(createdGroups);
-      }
-      
-      let targetStatusOptions = statusOptions;
-      if (statusOptions.length === 0) {
-        const defaultStatuses = [
-          { label: 'Not Started', color: 'gray', sort_order: 0, is_default: true, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
-          { label: 'Working On It', color: 'blue', sort_order: 1, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
-          { label: 'Stuck', color: 'red', sort_order: 2, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
-          { label: 'Waiting', color: 'yellow', sort_order: 3, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
-          { label: 'Done', color: 'green', sort_order: 4, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
-        ];
-        const createdStatuses = await Promise.all(defaultStatuses.map(s => base44.entities.StatusOption.create(s)));
-        targetStatusOptions = createdStatuses;
-        setStatusOptions(createdStatuses);
-      }
-      
-      let targetPriorityOptions = priorityOptions;
-      if (priorityOptions.length === 0) {
-        const defaultPriorities = [
-          { label: 'Low', color: 'blue', sort_order: 0, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
-          { label: 'Medium', color: 'yellow', sort_order: 1, is_default: true, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
-          { label: 'High', color: 'orange', sort_order: 2, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
-          { label: 'Critical', color: 'red', sort_order: 3, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
-        ];
-        const createdPriorities = await Promise.all(defaultPriorities.map(p => base44.entities.PriorityOption.create(p)));
-        targetPriorityOptions = createdPriorities;
-        setPriorityOptions(createdPriorities);
-      }
+      const { targetGroups, targetStatusOptions, targetPriorityOptions } = await ensureDefaults();
       
       const defaultStatus = targetStatusOptions.find(s => s.is_default) || targetStatusOptions[0];
       const defaultPriority = targetPriorityOptions.find(p => p.is_default) || targetPriorityOptions.find(p => p.label === 'Medium') || targetPriorityOptions[0];
@@ -375,45 +283,39 @@ export default function WorkboardDetail() {
       };
       
       const created = await base44.entities.WorkboardItem.create(newItem);
+      
       toast({ 
         title: 'Item created', 
         description: `"${newItem.title}" added to ${selectedGroup?.name || 'This Week'}`,
         duration: 2000,
       });
+      
       setNewItemTitle('');
       setShowNewItem(false);
-      setItems(prev => [...prev, created]);
+      // Don't manually add to state - let subscription handle it to avoid duplicates
     } catch (error) {
       console.error('Error creating item:', error);
       toast({ title: 'Failed to create item', description: error.message, variant: 'destructive', duration: 5000 });
     } finally {
       setSaving(false);
+      setIsCreating(false);
     }
   };
 
+  // Create sub-item
   const handleCreateSubItem = async (parentItemId) => {
     const title = prompt('Enter sub-item title:');
-    if (!title || !title.trim()) return;
+    if (!title || !title.trim() || isCreating) return;
     
+    setIsCreating(true);
     setSaving(true);
+    
     try {
+      const { targetGroups, targetStatusOptions, targetPriorityOptions } = await ensureDefaults();
+      
       const parent = items.find(i => i.id === parentItemId);
-      const defaultStatus = statusOptions.find(s => s.is_default) || statusOptions[0];
-      const defaultPriority = priorityOptions.find(p => p.is_default) || priorityOptions[0];
-      
-      let targetGroups = groups;
-      if (groups.length === 0) {
-        const defaultGroups = [
-          { name: 'This Week', workspace: currentWorkspaceId, workboard: id, sort_order: 0, color: 'blue' },
-          { name: 'Next Week', workspace: currentWorkspaceId, workboard: id, sort_order: 1, color: 'green' },
-          { name: 'Backlog', workspace: currentWorkspaceId, workboard: id, sort_order: 2, color: 'gray' },
-          { name: 'Completed', workspace: currentWorkspaceId, workboard: id, sort_order: 3, color: 'green' },
-        ];
-        const createdGroups = await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
-        targetGroups = createdGroups;
-        setGroups(createdGroups);
-      }
-      
+      const defaultStatus = targetStatusOptions.find(s => s.is_default) || targetStatusOptions[0];
+      const defaultPriority = targetPriorityOptions.find(p => p.is_default) || targetPriorityOptions[0];
       const selectedGroup = targetGroups.find(g => g.id === parent?.group) || targetGroups[0];
       
       const newItem = {
@@ -432,17 +334,20 @@ export default function WorkboardDetail() {
       };
       
       const created = await base44.entities.WorkboardItem.create(newItem);
+      
       toast({ title: 'Sub-item created', duration: 2000 });
       setExpandedItems(prev => ({ ...prev, [parentItemId]: true }));
-      setItems(prev => [...prev, created]);
+      // Don't manually add to state - let subscription handle it
     } catch (error) {
       console.error('Error creating sub-item:', error);
       toast({ title: 'Failed to create sub-item', description: error.message, variant: 'destructive', duration: 5000 });
     } finally {
       setSaving(false);
+      setIsCreating(false);
     }
   };
 
+  // Delete item
   const handleDeleteItem = async (item) => {
     if (!confirm(`Delete "${item.title}"?`)) return;
     
@@ -454,8 +359,9 @@ export default function WorkboardDetail() {
       }
       const deletedId = item.id;
       await base44.entities.WorkboardItem.delete(item.id);
+      
       toast({ title: 'Item deleted', duration: 2000 });
-      setItems(prev => prev.filter(it => it.id !== deletedId && it.parent_item !== deletedId));
+      // Don't manually update state - let subscription handle it
     } catch (error) {
       console.error('Error deleting item:', error);
       toast({ title: 'Failed to delete item', description: error.message, variant: 'destructive', duration: 5000 });
@@ -464,8 +370,8 @@ export default function WorkboardDetail() {
     }
   };
 
+  // Render cell content
   const renderCell = (item, col) => {
-    // Get value for system fields
     const systemField = col.column_type === 'status' ? 'status' : 
                         col.column_type === 'priority' ? 'priority' :
                         col.column_type === 'person' ? 'owner' :
@@ -495,7 +401,7 @@ export default function WorkboardDetail() {
       return (
         <div className="flex items-center gap-2">
           <Users className="w-3 h-3 text-muted-foreground" />
-          <span className="text-sm">{teamMap[value] || '—'}</span>
+          <span className="text-sm">{value || '—'}</span>
         </div>
       );
     }
@@ -511,24 +417,10 @@ export default function WorkboardDetail() {
         </div>
       );
     }
-    if (col.column_type === 'currency') {
-      return <span className="text-sm">${parseFloat(value || 0).toFixed(2)}</span>;
-    }
-    if (col.column_type === 'checkbox') {
-      return <span className="text-sm">{value === 'true' || value === true ? '✓' : ''}</span>;
-    }
-    if (col.column_type === 'link' && value) {
-      return <a href={value} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline truncate block">{value}</a>;
-    }
-    if (col.column_type === 'email' && value) {
-      return <a href={`mailto:${value}`} className="text-sm text-primary hover:underline truncate block">{value}</a>;
-    }
-    if (col.column_type === 'phone' && value) {
-      return <a href={`tel:${value}`} className="text-sm text-primary hover:underline truncate block">{value}</a>;
-    }
     return <span className="text-sm truncate">{value || '—'}</span>;
   };
 
+  // Render inline editor
   const renderInlineEdit = (item, col) => {
     const field = col.column_type === 'status' ? 'status' : 
                   col.column_type === 'priority' ? 'priority' :
@@ -572,11 +464,6 @@ export default function WorkboardDetail() {
       if (col.column_type === 'progress') {
         return <Input type="number" min="0" max="100" value={item.progress_percentage || 0} onChange={(e) => handleInlineEdit(item.id, 'progress_percentage', e.target.value, col)} onBlur={() => setEditingCell(null)} className="h-7 w-16" autoFocus />;
       }
-      // Text-based custom columns
-      if (['text', 'number', 'currency', 'email', 'phone', 'link'].includes(col.column_type)) {
-        const currentValue = item[col.name.toLowerCase().replace(/\s+/g, '_')] || '';
-        return <Input value={currentValue} onChange={(e) => handleInlineEdit(item.id, col.name.toLowerCase().replace(/\s+/g, '_'), e.target.value, col)} onBlur={() => setEditingCell(null)} className="h-7 w-auto" autoFocus />;
-      }
     }
     
     const value = field ? item[field] : item[col.name.toLowerCase().replace(/\s+/g, '_')];
@@ -588,9 +475,11 @@ export default function WorkboardDetail() {
     );
   };
 
-  const renderTableRow = (item) => {
+  // Render table row
+  const renderTableRow = (item, canEdit, canCreate, canDelete) => {
     const subItems = subItemsMap[item.id] || [];
     const isExpanded = expandedItems[item.id];
+    
     return (
       <React.Fragment key={item.id}>
         <TableRow className="hover:bg-accent/50">
@@ -661,6 +550,7 @@ export default function WorkboardDetail() {
     );
   };
 
+  // Permission checks
   if (loading) return <LoadingSpinner />;
   if (!board) return <div className="py-16 text-center text-muted-foreground"><h2 className="text-lg font-semibold">Board not found</h2><p className="text-sm mt-1">This workboard may have been deleted or moved.</p></div>;
   
@@ -689,13 +579,13 @@ export default function WorkboardDetail() {
         <div className="flex gap-2">
           <MembersDrawer workboardId={id} wb={board} />
           <ColumnManager boardId={id} workspaceId={currentWorkspaceId} columns={columns} onColumnsChange={setColumns} />
-          {canCreate && <Button onClick={() => setShowNewItem(true)}><Plus className="w-4 h-4 mr-1.5" />Add Item</Button>}
+          {canCreate && <Button onClick={() => setShowNewItem(true)} disabled={isCreating}><Plus className="w-4 h-4 mr-1.5" />Add Item</Button>}
           {canDelete && (
             <Button variant="destructive" size="sm" onClick={async () => {
               if (!confirm(`Delete "${board.name}"?\n\nThis will permanently delete:\n- All items and sub-items\n- All groups\n- All columns\n- All status/priority options\n- All board members\n\nThis action cannot be undone.`)) return;
               setSaving(true);
               try {
-                const [items, groups, columns, statuses, priorities, members] = await Promise.all([
+                const [itemsData, groupsData, columnsData, statuses, priorities, members] = await Promise.all([
                   base44.entities.WorkboardItem.filter({ workboard: id }),
                   base44.entities.BoardGroup.filter({ workboard: id }),
                   base44.entities.BoardColumn.filter({ workboard: id }),
@@ -704,9 +594,9 @@ export default function WorkboardDetail() {
                   base44.entities.WorkboardMember.filter({ workboard: id }),
                 ]);
                 
-                for (const item of items) await base44.entities.WorkboardItem.delete(item.id);
-                for (const g of groups) await base44.entities.BoardGroup.delete(g.id);
-                for (const c of columns) await base44.entities.BoardColumn.delete(c.id);
+                for (const item of itemsData) await base44.entities.WorkboardItem.delete(item.id);
+                for (const g of groupsData) await base44.entities.BoardGroup.delete(g.id);
+                for (const c of columnsData) await base44.entities.BoardColumn.delete(c.id);
                 for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
                 for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
                 for (const m of members) await base44.entities.WorkboardMember.delete(m.id);
@@ -736,23 +626,6 @@ export default function WorkboardDetail() {
         </TabsList>
 
         <TabsContent value="list" className="mt-4">
-          {permissions.isSystemAdmin && window.location.search.includes('debug=true') && (
-            <Card className="mb-4 border-amber-200 bg-amber-50">
-              <CardContent className="p-3">
-                <div className="text-xs space-y-1 font-mono">
-                  <p><strong>Debug:</strong></p>
-                  <p>User: {user?.id} ({user?.full_name})</p>
-                  <p>Role: {permissions.accountRole} / {permissions.workspaceRole}</p>
-                  <p>Workspace: {currentWorkspaceId}</p>
-                  <p>Board: {id} ({board?.name})</p>
-                  <p>Groups: {groups.length}</p>
-                  <p>Items: {items.length}</p>
-                  <p>Can Create: {canCreate ? '✅ Yes' : '❌ No'}</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
           <div className="flex gap-3 mb-4">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -773,8 +646,8 @@ export default function WorkboardDetail() {
             <Card className="border-primary/50 bg-accent/50 mb-4">
               <CardContent className="p-3">
                 <div className="flex gap-2 items-center">
-                  <Input value={newItemTitle} onChange={e => setNewItemTitle(e.target.value)} placeholder="Enter item title..." className="flex-1" autoFocus />
-                  <Select value={newItemGroup} onValueChange={setNewItemGroup}>
+                  <Input value={newItemTitle} onChange={e => setNewItemTitle(e.target.value)} placeholder="Enter item title..." className="flex-1" autoFocus disabled={isCreating} />
+                  <Select value={newItemGroup} onValueChange={setNewItemGroup} disabled={isCreating}>
                     <SelectTrigger className="w-36"><SelectValue placeholder="Select group" /></SelectTrigger>
                     <SelectContent>
                       {groups.length > 0 ? groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>) : (
@@ -782,8 +655,8 @@ export default function WorkboardDetail() {
                       )}
                     </SelectContent>
                   </Select>
-                  <Button size="sm" onClick={handleCreateItem} disabled={saving}>{saving ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />}</Button>
-                  <Button variant="ghost" size="sm" onClick={() => setShowNewItem(false)}><X className="w-4 h-4" /></Button>
+                  <Button size="sm" onClick={handleCreateItem} disabled={saving || isCreating}>{saving ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />}</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setShowNewItem(false)} disabled={isCreating}><X className="w-4 h-4" /></Button>
                 </div>
               </CardContent>
             </Card>
@@ -832,7 +705,7 @@ export default function WorkboardDetail() {
                             {groupItems.length === 0 ? (
                               <TableRow><TableCell colSpan={columns.length + 3} className="py-8 text-center text-muted-foreground text-sm">No items in this group</TableCell></TableRow>
                             ) : (
-                              groupItems.map(item => renderTableRow(item))
+                              groupItems.map(item => renderTableRow(item, canEdit, canCreate, canDelete))
                             )}
                           </TableBody>
                         </Table>
@@ -866,7 +739,7 @@ export default function WorkboardDetail() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredItems.map(item => renderTableRow(item))
+                      filteredItems.map(item => renderTableRow(item, canEdit, canCreate, canDelete))
                     )}
                   </TableBody>
                 </Table>

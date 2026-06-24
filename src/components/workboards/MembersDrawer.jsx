@@ -52,7 +52,7 @@ export default function MembersDrawer({ workboardId, wb, trigger }) {
       });
       setMembers(wbMembers);
       
-      // Ensure creator is added as owner if not already a member (check all records, not just active)
+      // Ensure creator is added as owner if not already a member
       if (wb?.created_by) {
         const allCreatorMembers = await base44.entities.WorkboardMember.filter({
           workboard: workboardId,
@@ -61,14 +61,16 @@ export default function MembersDrawer({ workboardId, wb, trigger }) {
         });
         if (!allCreatorMembers || allCreatorMembers.length === 0) {
           try {
+            // Fetch the actual user to get their real name
+            const creatorUser = await base44.entities.User.get(wb.created_by);
             const creatorMember = await base44.entities.WorkboardMember.create({
               workspace: currentWorkspaceId,
               workspace_name: currentWorkspace?.workspace_name,
               workboard: workboardId,
               workboard_name: wb?.name,
               user: wb.created_by,
-              user_name: wb.created_by_name || wb.owner_name || 'Board Creator',
-              user_email: '',
+              user_name: creatorUser?.full_name || creatorUser?.email || 'Unknown User',
+              user_email: creatorUser?.email || '',
               role: 'workboard_owner',
               status: 'active',
               added_by: wb.created_by,
