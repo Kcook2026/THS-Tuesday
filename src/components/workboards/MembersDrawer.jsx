@@ -285,7 +285,7 @@ export default function MembersDrawer({ workboardId, wb, trigger }) {
                             <DropdownMenuItem onClick={() => handleChangeRole(member.id, 'workboard_viewer')}>
                               Viewer
                             </DropdownMenuItem>
-                            {member.role !== 'workboard_owner' && member.user !== user.id && (
+                            {member.user !== user.id && (
                               <DropdownMenuItem 
                                 onClick={() => handleRemove(member.id)}
                                 className="text-destructive"
