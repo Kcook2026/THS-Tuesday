@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Plus, Search, MoreHorizontal, ChevronRight, ChevronDown, X, Save,
   Calendar, LayoutList, LayoutGrid, GanttChartSquare, BarChart3, Activity,
-  User, Users, Paperclip
+  User, Users, Paperclip, Shield, Trash2
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -521,10 +521,33 @@ export default function WorkboardDetail() {
       <p className="text-sm mt-1">This workboard may have been deleted or moved.</p>
     </div>
   );
+  
+  // Check workboard access permissions
+  if (!permissions.canAccessWorkboard(id, board)) {
+    return (
+      <div className="py-16 text-center">
+        <Shield className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+        <h2 className="text-lg font-semibold mb-2">Access Denied</h2>
+        <p className="text-sm text-muted-foreground">You don't have permission to view this workboard.</p>
+      </div>
+    );
+  }
+  
+  // Check access permissions
+  if (!permissions.canAccessWorkboard(id, board)) {
+    return (
+      <div className="py-16 text-center">
+        <Shield className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+        <h2 className="text-lg font-semibold mb-2">Access Denied</h2>
+        <p className="text-sm text-muted-foreground">You don't have permission to view this workboard.</p>
+      </div>
+    );
+  }
 
-  const canEdit = permissions.workspacePermissions?.canEdit || permissions.workspacePermissions?.canCreateItems || false;
-  const canCreate = permissions.workspacePermissions?.canCreateItems || false;
-  const canDelete = permissions.workspacePermissions?.canDeleteItems || false;
+  const workboardPerms = permissions.getWorkboardPermissions(id);
+  const canEdit = workboardPerms.canEditItems || workboardPerms.canCreateItems;
+  const canCreate = workboardPerms.canCreateItems;
+  const canDelete = workboardPerms.canDeleteItems;
 
   return (
     <div className="space-y-4">
@@ -542,6 +565,54 @@ export default function WorkboardDetail() {
             <Button onClick={() => setShowNewItem(true)}>
               <Plus className="w-4 h-4 mr-1.5" /> 
               Add Item
+            </Button>
+          )}
+          {workboardPerms.canDelete && (
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={async () => {
+                if (confirm(`Delete "${board.name}"? This will delete all items in this board.`)) {
+                  try {
+                    const itemsToDelete = await base44.entities.WorkboardItem.filter({ workboard: id });
+                    for (const item of itemsToDelete) {
+                      await base44.entities.WorkboardItem.delete(item.id);
+                    }
+                    await base44.entities.Workboard.delete(id);
+                    toast({ title: 'Board deleted' });
+                    window.location.href = '/workboards';
+                  } catch (error) {
+                    toast({ title: 'Error deleting board', description: error.message, variant: 'destructive' });
+                  }
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4 mr-1.5" /> 
+              Delete Board
+            </Button>
+          )}
+          {workboardPerms.canDelete && (
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={async () => {
+                if (confirm(`Delete "${board.name}"? This will delete all items in this board.`)) {
+                  try {
+                    const itemsToDelete = await base44.entities.WorkboardItem.filter({ workboard: id });
+                    for (const item of itemsToDelete) {
+                      await base44.entities.WorkboardItem.delete(item.id);
+                    }
+                    await base44.entities.Workboard.delete(id);
+                    toast({ title: 'Board deleted' });
+                    window.location.href = '/workboards';
+                  } catch (error) {
+                    toast({ title: 'Error deleting board', description: error.message, variant: 'destructive' });
+                  }
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4 mr-1.5" /> 
+              Delete Board
             </Button>
           )}
         </div>

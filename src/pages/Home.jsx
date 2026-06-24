@@ -26,13 +26,14 @@ export default function Home() {
     if (!currentWorkspaceId || !user) return;
     const wsFilter = { workspace: currentWorkspaceId };
     Promise.all([
-      base44.entities.Task.filter({ ...wsFilter, assignee: user.id }, '-updated_date', 10).catch(() => []),
+      base44.entities.WorkboardItem.filter({ ...wsFilter, assignee: user.id, archived: false }, '-updated_date', 10).catch(() => []),
       base44.entities.Workboard.filter(wsFilter, '-updated_date', 6).catch(() => []),
       base44.entities.Activity.filter(wsFilter, '-created_date', 6).catch(() => []),
       base44.entities.Project.filter(wsFilter, '-updated_date', 4).catch(() => []),
       base44.entities.Team.filter(wsFilter, '-updated_date', 5).catch(() => []),
-    ]).then(([t, w, a, p, tm]) => {
-      setTasks(t.filter(x => x.status !== 'done'));
+    ]).then(([items, w, a, p, tm]) => {
+      const tasks = items.filter(i => i.item_type === 'task' && i.status !== 'done');
+      setTasks(tasks);
       setWorkboards(w);
       setActivity(a);
       setProjects(p);
@@ -132,19 +133,19 @@ export default function Home() {
             ) : (
               <div className="space-y-1">
                 {tasks.slice(0, 6).map(task => (
-                  <Link key={task.id} to={`/workboards/${task.board || 'tasks'}`} className="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/50 transition-colors">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${
-                      task.priority === 'critical' ? 'bg-red-500' :
-                      task.priority === 'high' ? 'bg-orange-500' :
-                      task.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'
-                    }`} />
-                    <span className="text-sm flex-1 truncate group-hover:text-foreground transition-colors">{task.title}</span>
-                    {task.due_date && (
-                      <span className={`text-[11px] flex items-center gap-1 shrink-0 ${new Date(task.due_date) < now ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}>
-                        <CalendarDays className="w-3 h-3" />
-                        {new Date(task.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
-                      </span>
-                    )}
+                  <Link key={task.id} to={`/workboards/${task.workboard || 'tasks'}`} className="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/50 transition-colors">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${
+                    task.priority_color === 'red' ? 'bg-red-500' :
+                    task.priority_color === 'orange' ? 'bg-orange-500' :
+                    task.priority_color === 'yellow' ? 'bg-amber-500' : 'bg-gray-400'
+                  }`} />
+                  <span className="text-sm flex-1 truncate group-hover:text-foreground transition-colors">{task.title}</span>
+                  {task.due_date && (
+                    <span className={`text-[11px] flex items-center gap-1 shrink-0 ${new Date(task.due_date) < now ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}>
+                      <CalendarDays className="w-3 h-3" />
+                      {new Date(task.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                    </span>
+                  )}
                   </Link>
                 ))}
               </div>

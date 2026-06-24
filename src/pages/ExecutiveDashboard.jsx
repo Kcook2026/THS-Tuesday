@@ -45,11 +45,11 @@ export default function ExecutiveDashboard() {
     
     const loadStats = async () => {
       try {
-        const [workspaces, workboards, projects, tasks, teams, members, portfolios, goals, risks, activity] = await Promise.all([
+        const [workspaces, workboards, workboardItems, projects, teams, members, portfolios, goals, risks, activity] = await Promise.all([
           base44.entities.Workspace.list().catch(() => []),
           base44.entities.Workboard.list().catch(() => []),
+          base44.entities.WorkboardItem.list().catch(() => []),
           base44.entities.Project.list().catch(() => []),
-          base44.entities.Task.list().catch(() => []),
           base44.entities.Team.list().catch(() => []),
           base44.entities.WorkspaceMember.filter({ status: 'active' }).catch(() => []),
           base44.entities.Portfolio.list().catch(() => []),
@@ -57,6 +57,8 @@ export default function ExecutiveDashboard() {
           base44.entities.Risk.filter({ status: 'open' }).catch(() => []),
           base44.entities.Activity.filter({}, '-created_date', 20).catch(() => []),
         ]);
+        
+        const tasks = workboardItems.filter(i => i.item_type === 'task');
 
         const budgetData = await base44.entities.FinancialRecord.list().catch(() => []);
         const budgetTotal = budgetData.filter(r => r.record_type === 'budget').reduce((sum, r) => sum + (r.amount || 0), 0);

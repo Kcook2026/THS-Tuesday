@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
+import usePermissions from '@/hooks/usePermissions';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -28,6 +29,7 @@ export default function Teams() {
   const [currentUser, setCurrentUser] = useState(null);
   const { currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
+  const { can } = usePermissions();
 
   const load = () => {
     if (!currentWorkspaceId) return;
@@ -105,7 +107,9 @@ export default function Teams() {
   return (
     <div>
       <PageHeader title="Teams" subtitle={`${teams.length} teams`}>
-        <Button onClick={() => openForm(null)}><Plus className="w-4 h-4 mr-1.5" /> New Team</Button>
+        {can('canManageBoards') && (
+          <Button onClick={() => openForm(null)}><Plus className="w-4 h-4 mr-1.5" /> New Team</Button>
+        )}
       </PageHeader>
 
       {teams.length === 0 ? (
@@ -120,15 +124,17 @@ export default function Teams() {
                     <h3 className="font-semibold text-sm">{team.name}</h3>
                     {team.description && <p className="text-xs text-muted-foreground mt-0.5">{team.description}</p>}
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="w-4 h-4" /></Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openForm(team)}><Pencil className="w-3.5 h-3.5 mr-2" /> Edit</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(team)}><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {can('canManageBoards') && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="w-4 h-4" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openForm(team)}><Pencil className="w-3.5 h-3.5 mr-2" /> Edit</DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(team)}><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                  )}
                 </div>
                 {team.manager && (
                   <p className="text-xs text-muted-foreground mb-2">Manager: <span className="font-medium text-foreground">{userMap[team.manager] || '—'}</span></p>

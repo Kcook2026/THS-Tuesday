@@ -10,15 +10,11 @@ import {
 } from 'lucide-react';
 
 const STATUS_COLORS = {
-  backlog: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
-  todo: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300',
-  in_progress: 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300',
-  review: 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300',
-  done: 'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-300',
-};
-
-const PRIORITY_COLORS = {
-  low: 'bg-gray-400', medium: 'bg-amber-500', high: 'bg-orange-500', critical: 'bg-red-500',
+  'Not Started': 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+  'Working On It': 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300',
+  'Stuck': 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300',
+  'Waiting': 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300',
+  'Done': 'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-300',
 };
 
 export default function MyWork() {
@@ -32,12 +28,14 @@ export default function MyWork() {
     if (!currentWorkspaceId || !user) return;
     const wsFilter = { workspace: currentWorkspaceId };
     Promise.all([
-      base44.entities.Task.filter({ ...wsFilter, assignee: user.id }, '-updated_date', 100).catch(() => []),
-      base44.entities.Task.filter(wsFilter, '-updated_date', 200).catch(() => []),
+      base44.entities.WorkboardItem.filter({ ...wsFilter, assignee: user.id, archived: false }, '-updated_date', 100).catch(() => []),
+      base44.entities.WorkboardItem.filter({ ...wsFilter, archived: false }, '-updated_date', 200).catch(() => []),
       base44.entities.Project.filter({ ...wsFilter, project_manager: user.id }, '-updated_date', 10).catch(() => []),
-    ]).then(([assigned, allTasks, projs]) => {
+    ]).then(([assignedItems, allItems, projs]) => {
+      const assigned = assignedItems.filter(i => i.item_type === 'task');
+      const all = allItems.filter(i => i.item_type === 'task');
       setAssignedTasks(assigned);
-      setWatchingTasks(allTasks.filter(t => t.watchers?.includes(user.id) && t.assignee !== user.id));
+      setWatchingTasks(all.filter(t => t.watchers?.includes(user.id) && t.assignee !== user.id));
       setProjects(projs);
     }).finally(() => setLoading(false));
   }, [currentWorkspaceId, user]);
@@ -48,8 +46,8 @@ export default function MyWork() {
   const threeDays = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
   const week = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const openTasks = assignedTasks.filter(t => t.status !== 'done');
-  const doneTasks = assignedTasks.filter(t => t.status === 'done');
+  const openTasks = assignedTasks.filter(t => t.status !== 'Done');
+  const doneTasks = assignedTasks.filter(t => t.status === 'Done');
   const overdue = openTasks.filter(t => t.due_date && new Date(t.due_date) < now);
   const dueSoon = openTasks.filter(t => t.due_date && new Date(t.due_date) >= now && new Date(t.due_date) <= threeDays);
   const recentlyUpdated = [...assignedTasks].sort((a, b) => new Date(b.updated_date) - new Date(a.updated_date)).slice(0, 10);
@@ -139,8 +137,8 @@ export default function MyWork() {
 function TaskRow({ task, showDate }) {
   const now = new Date();
   return (
-    <Link to="/tasks/table" className="flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors">
-      <div className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_COLORS[task.priority] || 'bg-gray-400'}`} />
+    <Link to={`/workboards/${task.workboard || 'tasks'}`} className="flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors">
+      <div className={`w-2 h-2 rounded-full shrink-0 ${task.priority_color === 'red' ? 'bg-red-500' : task.priority_color === 'orange' ? 'bg-orange-500' : task.priority_color === 'yellow' ? 'bg-amber-500' : 'bg-gray-400'}`} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{task.title}</p>
         {task.tags && task.tags.length > 0 && (
@@ -157,8 +155,8 @@ function TaskRow({ task, showDate }) {
           {new Date(task.due_date).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
         </span>
       )}
-      <span className={`text-[10px] px-1.5 py-0.5 rounded capitalize ${STATUS_COLORS[task.status] || STATUS_COLORS.todo}`}>
-        {task.status.replace('_', ' ')}
+      <span className={`text-[10px] px-1.5 py-0.5 rounded ${STATUS_COLORS[task.status] || STATUS_COLORS['Not Started']}`}>
+        {task.status}
       </span>
     </Link>
   );

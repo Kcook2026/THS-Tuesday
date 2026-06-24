@@ -109,6 +109,7 @@ export default function WorkspaceSettings() {
         role: 'workspace_owner',
         status: 'active',
         invited_by: user.id,
+        created_by: user.id,
         joined_date: new Date().toISOString().split('T')[0],
       });
       toast({ title: 'Workspace created', description: ws.workspace_name });

@@ -81,7 +81,7 @@ export default function Projects() {
   return (
     <div>
       <PageHeader title="Projects" subtitle={`${projects.length} projects`}>
-        {can('canCreate') && (
+        {can('canCreate') && can('canManageBoards') && (
           <Button onClick={() => { setEditProject(null); setDialogOpen(true); }}>
             <Plus className="w-4 h-4 mr-1.5" /> New Project
           </Button>
@@ -117,21 +117,23 @@ export default function Projects() {
                     <h3 className="font-semibold text-sm truncate">{p.project_name}</h3>
                     {p.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{p.description}</p>}
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {can('canEdit') && <DropdownMenuItem onClick={() => { setEditProject(p); setDialogOpen(true); }}>
-                        <Pencil className="w-3.5 h-3.5 mr-2" /> Edit
-                      </DropdownMenuItem>}
-                      {can('canDelete') && <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(p)}>
-                        <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
-                      </DropdownMenuItem>}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {can('canManageBoards') && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {can('canEdit') && <DropdownMenuItem onClick={() => { setEditProject(p); setDialogOpen(true); }}>
+                          <Pencil className="w-3.5 h-3.5 mr-2" /> Edit
+                        </DropdownMenuItem>}
+                        {can('canDelete') && <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(p)}>
+                          <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
+                        </DropdownMenuItem>}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 mb-3">
                   <StatusBadge status={p.status} />
