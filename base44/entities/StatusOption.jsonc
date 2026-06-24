@@ -2,19 +2,24 @@
   "name": "StatusOption",
   "type": "object",
   "properties": {
-    "label": {
+    "workspace": {
       "type": "string",
-      "title": "Label"
+      "title": "Workspace",
+      "relationType": "Workspace"
     },
     "workboard": {
       "type": "string",
       "title": "Workboard",
       "relationType": "Workboard"
     },
-    "workspace": {
+    "column": {
       "type": "string",
-      "title": "Workspace",
-      "relationType": "Workspace"
+      "title": "Column",
+      "relationType": "BoardColumn"
+    },
+    "label": {
+      "type": "string",
+      "title": "Label"
     },
     "color": {
       "type": "string",
@@ -31,10 +36,10 @@
       "title": "Is Default",
       "default": false
     },
-    "is_active": {
-      "type": "boolean",
-      "title": "Is Active",
-      "default": true
+    "created_by": {
+      "type": "string",
+      "title": "Created By",
+      "relationType": "User"
     }
   },
   "required": [

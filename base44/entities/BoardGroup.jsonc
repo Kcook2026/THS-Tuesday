@@ -2,19 +2,19 @@
   "name": "BoardGroup",
   "type": "object",
   "properties": {
-    "name": {
+    "workspace": {
       "type": "string",
-      "title": "Name"
+      "title": "Workspace",
+      "relationType": "Workspace"
     },
     "workboard": {
       "type": "string",
       "title": "Workboard",
       "relationType": "Workboard"
     },
-    "workspace": {
+    "name": {
       "type": "string",
-      "title": "Workspace",
-      "relationType": "Workspace"
+      "title": "Name"
     },
     "color": {
       "type": "string",
@@ -26,24 +26,25 @@
       "title": "Sort Order",
       "default": 0
     },
-    "is_collapsed": {
+    "collapsed": {
       "type": "boolean",
-      "title": "Is Collapsed",
+      "title": "Collapsed",
       "default": false
     },
-    "is_archived": {
+    "archived": {
       "type": "boolean",
-      "title": "Is Archived",
+      "title": "Archived",
       "default": false
     },
-    "items_count": {
-      "type": "number",
-      "title": "Items Count",
-      "default": 0
+    "created_by": {
+      "type": "string",
+      "title": "Created By",
+      "relationType": "User"
     }
   },
   "required": [
-    "name",
-    "workboard"
+    "workspace",
+    "workboard",
+    "name"
   ]
 }

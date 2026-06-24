@@ -2,19 +2,19 @@
   "name": "PriorityOption",
   "type": "object",
   "properties": {
-    "label": {
+    "workspace": {
       "type": "string",
-      "title": "Label"
+      "title": "Workspace",
+      "relationType": "Workspace"
     },
     "workboard": {
       "type": "string",
       "title": "Workboard",
       "relationType": "Workboard"
     },
-    "workspace": {
+    "label": {
       "type": "string",
-      "title": "Workspace",
-      "relationType": "Workspace"
+      "title": "Label"
     },
     "color": {
       "type": "string",
@@ -26,10 +26,15 @@
       "title": "Sort Order",
       "default": 0
     },
-    "is_active": {
+    "is_default": {
       "type": "boolean",
-      "title": "Is Active",
-      "default": true
+      "title": "Is Default",
+      "default": false
+    },
+    "created_by": {
+      "type": "string",
+      "title": "Created By",
+      "relationType": "User"
     }
   },
   "required": [

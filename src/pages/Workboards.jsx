@@ -82,13 +82,55 @@ export default function Workboards() {
         logActivity(user, 'updated workboard', 'Workboard', editBoard.id, editBoard.name);
         toast({ title: 'Workboard updated' });
       } else {
-        await base44.entities.Workboard.create({ ...data, workspace: currentWorkspaceId });
-        logActivity(user, 'created workboard', 'Workboard', '', form.name);
+        // Create the workboard
+        const newBoard = await base44.entities.Workboard.create({ ...data, workspace: currentWorkspaceId, owner: user?.id });
+        logActivity(user, 'created workboard', 'Workboard', newBoard.id, form.name);
         toast({ title: 'Workboard created' });
+        
+        // Create default groups
+        const defaultGroups = [
+          { name: 'This Week', workspace: currentWorkspaceId, workboard: newBoard.id, sort_order: 0, color: 'blue' },
+          { name: 'Next Week', workspace: currentWorkspaceId, workboard: newBoard.id, sort_order: 1, color: 'green' },
+          { name: 'Backlog', workspace: currentWorkspaceId, workboard: newBoard.id, sort_order: 2, color: 'gray' },
+          { name: 'Completed', workspace: currentWorkspaceId, workboard: newBoard.id, sort_order: 3, color: 'green' },
+        ];
+        await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
+        
+        // Create default columns
+        const defaultColumns = [
+          { name: 'Item', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'text', sort_order: 0, width: 300 },
+          { name: 'Owner', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'person', sort_order: 1, width: 150 },
+          { name: 'Status', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'status', sort_order: 2, width: 120 },
+          { name: 'Priority', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'priority', sort_order: 3, width: 120 },
+          { name: 'Timeline', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'timeline', sort_order: 4, width: 150 },
+          { name: 'Due Date', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'date', sort_order: 5, width: 120 },
+          { name: 'Progress', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'progress', sort_order: 6, width: 120 },
+        ];
+        await Promise.all(defaultColumns.map(c => base44.entities.BoardColumn.create(c)));
+        
+        // Create default status options
+        const defaultStatuses = [
+          { label: 'Not Started', workspace: currentWorkspaceId, workboard: newBoard.id, color: 'gray', sort_order: 0, is_default: true },
+          { label: 'Working On It', workspace: currentWorkspaceId, workboard: newBoard.id, color: 'blue', sort_order: 1 },
+          { label: 'Stuck', workspace: currentWorkspaceId, workboard: newBoard.id, color: 'red', sort_order: 2 },
+          { label: 'Waiting', workspace: currentWorkspaceId, workboard: newBoard.id, color: 'yellow', sort_order: 3 },
+          { label: 'Done', workspace: currentWorkspaceId, workboard: newBoard.id, color: 'green', sort_order: 4 },
+        ];
+        await Promise.all(defaultStatuses.map(s => base44.entities.StatusOption.create(s)));
+        
+        // Create default priority options
+        const defaultPriorities = [
+          { label: 'Low', workspace: currentWorkspaceId, workboard: newBoard.id, color: 'blue', sort_order: 0 },
+          { label: 'Medium', workspace: currentWorkspaceId, workboard: newBoard.id, color: 'yellow', sort_order: 1, is_default: true },
+          { label: 'High', workspace: currentWorkspaceId, workboard: newBoard.id, color: 'orange', sort_order: 2 },
+          { label: 'Critical', workspace: currentWorkspaceId, workboard: newBoard.id, color: 'red', sort_order: 3 },
+        ];
+        await Promise.all(defaultPriorities.map(p => base44.entities.PriorityOption.create(p)));
       }
       setDialogOpen(false);
       load();
     } catch (error) {
+      console.error('Error saving workboard:', error);
       toast({ title: 'Error saving workboard', description: error.message, variant: 'destructive' });
     } finally {
       setSaving(false);

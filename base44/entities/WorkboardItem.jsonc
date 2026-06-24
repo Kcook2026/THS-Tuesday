@@ -2,14 +2,6 @@
   "name": "WorkboardItem",
   "type": "object",
   "properties": {
-    "title": {
-      "type": "string",
-      "title": "Title"
-    },
-    "description": {
-      "type": "string",
-      "title": "Description"
-    },
     "workspace": {
       "type": "string",
       "title": "Workspace",
@@ -20,15 +12,23 @@
       "title": "Workboard",
       "relationType": "Workboard"
     },
-    "board_group": {
-      "type": "string",
-      "title": "Board Group",
-      "relationType": "BoardGroup"
-    },
     "parent_item": {
       "type": "string",
       "title": "Parent Item",
       "relationType": "WorkboardItem"
+    },
+    "group": {
+      "type": "string",
+      "title": "Group",
+      "relationType": "BoardGroup"
+    },
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
     },
     "item_type": {
       "type": "string",
@@ -36,27 +36,11 @@
       "enum": [
         "main_item",
         "sub_item",
-        "milestone"
+        "milestone",
+        "sop_step",
+        "task"
       ],
       "default": "main_item"
-    },
-    "status": {
-      "type": "string",
-      "title": "Status",
-      "relationType": "StatusOption"
-    },
-    "status_label": {
-      "type": "string",
-      "title": "Status Label"
-    },
-    "priority": {
-      "type": "string",
-      "title": "Priority",
-      "relationType": "PriorityOption"
-    },
-    "priority_label": {
-      "type": "string",
-      "title": "Priority Label"
     },
     "owner": {
       "type": "string",
@@ -68,25 +52,33 @@
       "title": "Assignee",
       "relationType": "User"
     },
-    "team": {
+    "status": {
       "type": "string",
-      "title": "Team",
-      "relationType": "Team"
+      "title": "Status"
     },
-    "progress": {
-      "type": "number",
-      "title": "Progress %",
-      "default": 0
-    },
-    "due_date": {
+    "status_color": {
       "type": "string",
-      "format": "date",
-      "title": "Due Date"
+      "title": "Status Color",
+      "default": "gray"
+    },
+    "priority": {
+      "type": "string",
+      "title": "Priority"
+    },
+    "priority_color": {
+      "type": "string",
+      "title": "Priority Color",
+      "default": "gray"
     },
     "start_date": {
       "type": "string",
       "format": "date",
       "title": "Start Date"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Due Date"
     },
     "timeline_start": {
       "type": "string",
@@ -98,13 +90,9 @@
       "format": "date",
       "title": "Timeline End"
     },
-    "group_name": {
-      "type": "string",
-      "title": "Group Name"
-    },
-    "sort_order": {
+    "progress_percentage": {
       "type": "number",
-      "title": "Sort Order",
+      "title": "Progress %",
       "default": 0
     },
     "tags": {
@@ -121,26 +109,25 @@
         "type": "string"
       }
     },
-    "comments_count": {
+    "archived": {
+      "type": "boolean",
+      "title": "Archived",
+      "default": false
+    },
+    "sort_order": {
       "type": "number",
-      "title": "Comments",
+      "title": "Sort Order",
       "default": 0
     },
-    "health": {
+    "created_by": {
       "type": "string",
-      "title": "Health",
-      "enum": [
-        "on_track",
-        "at_risk",
-        "blocked",
-        "overdue",
-        "complete"
-      ],
-      "default": "on_track"
+      "title": "Created By",
+      "relationType": "User"
     }
   },
   "required": [
-    "title",
-    "workboard"
+    "workspace",
+    "workboard",
+    "title"
   ]
 }
