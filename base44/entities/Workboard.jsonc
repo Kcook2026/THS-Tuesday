@@ -78,6 +78,26 @@
       "type": "string",
       "title": "Workspace",
       "relationType": "Workspace"
+    },
+    "visibility": {
+      "type": "string",
+      "title": "Visibility",
+      "enum": [
+        "public_workspace",
+        "private",
+        "restricted"
+      ],
+      "default": "public_workspace",
+      "description": "Public: visible to all workspace members. Private: visible only to invited board members. Restricted: visible only to assigned users."
+    },
+    "assigned_users": {
+      "type": "array",
+      "title": "Assigned Users",
+      "items": {
+        "type": "string",
+        "relationType": "User"
+      },
+      "description": "Users explicitly assigned to this workboard (for restricted visibility)"
     }
   },
   "required": [

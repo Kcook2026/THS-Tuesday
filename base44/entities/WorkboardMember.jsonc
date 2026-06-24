@@ -40,12 +40,13 @@
       "type": "string",
       "title": "Workboard Role",
       "enum": [
-        "owner",
-        "editor",
-        "member",
-        "viewer"
+        "workboard_owner",
+        "workboard_editor",
+        "workboard_contributor",
+        "assigned_contributor",
+        "workboard_viewer"
       ],
-      "default": "member"
+      "default": "workboard_contributor"
     },
     "access_level": {
       "type": "string",
@@ -83,6 +84,16 @@
       "type": "string",
       "format": "date",
       "title": "Last Active Date"
+    },
+    "automation_permissions": {
+      "type": "string",
+      "title": "Automation Permissions",
+      "enum": [
+        "workboard",
+        "personal",
+        "none"
+      ],
+      "default": "personal"
     }
   },
   "required": [

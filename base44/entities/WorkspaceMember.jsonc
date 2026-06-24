@@ -28,12 +28,13 @@
       "type": "string",
       "title": "Workspace Role",
       "enum": [
-        "workspace_admin",
-        "manager",
-        "member",
-        "viewer"
+        "workspace_owner",
+        "workspace_manager",
+        "workspace_member",
+        "workspace_viewer",
+        "workspace_observer"
       ],
-      "default": "member"
+      "default": "workspace_member"
     },
     "department": {
       "type": "string",
@@ -81,6 +82,18 @@
       "type": "string",
       "format": "date",
       "title": "Last Active Date"
+    },
+    "automation_permissions": {
+      "type": "string",
+      "title": "Automation Permissions",
+      "enum": [
+        "organization",
+        "workspace",
+        "workboard",
+        "personal",
+        "none"
+      ],
+      "default": "personal"
     }
   },
   "required": [

@@ -27,6 +27,10 @@ const primaryNav = [
   { label: 'Teams', icon: Users, path: '/teams' },
 ];
 
+const executiveNav = [
+  { label: 'Executive Dashboard', icon: BarChart3, path: '/executive' },
+];
+
 const operationsNav = [
   { label: 'Documents', icon: FileText, path: '/documents' },
   { label: 'SOPs', icon: Workflow, path: '/processes' },
@@ -35,7 +39,7 @@ const operationsNav = [
 ];
 
 const adminNav = [
-  { label: 'Users & Access', icon: UserCog, path: '/users-access' },
+  { label: 'Members', icon: UserCog, path: '/members' },
   { label: 'Workspace Settings', icon: Settings, path: '/workspace-settings' },
   { label: 'Security', icon: Shield, path: '/security' },
 ];
@@ -105,7 +109,7 @@ function NavSection({ label, items, collapsed, isPathActive, onNavigate }) {
 
 export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onSearchOpen, mobile, onNavigate }) {
   const { currentWorkspace, currentWorkspaceId, isAdmin } = useWorkspace();
-  const { canAccessWorkboard, accessibleWorkboards, loading: permLoading } = usePermissions();
+  const { canAccessWorkboard, accessibleWorkboards, loading: permLoading, canViewExecutiveDashboard } = usePermissions();
   const location = useLocation();
   const [workboards, setWorkboards] = useState([]);
 
@@ -228,6 +232,11 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onS
               </div>
             )}
           </div>
+        )}
+
+        {/* Executive */}
+        {canViewExecutiveDashboard && (
+          <NavSection label="Executive" items={executiveNav} collapsed={collapsed} isPathActive={isPathActive} onNavigate={onNavigate} />
         )}
 
         {/* Operations */}

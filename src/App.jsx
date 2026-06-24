@@ -14,7 +14,8 @@ import ResetPassword from '@/pages/ResetPassword';
 import AppLayout from '@/components/layout/AppLayout';
 import Home from '@/pages/Home';
 import MyWork from '@/pages/MyWork';
-import UsersAccess from '@/pages/UsersAccess';
+import Members from '@/pages/Members';
+import ExecutiveDashboard from '@/pages/ExecutiveDashboard';
 import WorkspaceSettings from '@/pages/WorkspaceSettings';
 import Workboards from '@/pages/Workboards';
 import WorkboardDetail from '@/pages/WorkboardDetail';
@@ -71,8 +72,10 @@ const AuthenticatedApp = () => {
           <Route path="/activity" element={<ActivityFeed />} />
           <Route path="/teams" element={<Teams />} />
           <Route path="/notifications" element={<Notifications />} />
+          {/* Executive */}
+          <Route path="/executive" element={<ExecutiveDashboard />} />
           {/* Administration */}
-          <Route path="/users-access" element={<UsersAccess />} />
+          <Route path="/members" element={<Members />} />
           <Route path="/workspace-settings" element={<WorkspaceSettings />} />
           {/* Workboard Views (Projects, Tasks, Calendar surface through workboards) */}
           <Route path="/projects" element={<Projects />} />

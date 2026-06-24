@@ -34,11 +34,20 @@ const SCOPE_OPTIONS = [
   },
 ];
 
-const WORKSPACE_ROLES = [
-  { value: 'workspace_admin', label: 'Workspace Admin' },
+const ACCOUNT_ROLES = [
+  { value: 'system_admin', label: 'System Admin' },
+  { value: 'executive', label: 'Executive' },
   { value: 'manager', label: 'Manager' },
   { value: 'member', label: 'Member' },
   { value: 'viewer', label: 'Viewer' },
+];
+
+const WORKSPACE_ROLES = [
+  { value: 'workspace_owner', label: 'Workspace Owner' },
+  { value: 'workspace_manager', label: 'Workspace Manager' },
+  { value: 'workspace_member', label: 'Workspace Member' },
+  { value: 'workspace_viewer', label: 'Workspace Viewer' },
+  { value: 'workspace_observer', label: 'Workspace Observer' },
 ];
 
 const WORKBOARD_ROLES = [
@@ -48,17 +57,19 @@ const WORKBOARD_ROLES = [
   { value: 'viewer', label: 'Viewer' },
 ];
 
-export default function InviteUserDialog({ open, onOpenChange }) {
+export default function InviteUserDialog({ open, onOpenChange, onInvite, workboards: providedWorkboards }) {
   const { user, currentWorkspaceId, currentWorkspace } = useWorkspace();
   const { toast } = useToast();
   
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
+  const [accountRole, setAccountRole] = useState('member');
   const [scope, setScope] = useState('workspace');
   const [selectedWorkboards, setSelectedWorkboards] = useState([]);
   const [workboards, setWorkboards] = useState([]);
-  const [workspaceRole, setWorkspaceRole] = useState('member');
-  const [workboardRole, setWorkboardRole] = useState('member');
+  const [workspaceRole, setWorkspaceRole] = useState('workspace_member');
+  const [workboardRole, setWorkboardRole] = useState('workboard_contributor');
+  const [department, setDepartment] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -72,14 +83,20 @@ export default function InviteUserDialog({ open, onOpenChange }) {
   const resetForm = () => {
     setStep(1);
     setEmail('');
+    setAccountRole('member');
     setScope('workspace');
     setSelectedWorkboards([]);
-    setWorkspaceRole('member');
-    setWorkboardRole('member');
+    setWorkspaceRole('workspace_member');
+    setWorkboardRole('workboard_contributor');
+    setDepartment('');
     setMessage('');
   };
 
   const loadWorkboards = async () => {
+    if (providedWorkboards) {
+      setWorkboards(providedWorkboards);
+      return;
+    }
     try {
       const boards = await base44.entities.Workboard.filter({ 
         workspace: currentWorkspaceId,
@@ -110,63 +127,72 @@ export default function InviteUserDialog({ open, onOpenChange }) {
     
     setLoading(true);
     try {
-      const appRole = workspaceRole === 'workspace_admin' ? 'admin' : 'user';
-      
-      await base44.users.inviteUser(email.trim(), appRole);
-      
-      const expires = new Date();
-      expires.setDate(expires.getDate() + 7);
-      
       const selectedBoards = workboards.filter(w => selectedWorkboards.includes(w.id));
-      const workboardNames = selectedBoards.map(w => w.name);
       
-      await base44.entities.Invitation.create({
-        email: email.trim(),
-        invited_by: user.id,
-        invited_by_name: user.full_name,
-        workspace: currentWorkspaceId,
-        workspace_name: currentWorkspace?.workspace_name,
-        role: workspaceRole,
-        invitation_scope: scope,
-        workboards: scope !== 'workspace' ? selectedWorkboards : [],
-        workboard_names: scope !== 'workspace' ? workboardNames : [],
-        message: message.trim(),
-        status: 'pending',
-        expires_date: expires.toISOString(),
-      });
-      
-      const accessType = scope === 'workspace' ? 'all_workboards' : 'selected_workboards';
-      await base44.entities.WorkspaceMember.create({
-        workspace: currentWorkspaceId,
-        workspace_name: currentWorkspace?.workspace_name,
-        user_email: email.trim(),
-        role: workspaceRole,
-        access_type: accessType,
-        accessible_workboards: scope !== 'workspace' ? selectedWorkboards : [],
-        status: 'invited',
-        invited_by: user.id,
-      });
-      
-      if (scope !== 'workspace') {
-        const wbMemberships = selectedWorkboards.map(wbId => {
-          const wb = workboards.find(w => w.id === wbId);
-          return {
-            workspace: currentWorkspaceId,
-            workspace_name: currentWorkspace?.workspace_name,
-            workboard: wbId,
-            workboard_name: wb?.name,
-            user_email: email.trim(),
-            role: workboardRole,
-            status: 'invited',
-            added_by: user.id,
-          };
+      if (onInvite) {
+        await onInvite(email.trim(), accountRole, workspaceRole, department, scope, selectedBoards);
+      } else {
+        const appRole = accountRole === 'system_admin' || accountRole === 'manager' ? 'admin' : 'user';
+        
+        await base44.users.inviteUser(email.trim(), appRole);
+        
+        const expires = new Date();
+        expires.setDate(expires.getDate() + 7);
+        
+        const workboardNames = selectedBoards.map(w => w.name);
+        
+        await base44.entities.Invitation.create({
+          email: email.trim(),
+          invited_by: user.id,
+          invited_by_name: user.full_name,
+          workspace: currentWorkspaceId,
+          workspace_name: currentWorkspace?.workspace_name,
+          role: workspaceRole,
+          account_role: accountRole,
+          invitation_scope: scope,
+          workboards: scope !== 'workspace' ? selectedWorkboards : [],
+          workboard_names: scope !== 'workspace' ? workboardNames : [],
+          department: department.trim(),
+          message: message.trim(),
+          status: 'pending',
+          expires_date: expires.toISOString(),
         });
-        await base44.entities.WorkboardMember.bulkCreate(wbMemberships);
+        
+        const accessType = scope === 'workspace' ? 'all_workboards' : 'selected_workboards';
+        await base44.entities.WorkspaceMember.create({
+          workspace: currentWorkspaceId,
+          workspace_name: currentWorkspace?.workspace_name,
+          user_email: email.trim(),
+          role: workspaceRole,
+          account_role: accountRole,
+          department: department.trim(),
+          access_type: accessType,
+          accessible_workboards: scope !== 'workspace' ? selectedWorkboards : [],
+          status: 'invited',
+          invited_by: user.id,
+        });
+        
+        if (scope !== 'workspace' && selectedWorkboards.length > 0) {
+          const wbMemberships = selectedWorkboards.map(wbId => {
+            const wb = workboards.find(w => w.id === wbId);
+            return {
+              workspace: currentWorkspaceId,
+              workspace_name: currentWorkspace?.workspace_name,
+              workboard: wbId,
+              workboard_name: wb?.name,
+              user_email: email.trim(),
+              role: workboardRole,
+              status: 'invited',
+              added_by: user.id,
+            };
+          });
+          await base44.entities.WorkboardMember.bulkCreate(wbMemberships);
+        }
       }
       
       toast({ 
         title: 'Invitation sent', 
-        description: `Invited ${email.trim()} with ${scope === 'workspace' ? 'full workspace' : 'selected workboard'} access` 
+        description: `Invited ${email.trim()} as ${ACCOUNT_ROLES.find(r => r.value === accountRole)?.label}` 
       });
       resetForm();
       onOpenChange(false);
@@ -277,6 +303,27 @@ export default function InviteUserDialog({ open, onOpenChange }) {
           {step === 3 && (
             <div className="space-y-4">
               <div>
+                <Label>Account Role</Label>
+                <Select value={accountRole} onValueChange={setAccountRole}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACCOUNT_ROLES.map(role => (
+                      <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {accountRole === 'system_admin' && 'Full platform authority'}
+                  {accountRole === 'executive' && 'Organization-wide operational authority'}
+                  {accountRole === 'manager' && 'Department or team leadership'}
+                  {accountRole === 'member' && 'Standard employee access'}
+                  {accountRole === 'viewer' && 'Read-only internal user'}
+                </p>
+              </div>
+
+              <div>
                 <Label>Workspace Role</Label>
                 <Select value={workspaceRole} onValueChange={setWorkspaceRole}>
                   <SelectTrigger>
@@ -289,11 +336,22 @@ export default function InviteUserDialog({ open, onOpenChange }) {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {workspaceRole === 'workspace_admin' && 'Full access to manage workspace and all workboards'}
-                  {workspaceRole === 'manager' && 'Can create workboards and manage members'}
-                  {workspaceRole === 'member' && 'Can view and edit assigned items'}
-                  {workspaceRole === 'viewer' && 'View-only access'}
+                  {workspaceRole === 'workspace_owner' && 'Full workspace control'}
+                  {workspaceRole === 'workspace_manager' && 'Manage workspace content and teams'}
+                  {workspaceRole === 'workspace_member' && 'Access assigned workboards'}
+                  {workspaceRole === 'workspace_viewer' && 'Read-only workspace access'}
+                  {workspaceRole === 'workspace_observer' && 'Executive viewing access'}
                 </p>
+              </div>
+
+              <div>
+                <Label htmlFor="department">Department (Optional)</Label>
+                <Input
+                  id="department"
+                  placeholder="e.g., Engineering, Marketing"
+                  value={department}
+                  onChange={e => setDepartment(e.target.value)}
+                />
               </div>
 
               {scope !== 'workspace' && (
@@ -304,9 +362,11 @@ export default function InviteUserDialog({ open, onOpenChange }) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {WORKBOARD_ROLES.map(role => (
-                        <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
-                      ))}
+                      <SelectItem value="workboard_owner">Workboard Owner</SelectItem>
+                      <SelectItem value="workboard_editor">Workboard Editor</SelectItem>
+                      <SelectItem value="workboard_contributor">Workboard Contributor</SelectItem>
+                      <SelectItem value="assigned_contributor">Assigned Contributor</SelectItem>
+                      <SelectItem value="workboard_viewer">Workboard Viewer</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -326,14 +386,22 @@ export default function InviteUserDialog({ open, onOpenChange }) {
               <Card className="bg-muted/50">
                 <CardContent className="p-3 text-sm space-y-1">
                   <p><strong>Inviting:</strong> {email}</p>
+                  <p><strong>Account Role:</strong> {ACCOUNT_ROLES.find(r => r.value === accountRole)?.label}</p>
                   <p><strong>Scope:</strong> {SCOPE_OPTIONS.find(o => o.value === scope)?.label}</p>
                   {scope !== 'workspace' && (
                     <p><strong>Workboards:</strong> {selectedWorkboards.length} selected</p>
                   )}
                   <p><strong>Workspace Role:</strong> {WORKSPACE_ROLES.find(r => r.value === workspaceRole)?.label}</p>
                   {scope !== 'workspace' && (
-                    <p><strong>Workboard Role:</strong> {WORKBOARD_ROLES.find(r => r.value === workboardRole)?.label}</p>
+                    <p><strong>Workboard Role:</strong> {
+                      workboardRole === 'workboard_owner' ? 'Workboard Owner' :
+                      workboardRole === 'workboard_editor' ? 'Workboard Editor' :
+                      workboardRole === 'workboard_contributor' ? 'Workboard Contributor' :
+                      workboardRole === 'assigned_contributor' ? 'Assigned Contributor' :
+                      'Workboard Viewer'
+                    }</p>
                   )}
+                  {department && <p><strong>Department:</strong> {department}</p>}
                 </CardContent>
               </Card>
             </div>

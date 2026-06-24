@@ -2,9 +2,21 @@
   "name": "User",
   "type": "object",
   "properties": {
+    "account_role": {
+      "type": "string",
+      "description": "The role of the user in the application",
+      "enum": [
+        "system_admin",
+        "executive",
+        "manager",
+        "member",
+        "viewer"
+      ],
+      "default": "member"
+    },
     "role": {
       "type": "string",
-      "description": "The role of the user in the app",
+      "description": "Legacy role field",
       "enum": [
         "admin",
         "manager",
@@ -15,6 +27,6 @@
     }
   },
   "required": [
-    "role"
+    "account_role"
   ]
 }
