@@ -1,0 +1,56 @@
+{
+  "name": "WorkboardItemValue",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "workboard": {
+      "type": "string",
+      "title": "Workboard",
+      "relationType": "Workboard"
+    },
+    "item": {
+      "type": "string",
+      "title": "Item",
+      "relationType": "WorkboardItem"
+    },
+    "column": {
+      "type": "string",
+      "title": "Column",
+      "relationType": "BoardColumn"
+    },
+    "value": {
+      "type": "string",
+      "title": "Value"
+    },
+    "value_type": {
+      "type": "string",
+      "title": "Value Type",
+      "default": "text"
+    },
+    "display_value": {
+      "type": "string",
+      "title": "Display Value"
+    },
+    "created_by": {
+      "type": "string",
+      "title": "Created By",
+      "relationType": "User"
+    },
+    "updated_by": {
+      "type": "string",
+      "title": "Updated By",
+      "relationType": "User"
+    }
+  },
+  "required": [
+    "workspace",
+    "workboard",
+    "item",
+    "column",
+    "value"
+  ]
+}
