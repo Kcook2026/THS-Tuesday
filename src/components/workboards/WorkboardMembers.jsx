@@ -67,7 +67,7 @@ export default function WorkboardMembers({ workboardId, wb }) {
         status: 'invited',
         added_by: user.id,
       });
-      toast({ title: 'Invitation sent', description: `Invited ${inviteEmail.trim()} to workboard` });
+      toast({ title: 'Invitation sent', description: `Invited ${inviteEmail.trim()} to workboard`, duration: 3000 });
       setInviteEmail('');
       setInviteRole('member');
       setInviteOpen(false);
@@ -80,7 +80,7 @@ export default function WorkboardMembers({ workboardId, wb }) {
   const handleChangeRole = async (memberId, newRole) => {
     try {
       await base44.entities.WorkboardMember.update(memberId, { role: newRole });
-      toast({ title: 'Role updated' });
+      toast({ title: 'Role updated', duration: 3000 });
       loadMembers();
     } catch (error) {
       toast({ title: 'Failed to update role', description: error.message, variant: 'destructive' });
@@ -90,7 +90,7 @@ export default function WorkboardMembers({ workboardId, wb }) {
   const handleRemove = async (memberId) => {
     try {
       await base44.entities.WorkboardMember.update(memberId, { status: 'removed' });
-      toast({ title: 'Member removed' });
+      toast({ title: 'Member removed', duration: 3000 });
       loadMembers();
     } catch (error) {
       toast({ title: 'Failed to remove', description: error.message, variant: 'destructive' });
@@ -121,27 +121,14 @@ export default function WorkboardMembers({ workboardId, wb }) {
               {members.map(member => (
                 <div key={member.id} className="flex items-center gap-3 p-4">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary shrink-0">
-                    {member.user_name?.charAt(0) || member.user_email?.charAt(0)?.toUpperCase() || 'U'}
+                    {(member.user_name || member.user_email || 'U').charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{member.user_name || member.user_email}</p>
                     <p className="text-xs text-muted-foreground">{member.user_email}</p>
                   </div>
-                  <Select 
-                    defaultValue={member.role} 
-                    onValueChange={(v) => handleChangeRole(member.id, v)}
-                  >
-                    <SelectTrigger className="w-32 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(ROLE_CONFIG).map(([value, config]) => (
-                        <SelectItem key={value} value={value}>{config.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Badge className={`text-[10px] ${ROLE_CONFIG[member.role]?.color}`}>
-                    {ROLE_CONFIG[member.role]?.label}
+                  <Badge className={`text-[10px] ${ROLE_CONFIG[member.role]?.color || ROLE_CONFIG.member.color}`}>
+                    {ROLE_CONFIG[member.role]?.label || 'Member'}
                   </Badge>
                   {member.role !== 'owner' && (
                     <Button variant="ghost" size="icon" onClick={() => handleRemove(member.id)} className="text-destructive">

@@ -79,12 +79,12 @@ export default function Workboards() {
       if (editBoard) {
         await base44.entities.Workboard.update(editBoard.id, data);
         logActivity(user, 'updated workboard', 'Workboard', editBoard.id, editBoard.name);
-        toast({ title: 'Workboard updated' });
+        toast({ title: 'Workboard updated', duration: 3000 });
       } else {
         // Create the workboard
         const newBoard = await base44.entities.Workboard.create({ ...data, workspace: currentWorkspaceId, owner: user?.id });
         logActivity(user, 'created workboard', 'Workboard', newBoard.id, form.name);
-        toast({ title: 'Workboard created' });
+        toast({ title: 'Workboard created', duration: 3000 });
         
         // Create WorkboardMember for creator as owner
         await base44.entities.WorkboardMember.create({
@@ -155,7 +155,7 @@ export default function Workboards() {
     try {
       await base44.entities.Workboard.delete(b.id);
       logActivity(user, 'deleted workboard', 'Workboard', b.id, b.name);
-      toast({ title: 'Workboard deleted' });
+      toast({ title: 'Workboard deleted', duration: 3000 });
       load();
     } catch (error) {
       toast({ title: 'Error deleting workboard', description: error.message, variant: 'destructive' });
