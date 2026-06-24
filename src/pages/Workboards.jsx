@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Link } from 'react-router-dom';
@@ -38,12 +38,15 @@ export default function Workboards() {
   const [form, setForm] = useState({ name: '', description: '', board_type: 'task_board', linked_project: '', team: '', default_view: 'table', color: 'violet' });
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const isLoadingRef = useRef(false);
   const { can } = usePermissions();
   const { currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
 
-  const load = async () => {
-    if (!currentWorkspaceId) return;
+  const load = useCallback(async () => {
+    if (!currentWorkspaceId || isLoadingRef.current) return;
+    isLoadingRef.current = true;
     setLoading(true);
     try {
       const wsFilter = { workspace: currentWorkspaceId };
@@ -59,11 +62,14 @@ export default function Workboards() {
       setUser(me);
     } catch (error) {
       console.error('Error loading workboards:', error);
-      toast({ title: 'Error loading workboards', description: error.message, variant: 'destructive', duration: 6000 });
+      if (isInitialLoad) {
+        toast({ title: 'Error loading workboards', description: error.message, variant: 'destructive', duration: 6000 });
+      }
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
-  };
+  }, [currentWorkspaceId, isInitialLoad, toast]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -74,10 +80,17 @@ export default function Workboards() {
   }, []);
 
   useEffect(() => {
+    setIsInitialLoad(false);
+  }, []);
+
+  useEffect(() => {
     const timeoutId = setTimeout(() => {
       load();
     }, 300);
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      isLoadingRef.current = false;
+    };
   }, [currentWorkspaceId]);
 
   const openForm = (board) => {

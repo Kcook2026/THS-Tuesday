@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -50,6 +50,7 @@ export default function WorkboardDetail() {
   const [user, setUser] = useState(null);
   const [saving, setSaving] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const isLoadingRef = useRef(false);
 
   // Split loading functions to prevent rate limiting
   const loadBoard = useCallback(async () => {
@@ -64,6 +65,9 @@ export default function WorkboardDetail() {
   }, [id]);
 
   const loadBoardConfig = useCallback(async () => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    
     try {
       // Load in sequence to avoid rate limits
       const g = await base44.entities.BoardGroup.filter({ workboard: id, archived: false });
@@ -90,8 +94,12 @@ export default function WorkboardDetail() {
             { name: 'Backlog', workspace: currentWorkspaceId, workboard: id, sort_order: 2, color: 'gray' },
             { name: 'Completed', workspace: currentWorkspaceId, workboard: id, sort_order: 3, color: 'green' },
           ];
-          const createdGroups = await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
-          setGroups(createdGroups.sort((a, b) => a.sort_order - b.sort_order));
+          try {
+            const createdGroups = await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
+            setGroups(createdGroups.sort((a, b) => a.sort_order - b.sort_order));
+          } catch (err) {
+            console.error('Error creating default groups:', err);
+          }
         }, 1000);
       }
       
@@ -105,17 +113,25 @@ export default function WorkboardDetail() {
             { name: 'Due Date', workspace: currentWorkspaceId, workboard: id, column_type: 'date', sort_order: 3, width: 130, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
             { name: 'Progress', workspace: currentWorkspaceId, workboard: id, column_type: 'progress', sort_order: 4, width: 140, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
           ];
-          const createdColumns = await Promise.all(defaultColumns.map(col => base44.entities.BoardColumn.create(col)));
-          setColumns(createdColumns.sort((a, b) => a.sort_order - b.sort_order));
+          try {
+            const createdColumns = await Promise.all(defaultColumns.map(col => base44.entities.BoardColumn.create(col)));
+            setColumns(createdColumns.sort((a, b) => a.sort_order - b.sort_order));
+          } catch (err) {
+            console.error('Error creating default columns:', err);
+          }
         }, 1500);
       }
     } catch (error) {
       console.error('Error loading config:', error);
       throw error;
+    } finally {
+      isLoadingRef.current = false;
     }
   }, [id, currentWorkspaceId, user]);
 
   const loadItems = useCallback(async () => {
+    if (isLoadingRef.current) return;
+    
     try {
       const i = await base44.entities.WorkboardItem.filter({ workboard: id, archived: false });
       setItems(i);
@@ -146,7 +162,6 @@ export default function WorkboardDetail() {
             setItems(itemsWithValues);
           } catch (err) {
             console.error('Error loading custom values:', err);
-            // Silently fail - items still display without custom values
           }
         }, 500);
       }
@@ -171,12 +186,14 @@ export default function WorkboardDetail() {
   }, []);
 
   const load = useCallback(async () => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     setLoading(true);
     try {
       await Promise.all([loadBoard(), loadBoardConfig(), loadItems(), loadUsers()]);
     } catch (error) {
       console.error('Error loading board:', error);
-      // Suppress rate limit and transient errors - only show critical errors
+      // Suppress rate limit and transient errors - only show critical errors on initial load
       if (isInitialLoad && !error.message.includes('rate limit') && !error.message.includes('429')) {
         toast({ 
           title: 'Error loading board', 
@@ -188,6 +205,7 @@ export default function WorkboardDetail() {
     } finally {
       setLoading(false);
       setIsInitialLoad(false);
+      isLoadingRef.current = false;
     }
   }, [loadBoard, loadBoardConfig, loadItems, loadUsers, isInitialLoad, toast]);
 
@@ -195,10 +213,11 @@ export default function WorkboardDetail() {
     load(); 
   }, [load]);
 
-  // Subscribe to real-time updates - no reloads to prevent rate limiting
+  // Subscribe to real-time updates - ONLY update items, NEVER reload config
   useEffect(() => {
     if (!id) return;
     const unsubscribe = base44.entities.WorkboardItem.subscribe((event) => {
+      // Only update the items array - no full reloads
       if (event.type === 'create' && event.data) {
         setItems(prev => [...prev, event.data]);
       } else if (event.type === 'update' && event.data) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
@@ -23,7 +23,10 @@ export default function Home() {
   const [wsDialogOpen, setWsDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (!currentWorkspaceId || !user) return;
+    const isLoadingRef = { current: false };
+    if (!currentWorkspaceId || !user || isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    
     const wsFilter = { workspace: currentWorkspaceId };
     Promise.all([
       base44.entities.WorkboardItem.filter({ ...wsFilter, assignee: user.id, archived: false }, '-updated_date', 10).catch(() => []),
@@ -38,7 +41,12 @@ export default function Home() {
       setActivity(a);
       setProjects(p);
       setTeams(tm);
-    }).finally(() => setLoading(false));
+    }).catch(error => {
+      console.error('Home load error:', error);
+    }).finally(() => {
+      setLoading(false);
+      isLoadingRef.current = false;
+    });
   }, [currentWorkspaceId, user]);
 
   if (wsLoading) return <LoadingSpinner />;

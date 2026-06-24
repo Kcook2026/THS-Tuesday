@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 
 const WorkspaceContext = createContext(null);
 const STORAGE_KEY = 'tuesday_current_workspace';
+const workspaceLoadPromiseRef = { current: null };
 
 export function WorkspaceProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -10,25 +11,39 @@ export function WorkspaceProvider({ children }) {
   const [memberships, setMemberships] = useState([]);
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const isLoadingRef = useRef(false);
 
   const loadWorkspaceData = useCallback(async (userId) => {
-    const memberRecords = await base44.entities.WorkspaceMember.filter({ user: userId });
-    const activeMemberships = memberRecords.filter(m => m.status === 'active');
-    setMemberships(activeMemberships);
-
-    const workspaceIds = [...new Set(activeMemberships.map(m => m.workspace).filter(Boolean))];
-    let workspaceRecords = [];
-
-    if (workspaceIds.length > 0) {
-      const results = await Promise.all(
-        workspaceIds.map(id => base44.entities.Workspace.get(id).catch(() => null))
-      );
-      // Filter out archived workspaces
-      workspaceRecords = results.filter(w => w && w.status !== 'archived');
+    // Prevent duplicate concurrent requests
+    if (isLoadingRef.current && workspaceLoadPromiseRef.current) {
+      return workspaceLoadPromiseRef.current;
     }
+    
+    isLoadingRef.current = true;
+    workspaceLoadPromiseRef.current = (async () => {
+      try {
+        const memberRecords = await base44.entities.WorkspaceMember.filter({ user: userId });
+        const activeMemberships = memberRecords.filter(m => m.status === 'active');
+        setMemberships(activeMemberships);
 
-    setWorkspaces(workspaceRecords);
-    return workspaceRecords;
+        const workspaceIds = [...new Set(activeMemberships.map(m => m.workspace).filter(Boolean))];
+        let workspaceRecords = [];
+
+        if (workspaceIds.length > 0) {
+          const results = await Promise.all(
+            workspaceIds.map(id => base44.entities.Workspace.get(id).catch(() => null))
+          );
+          workspaceRecords = results.filter(w => w && w.status !== 'archived');
+        }
+
+        setWorkspaces(workspaceRecords);
+        return workspaceRecords;
+      } finally {
+        isLoadingRef.current = false;
+      }
+    })();
+    
+    return workspaceLoadPromiseRef.current;
   }, []);
 
   useEffect(() => {
@@ -51,14 +66,14 @@ export function WorkspaceProvider({ children }) {
           localStorage.setItem(STORAGE_KEY, workspaceRecords[0].id);
         }
       } catch (e) {
-        // silent fail - pages will handle empty workspace
+        console.error('Workspace init error:', e);
       } finally {
         if (mounted) setLoading(false);
       }
     }
     init();
     return () => { mounted = false; };
-  }, [loadWorkspaceData]);
+  }, []);
 
   const switchWorkspace = useCallback((workspaceId) => {
     setCurrentWorkspaceId(workspaceId);
@@ -66,7 +81,7 @@ export function WorkspaceProvider({ children }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!user) return;
+    if (!user || isLoadingRef.current) return;
     try {
       const workspaceRecords = await loadWorkspaceData(user.id);
       if (!workspaceRecords.find(w => w.id === currentWorkspaceId) && workspaceRecords.length > 0) {
@@ -74,9 +89,9 @@ export function WorkspaceProvider({ children }) {
         localStorage.setItem(STORAGE_KEY, workspaceRecords[0].id);
       }
     } catch (e) {
-      // silent
+      console.error('Workspace refresh error:', e);
     }
-  }, [user, currentWorkspaceId, loadWorkspaceData]);
+  }, [user, currentWorkspaceId]);
 
   const createWorkspace = useCallback(async (data) => {
     const ws = await base44.entities.Workspace.create({

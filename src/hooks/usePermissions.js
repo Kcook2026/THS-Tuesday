@@ -20,6 +20,10 @@ export default function usePermissions() {
       return;
     }
 
+    const isLoadingRef = { current: false };
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
+
     const loadPermissions = async () => {
       try {
         const [userAccount, wsMember, wbMembers] = await Promise.all([
@@ -48,6 +52,7 @@ export default function usePermissions() {
         console.error('Error loading permissions:', error);
       } finally {
         setLoading(false);
+        isLoadingRef.current = false;
       }
     };
 

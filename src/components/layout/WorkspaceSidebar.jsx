@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home, LayoutGrid, Activity as ActivityIcon, Users, Settings,
@@ -103,16 +103,28 @@ export default function WorkspaceSidebar({ collapsed, onToggle, mobile, onNaviga
   const navigate = useNavigate();
   const [workboards, setWorkboards] = useState([]);
   const [teams, setTeams] = useState([]);
+  const isLoadingRef = useRef(false);
 
   useEffect(() => {
-    if (!currentWorkspaceId) return;
-    Promise.all([
-      base44.entities.Workboard.filter({ workspace: currentWorkspaceId }, '-updated_date', 20).catch(() => []),
-      base44.entities.Team.filter({ workspace: currentWorkspaceId }, '-updated_date', 10).catch(() => []),
-    ]).then(([w, t]) => {
-      setWorkboards(w);
-      setTeams(t);
-    });
+    if (!currentWorkspaceId || isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    
+    const loadSidebarData = async () => {
+      try {
+        const [w, t] = await Promise.all([
+          base44.entities.Workboard.filter({ workspace: currentWorkspaceId }, '-updated_date', 20).catch(() => []),
+          base44.entities.Team.filter({ workspace: currentWorkspaceId }, '-updated_date', 10).catch(() => []),
+        ]);
+        setWorkboards(w);
+        setTeams(t);
+      } catch (error) {
+        console.error('Sidebar load error:', error);
+      } finally {
+        isLoadingRef.current = false;
+      }
+    };
+    
+    loadSidebarData();
   }, [currentWorkspaceId]);
 
   const favorites = workboards.filter(w => w.is_favorite);

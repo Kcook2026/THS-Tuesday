@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
@@ -25,7 +25,10 @@ export default function MyWork() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentWorkspaceId || !user) return;
+    const isLoadingRef = { current: false };
+    if (!currentWorkspaceId || !user || isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    
     const wsFilter = { workspace: currentWorkspaceId };
     Promise.all([
       base44.entities.WorkboardItem.filter({ ...wsFilter, assignee: user.id, archived: false }, '-updated_date', 100).catch(() => []),
@@ -37,7 +40,12 @@ export default function MyWork() {
       setAssignedTasks(assigned);
       setWatchingTasks(all.filter(t => t.watchers?.includes(user.id) && t.assignee !== user.id));
       setProjects(projs);
-    }).finally(() => setLoading(false));
+    }).catch(error => {
+      console.error('MyWork load error:', error);
+    }).finally(() => {
+      setLoading(false);
+      isLoadingRef.current = false;
+    });
   }, [currentWorkspaceId, user]);
 
   if (wsLoading || loading) return <LoadingSpinner />;
