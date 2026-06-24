@@ -22,8 +22,6 @@ import TaskBoard from '@/pages/TaskBoard';
 import TaskTable from '@/pages/TaskTable';
 import Calendar from '@/pages/Calendar';
 import Teams from '@/pages/Teams';
-import Clients from '@/pages/Clients';
-import ClientDetail from '@/pages/ClientDetail';
 import Documents from '@/pages/Documents';
 import Reports from '@/pages/Reports';
 import ActivityFeed from '@/pages/ActivityFeed';
@@ -88,8 +86,6 @@ const AuthenticatedApp = () => {
           <Route path="/processes" element={<Processes />} />
           <Route path="/processes/:id" element={<ProcessDetail />} />
           <Route path="/teams" element={<Teams />} />
-          <Route path="/clients" element={<Clients />} />
-          <Route path="/clients/:id" element={<ClientDetail />} />
           <Route path="/documents" element={<Documents />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/activity" element={<ActivityFeed />} />

@@ -163,16 +163,6 @@ export default function Reports() {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Client</Label>
-              <Select value={filters.client} onValueChange={v => setFilters(f => ({...f, client: v}))}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Clients</SelectItem>
-                  {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.company_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
               <Label className="text-xs">Assignee</Label>
               <Select value={filters.assignee} onValueChange={v => setFilters(f => ({...f, assignee: v}))}>
                 <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>

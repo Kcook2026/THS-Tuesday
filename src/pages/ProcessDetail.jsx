@@ -82,7 +82,7 @@ export default function ProcessDetail() {
   return (
     <div>
       <Breadcrumbs items={[
-        { label: 'Processes', path: '/processes' },
+        { label: 'SOPs', path: '/processes' },
         { label: process.process_name },
       ]} />
 

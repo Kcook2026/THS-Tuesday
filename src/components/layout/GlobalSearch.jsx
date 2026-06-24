@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Hash, FolderKanban, CheckSquare, LayoutGrid, FileText, Building2 } from 'lucide-react';
+import { Search, Hash, FolderKanban, CheckSquare, LayoutGrid, FileText } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
 import {
@@ -13,7 +13,6 @@ const QUICK_LINKS = [
   { label: 'Workboards', path: '/workboards', icon: LayoutGrid },
   { label: 'Projects', path: '/projects', icon: FolderKanban },
   { label: 'Tasks', path: '/tasks/table', icon: CheckSquare },
-  { label: 'Clients', path: '/clients', icon: Building2 },
   { label: 'Documents', path: '/documents', icon: FileText },
 ];
 

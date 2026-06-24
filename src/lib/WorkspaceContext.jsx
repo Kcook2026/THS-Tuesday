@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { logAudit, AUDIT_ACTIONS } from '@/lib/auditLogger';
 
 const WorkspaceContext = createContext(null);
 const STORAGE_KEY = 'tuesday_current_workspace';
@@ -12,6 +11,25 @@ export function WorkspaceProvider({ children }) {
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const loadWorkspaceData = useCallback(async (userId) => {
+    const memberRecords = await base44.entities.WorkspaceMember.filter({ user: userId });
+    const activeMemberships = memberRecords.filter(m => m.status === 'active');
+    setMemberships(activeMemberships);
+
+    const workspaceIds = [...new Set(activeMemberships.map(m => m.workspace).filter(Boolean))];
+    let workspaceRecords = [];
+
+    if (workspaceIds.length > 0) {
+      const results = await Promise.all(
+        workspaceIds.map(id => base44.entities.Workspace.get(id).catch(() => null))
+      );
+      workspaceRecords = results.filter(Boolean);
+    }
+
+    setWorkspaces(workspaceRecords);
+    return workspaceRecords;
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     async function init() {
@@ -20,52 +38,8 @@ export function WorkspaceProvider({ children }) {
         if (!mounted) return;
         setUser(me);
 
-        const memberRecords = await base44.asServiceRole.entities.WorkspaceMember.filter({ user: me.id });
-        const activeMemberships = memberRecords.filter(m => m.status === 'active');
+        const workspaceRecords = await loadWorkspaceData(me.id);
         if (!mounted) return;
-        setMemberships(activeMemberships);
-
-        const workspaceIds = [...new Set(activeMemberships.map(m => m.workspace).filter(Boolean))];
-        let workspaceRecords = [];
-
-        if (workspaceIds.length > 0) {
-          const results = await Promise.all(
-            workspaceIds.map(id => base44.asServiceRole.entities.Workspace.get(id).catch(() => null))
-          );
-          workspaceRecords = results.filter(Boolean);
-        }
-
-        if (workspaceRecords.length === 0 && me.role === 'admin') {
-          const existing = await base44.asServiceRole.entities.Workspace.list();
-          if (existing.length > 0) {
-            workspaceRecords = existing;
-          } else {
-            const defaultWs = await base44.asServiceRole.entities.Workspace.create({
-              workspace_name: 'Main Workspace',
-              workspace_type: 'company_workspace',
-              status: 'active',
-              visibility: 'company',
-              owner: me.id,
-              color: 'violet',
-              icon: 'Building2',
-            });
-            await base44.asServiceRole.entities.WorkspaceMember.create({
-              workspace: defaultWs.id,
-              workspace_name: defaultWs.workspace_name,
-              user: me.id,
-              user_name: me.full_name,
-              user_email: me.email,
-              role: 'workspace_admin',
-              status: 'active',
-              invited_by: me.id,
-              joined_date: new Date().toISOString().split('T')[0],
-            });
-            workspaceRecords = [defaultWs];
-          }
-        }
-
-        if (!mounted) return;
-        setWorkspaces(workspaceRecords);
 
         const saved = localStorage.getItem(STORAGE_KEY);
         const valid = saved && workspaceRecords.find(w => w.id === saved);
@@ -83,44 +57,17 @@ export function WorkspaceProvider({ children }) {
     }
     init();
     return () => { mounted = false; };
-  }, []);
+  }, [loadWorkspaceData]);
 
   const switchWorkspace = useCallback((workspaceId) => {
-    const prevWorkspace = currentWorkspaceId;
     setCurrentWorkspaceId(workspaceId);
     localStorage.setItem(STORAGE_KEY, workspaceId);
-    if (prevWorkspace && prevWorkspace !== workspaceId) {
-      logAudit(AUDIT_ACTIONS.WORKSPACE_SWITCHED, {
-        record_id: workspaceId,
-        before_value: { workspace: prevWorkspace },
-        after_value: { workspace: workspaceId },
-      });
-      const membership = memberships.find(m => m.workspace === workspaceId);
-      if (membership) {
-        base44.asServiceRole.entities.WorkspaceMember.update(membership.id, {
-          last_active_date: new Date().toISOString().split('T')[0],
-        }).catch(() => {});
-      }
-    }
-  }, [currentWorkspaceId, memberships]);
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!user) return;
     try {
-      const memberRecords = await base44.asServiceRole.entities.WorkspaceMember.filter({ user: user.id });
-      const activeMemberships = memberRecords.filter(m => m.status === 'active');
-      setMemberships(activeMemberships);
-
-      const workspaceIds = [...new Set(activeMemberships.map(m => m.workspace).filter(Boolean))];
-      let workspaceRecords = [];
-      if (workspaceIds.length > 0) {
-        const results = await Promise.all(
-          workspaceIds.map(id => base44.asServiceRole.entities.Workspace.get(id).catch(() => null))
-        );
-        workspaceRecords = results.filter(Boolean);
-      }
-      setWorkspaces(workspaceRecords);
-
+      const workspaceRecords = await loadWorkspaceData(user.id);
       if (!workspaceRecords.find(w => w.id === currentWorkspaceId) && workspaceRecords.length > 0) {
         setCurrentWorkspaceId(workspaceRecords[0].id);
         localStorage.setItem(STORAGE_KEY, workspaceRecords[0].id);
@@ -128,15 +75,15 @@ export function WorkspaceProvider({ children }) {
     } catch (e) {
       // silent
     }
-  }, [user, currentWorkspaceId]);
+  }, [user, currentWorkspaceId, loadWorkspaceData]);
 
   const createWorkspace = useCallback(async (data) => {
-    const ws = await base44.asServiceRole.entities.Workspace.create({
+    const ws = await base44.entities.Workspace.create({
       ...data,
       owner: user.id,
       status: 'active',
     });
-    await base44.asServiceRole.entities.WorkspaceMember.create({
+    await base44.entities.WorkspaceMember.create({
       workspace: ws.id,
       workspace_name: ws.workspace_name,
       user: user.id,
@@ -146,10 +93,6 @@ export function WorkspaceProvider({ children }) {
       status: 'active',
       invited_by: user.id,
       joined_date: new Date().toISOString().split('T')[0],
-    });
-    logAudit(AUDIT_ACTIONS.WORKSPACE_CREATED, {
-      record_id: ws.id,
-      after_value: { workspace_name: ws.workspace_name, workspace_type: ws.workspace_type },
     });
     await refresh();
     switchWorkspace(ws.id);

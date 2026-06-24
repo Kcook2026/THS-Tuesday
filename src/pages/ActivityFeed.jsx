@@ -58,7 +58,7 @@ export default function ActivityFeed() {
 
   return (
     <div>
-      <PageHeader title="Activity Feed" subtitle="Recent actions across the workspace" />
+      <PageHeader title="Activity" subtitle="Recent updates and changes across the workspace" />
 
       {/* Filters */}
       <Card className="mb-4">

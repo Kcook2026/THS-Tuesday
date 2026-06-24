@@ -7,7 +7,7 @@ export async function logAudit(action, details = {}) {
     const workspaceId = typeof localStorage !== 'undefined'
       ? localStorage.getItem('tuesday_current_workspace')
       : null;
-    await base44.asServiceRole.entities.AuditLog.create({
+    await base44.entities.AuditLog.create({
       user: me.id,
       user_name: me.full_name,
       action,

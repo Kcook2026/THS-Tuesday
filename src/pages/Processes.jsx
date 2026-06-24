@@ -96,19 +96,19 @@ export default function Processes() {
 
   return (
     <div>
-      <PageHeader title="Processes" subtitle={`${processes.length} processes`}>
-        <Button onClick={() => openForm(null)}><Plus className="w-4 h-4 mr-1.5" /> New Process</Button>
+      <PageHeader title="SOPs" subtitle={`${processes.length} standard operating procedures`}>
+        <Button onClick={() => openForm(null)}><Plus className="w-4 h-4 mr-1.5" /> New SOP</Button>
       </PageHeader>
 
       <div className="mb-6">
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Search processes..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className="pl-9" placeholder="Search SOPs..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState icon={Workflow} title="No processes found" description="Define your first process to standardize workflows" actionLabel="New Process" onAction={() => openForm(null)} />
+        <EmptyState icon={Workflow} title="No SOPs found" description="Define your first SOP to standardize workflows" actionLabel="New SOP" onAction={() => openForm(null)} />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(p => {

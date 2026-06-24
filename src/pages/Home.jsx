@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import {
   CheckSquare, FolderKanban, LayoutGrid, Activity as ActivityIcon,
   CalendarDays, ArrowRight, Clock, AlertCircle, Plus, Users,
-  TrendingUp,
+  TrendingUp, Building2,
 } from 'lucide-react';
+import WorkspaceFormDialog from '@/components/shared/WorkspaceFormDialog';
 
 export default function Home() {
   const { user, currentWorkspace, currentWorkspaceId, loading: wsLoading } = useWorkspace();
@@ -19,6 +20,7 @@ export default function Home() {
   const [projects, setProjects] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [wsDialogOpen, setWsDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!currentWorkspaceId || !user) return;
@@ -38,7 +40,31 @@ export default function Home() {
     }).finally(() => setLoading(false));
   }, [currentWorkspaceId, user]);
 
-  if (wsLoading || loading) return <LoadingSpinner />;
+  if (wsLoading) return <LoadingSpinner />;
+
+  if (!currentWorkspace) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4">
+        <div className="max-w-md text-center space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+            <Building2 className="w-8 h-8 text-primary" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold tracking-tight">Welcome to Tuesday Workspace</h1>
+            <p className="text-sm text-muted-foreground">
+              You don't have a workspace yet. Create your first workspace to begin organizing your projects, tasks, and teams.
+            </p>
+          </div>
+          <Button onClick={() => setWsDialogOpen(true)} className="gap-2">
+            <Plus className="w-4 h-4" /> Create your first workspace
+          </Button>
+        </div>
+        <WorkspaceFormDialog open={wsDialogOpen} onClose={() => setWsDialogOpen(false)} />
+      </div>
+    );
+  }
+
+  if (loading) return <LoadingSpinner />;
 
   const openTaskCount = tasks.length;
   const activeProjects = projects.filter(p => p.status === 'active').length;
@@ -52,7 +78,7 @@ export default function Home() {
     { label: 'New Task', icon: CheckSquare, path: '/tasks/table' },
     { label: 'New Project', icon: FolderKanban, path: '/projects' },
     { label: 'New Workboard', icon: LayoutGrid, path: '/workboards' },
-    { label: 'Add Client', icon: Users, path: '/clients' },
+    { label: 'New Team', icon: Users, path: '/teams' },
   ];
 
   return (

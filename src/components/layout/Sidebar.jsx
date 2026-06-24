@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home, ListTodo, Search, LayoutGrid, FolderKanban,
-  CalendarDays, Users, Building2, FileText, Workflow, BarChart3,
-  Activity, UserCog, Settings, Shield, ChevronLeft, ChevronRight,
-  ChevronDown, Star, Clock, Moon, Sun, LogOut,
+  CalendarDays, Users, FileText, Workflow, BarChart3,
+  Activity as ActivityIcon, UserCog, Settings, Shield,
+  ChevronLeft, ChevronRight, Star, Clock, Moon, Sun, LogOut,
+  ChevronDown,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
@@ -15,21 +16,21 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-const mainNav = [
+const primaryNav = [
   { label: 'Home', icon: Home, path: '/' },
   { label: 'My Work', icon: ListTodo, path: '/my-work' },
   { label: 'Workboards', icon: LayoutGrid, path: '/workboards' },
   { label: 'Projects', icon: FolderKanban, path: '/projects' },
   { label: 'Tasks', icon: ListTodo, path: '/tasks/table' },
   { label: 'Calendar', icon: CalendarDays, path: '/calendar' },
+  { label: 'Teams', icon: Users, path: '/teams' },
 ];
 
 const operationsNav = [
-  { label: 'Clients', icon: Building2, path: '/clients' },
   { label: 'Documents', icon: FileText, path: '/documents' },
-  { label: 'Processes', icon: Workflow, path: '/processes' },
+  { label: 'SOPs', icon: Workflow, path: '/processes' },
   { label: 'Reports', icon: BarChart3, path: '/reports' },
-  { label: 'Pulse Log', icon: Activity, path: '/activity' },
+  { label: 'Activity', icon: ActivityIcon, path: '/activity' },
 ];
 
 const adminNav = [
@@ -45,12 +46,12 @@ function NavItem({ item, collapsed, isActive, onClick }) {
       onClick={onClick}
       className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-150
         ${isActive
-          ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
-          : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+          ? 'bg-primary/10 text-primary font-semibold'
+          : 'text-sidebar-foreground/60 hover:bg-accent hover:text-sidebar-foreground'
         }
         ${collapsed ? 'justify-center' : ''}`}
     >
-      <item.icon className="w-4 h-4 shrink-0" />
+      <item.icon className={`w-[18px] h-[18px] shrink-0 ${isActive ? 'text-primary' : ''}`} />
       {!collapsed && <span className="truncate">{item.label}</span>}
     </Link>
   );
@@ -68,8 +69,8 @@ function NavItem({ item, collapsed, isActive, onClick }) {
   return content;
 }
 
-function NavSection({ label, items, collapsed, isPathActive, onNavigate, defaultExpanded = true }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+function NavSection({ label, items, collapsed, isPathActive, onNavigate }) {
+  const [expanded, setExpanded] = useState(true);
 
   if (collapsed) {
     return (
@@ -101,7 +102,7 @@ function NavSection({ label, items, collapsed, isPathActive, onNavigate, default
   );
 }
 
-export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onNavigate, onSearchOpen, mobile }) {
+export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onSearchOpen, mobile, onNavigate }) {
   const { currentWorkspace, currentWorkspaceId, isAdmin } = useWorkspace();
   const location = useLocation();
   const [workboards, setWorkboards] = useState([]);
@@ -145,7 +146,7 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
       </div>
 
       {/* Workspace Switcher + Quick Create */}
-      <div className="px-2 pt-2 pb-2 space-y-2 border-b border-sidebar-border">
+      <div className="px-2 pt-2.5 pb-2 space-y-2 border-b border-sidebar-border">
         {collapsed ? (
           <div className="flex justify-center">
             <WorkspaceSwitcher collapsed />
@@ -163,13 +164,13 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
         <button
           onClick={onSearchOpen}
           title="Search"
-          className={`flex items-center gap-2 ${collapsed ? 'w-9 h-9 justify-center' : 'flex-1 px-2.5'} py-2 rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors`}
+          className={`flex items-center gap-2 ${collapsed ? 'w-9 h-9 justify-center' : 'flex-1 px-2.5'} py-2 rounded-lg text-sidebar-foreground/50 hover:bg-accent hover:text-sidebar-foreground transition-colors`}
         >
           <Search className="w-4 h-4 shrink-0" />
           {!collapsed && (
             <>
               <span className="text-xs">Search</span>
-              <kbd className="ml-auto text-[9px] px-1 py-0.5 rounded bg-sidebar-accent text-sidebar-foreground/40">⌘K</kbd>
+              <kbd className="ml-auto text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground/60">⌘K</kbd>
             </>
           )}
         </button>
@@ -179,15 +180,15 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-3">
-        {/* Main */}
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+        {/* Primary */}
         <div className="space-y-0.5">
-          {mainNav.map(item => (
+          {primaryNav.map(item => (
             <NavItem key={item.path} item={item} collapsed={collapsed} isActive={isPathActive(item.path)} onClick={onNavigate} />
           ))}
         </div>
 
-        {/* Workspace Section */}
+        {/* Workspace Section - Favorites & Recent */}
         {!collapsed && currentWorkspace && (favorites.length > 0 || recent.length > 0) && (
           <div className="space-y-1">
             <p className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40 truncate">
@@ -200,7 +201,7 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
                 </p>
                 {favorites.map(wb => (
                   <Link key={wb.id} to={`/workboards/${wb.id}`} onClick={onNavigate}
-                    className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[12px] text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
+                    className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[12px] text-sidebar-foreground/60 hover:bg-accent hover:text-sidebar-foreground transition-colors">
                     <Star className="w-3 h-3 text-amber-500 shrink-0" />
                     <span className="truncate">{wb.name}</span>
                   </Link>
@@ -214,7 +215,7 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
                 </p>
                 {recent.map(wb => (
                   <Link key={wb.id} to={`/workboards/${wb.id}`} onClick={onNavigate}
-                    className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[12px] text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
+                    className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[12px] text-sidebar-foreground/60 hover:bg-accent hover:text-sidebar-foreground transition-colors">
                     <LayoutGrid className="w-3 h-3 text-muted-foreground shrink-0" />
                     <span className="truncate">{wb.name}</span>
                   </Link>
@@ -223,15 +224,6 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
             )}
           </div>
         )}
-
-        {/* Teams (in Workspace section when collapsed, otherwise standalone) */}
-        <div className="space-y-0.5">
-          {collapsed ? (
-            <NavItem item={{ label: 'Teams', icon: Users, path: '/teams' }} collapsed isActive={isPathActive('/teams')} onClick={onNavigate} />
-          ) : (
-            <NavItem item={{ label: 'Teams', icon: Users, path: '/teams' }} isActive={isPathActive('/teams')} onClick={onNavigate} />
-          )}
-        </div>
 
         {/* Operations */}
         <NavSection label="Operations" items={operationsNav} collapsed={collapsed} isPathActive={isPathActive} onNavigate={onNavigate} />
@@ -245,14 +237,14 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
       {/* Footer */}
       <div className="px-2 py-2 border-t border-sidebar-border space-y-0.5 shrink-0">
         {collapsed && (
-          <button onClick={onToggle} className="flex items-center justify-center w-full py-2 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground/40 transition-colors">
+          <button onClick={onToggle} className="flex items-center justify-center w-full py-2 rounded-lg hover:bg-accent text-sidebar-foreground/40 transition-colors">
             <ChevronRight className="w-4 h-4" />
           </button>
         )}
         <button
           onClick={onToggleTheme}
           title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-          className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium w-full text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors ${collapsed ? 'justify-center' : ''}`}
+          className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium w-full text-sidebar-foreground/60 hover:bg-accent hover:text-sidebar-foreground transition-colors ${collapsed ? 'justify-center' : ''}`}
         >
           {theme === 'dark' ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
           {!collapsed && <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
@@ -260,7 +252,7 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
         <button
           onClick={handleLogout}
           title="Sign Out"
-          className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium w-full text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors ${collapsed ? 'justify-center' : ''}`}
+          className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium w-full text-sidebar-foreground/60 hover:bg-accent hover:text-sidebar-foreground transition-colors ${collapsed ? 'justify-center' : ''}`}
         >
           <LogOut className="w-4 h-4 shrink-0" />
           {!collapsed && <span>Sign Out</span>}

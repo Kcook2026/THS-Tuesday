@@ -18,11 +18,10 @@ const ROUTE_MAP = {
   '/tasks/board': { label: 'Task Board', parent: '/tasks/table' },
   '/calendar': { label: 'Calendar', parent: null },
   '/teams': { label: 'Teams', parent: null },
-  '/clients': { label: 'Clients', parent: null },
   '/documents': { label: 'Documents', parent: null },
-  '/processes': { label: 'Processes', parent: null },
+  '/processes': { label: 'SOPs', parent: null },
   '/reports': { label: 'Reports', parent: null },
-  '/activity': { label: 'Pulse Log', parent: null },
+  '/activity': { label: 'Activity', parent: null },
   '/users-access': { label: 'Users & Access', parent: null },
   '/workspace-settings': { label: 'Workspace Settings', parent: null },
   '/security': { label: 'Security', parent: null },
@@ -39,14 +38,9 @@ function getBreadcrumb(pathname) {
     entries.push({ label: 'Board Detail' });
     return entries;
   }
-  if (current.startsWith('/clients/')) {
-    entries.push({ label: 'Clients', path: '/clients' });
-    entries.push({ label: 'Client Detail' });
-    return entries;
-  }
   if (current.startsWith('/processes/')) {
-    entries.push({ label: 'Processes', path: '/processes' });
-    entries.push({ label: 'Process Detail' });
+    entries.push({ label: 'SOPs', path: '/processes' });
+    entries.push({ label: 'SOP Detail' });
     return entries;
   }
 
