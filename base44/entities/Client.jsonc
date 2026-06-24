@@ -1,0 +1,40 @@
+{
+  "name": "Client",
+  "type": "object",
+  "properties": {
+    "company_name": {
+      "type": "string",
+      "title": "Company Name"
+    },
+    "contact_name": {
+      "type": "string",
+      "title": "Contact Name"
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "title": "Email"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "active",
+        "inactive",
+        "prospect"
+      ],
+      "default": "active"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes"
+    }
+  },
+  "required": [
+    "company_name"
+  ]
+}

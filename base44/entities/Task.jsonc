@@ -1,0 +1,70 @@
+{
+  "name": "Task",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "project": {
+      "type": "string",
+      "title": "Project",
+      "relationType": "Project"
+    },
+    "assignee": {
+      "type": "string",
+      "title": "Assignee",
+      "relationType": "User"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "backlog",
+        "todo",
+        "in_progress",
+        "review",
+        "done"
+      ],
+      "default": "todo"
+    },
+    "priority": {
+      "type": "string",
+      "title": "Priority",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Due Date"
+    },
+    "estimated_hours": {
+      "type": "number",
+      "title": "Estimated Hours"
+    },
+    "actual_hours": {
+      "type": "number",
+      "title": "Actual Hours"
+    },
+    "tags": {
+      "type": "array",
+      "title": "Tags",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "title"
+  ]
+}

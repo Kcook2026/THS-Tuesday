@@ -1,0 +1,22 @@
+{
+  "name": "Workspace",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Workspace Name"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owner",
+      "relationType": "User"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

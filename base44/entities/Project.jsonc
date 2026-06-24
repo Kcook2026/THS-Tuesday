@@ -1,0 +1,74 @@
+{
+  "name": "Project",
+  "type": "object",
+  "properties": {
+    "project_name": {
+      "type": "string",
+      "title": "Project Name"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "planning",
+        "active",
+        "on_hold",
+        "completed",
+        "cancelled"
+      ],
+      "default": "planning"
+    },
+    "priority": {
+      "type": "string",
+      "title": "Priority",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Start Date"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Due Date"
+    },
+    "project_manager": {
+      "type": "string",
+      "title": "Project Manager",
+      "relationType": "User"
+    },
+    "team": {
+      "type": "string",
+      "title": "Team",
+      "relationType": "Team"
+    },
+    "client": {
+      "type": "string",
+      "title": "Client",
+      "relationType": "Client"
+    },
+    "budget": {
+      "type": "number",
+      "title": "Budget"
+    },
+    "completion_percentage": {
+      "type": "number",
+      "title": "Completion %",
+      "default": 0
+    }
+  },
+  "required": [
+    "project_name"
+  ]
+}

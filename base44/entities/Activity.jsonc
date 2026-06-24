@@ -1,0 +1,35 @@
+{
+  "name": "Activity",
+  "type": "object",
+  "properties": {
+    "user": {
+      "type": "string",
+      "title": "User",
+      "relationType": "User"
+    },
+    "user_name": {
+      "type": "string",
+      "title": "User Name"
+    },
+    "action": {
+      "type": "string",
+      "title": "Action"
+    },
+    "record_type": {
+      "type": "string",
+      "title": "Record Type"
+    },
+    "record_id": {
+      "type": "string",
+      "title": "Record ID"
+    },
+    "record_name": {
+      "type": "string",
+      "title": "Record Name"
+    }
+  },
+  "required": [
+    "action",
+    "record_type"
+  ]
+}

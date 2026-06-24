@@ -1,0 +1,30 @@
+{
+  "name": "Team",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Team Name"
+    },
+    "manager": {
+      "type": "string",
+      "title": "Manager",
+      "relationType": "User"
+    },
+    "members": {
+      "type": "array",
+      "title": "Members",
+      "items": {
+        "type": "string",
+        "relationType": "User"
+      }
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "name": "Document",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "enum": [
+        "contract",
+        "proposal",
+        "report",
+        "design",
+        "specification",
+        "other"
+      ],
+      "default": "other"
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owner",
+      "relationType": "User"
+    },
+    "project": {
+      "type": "string",
+      "title": "Project",
+      "relationType": "Project"
+    },
+    "file_url": {
+      "type": "string",
+      "title": "File"
+    },
+    "version": {
+      "type": "string",
+      "title": "Version",
+      "default": "1.0"
+    }
+  },
+  "required": [
+    "title"
+  ]
+}
