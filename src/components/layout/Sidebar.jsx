@@ -175,9 +175,7 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
       {/* Header */}
       <div className="flex items-center justify-between h-14 px-3 border-b border-sidebar-border shrink-0">
         <Link to="/" onClick={() => onNavigate && onNavigate('/')} className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
-            <span className="text-white font-bold text-sm">T</span>
-          </div>
+          <img src="https://media.base44.com/images/public/6a3c063e27549006eb32fc77/ac9acccc9_Screenshot2026-06-24at134440.png" alt="Logo" className="w-8 h-8 rounded-lg shrink-0 shadow-sm object-cover" />
           {!collapsed && (
             <div className="min-w-0">
               <p className="font-semibold text-sm text-sidebar-foreground truncate">Tuesday</p>
