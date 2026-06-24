@@ -92,6 +92,8 @@ const AuthenticatedApp = () => {
           <Route path="/goals" element={<Goals />} />
         </Route>
       </Route>
+      {/* Backwards compatibility redirect */}
+      <Route path="/users-access" element={<Navigate to="/members" replace />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

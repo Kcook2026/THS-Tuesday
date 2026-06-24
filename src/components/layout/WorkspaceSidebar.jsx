@@ -26,7 +26,7 @@ const primaryNav = [
 ];
 
 const adminNav = [
-  { label: 'Members', icon: Users, path: '/users-access' },
+  { label: 'Members', icon: Users, path: '/members' },
   { label: 'Settings', icon: Settings, path: '/workspace-settings' },
 ];
 
