@@ -216,7 +216,7 @@ export default function WorkboardMembers({ workboardId, wb }) {
                 </SelectTrigger>
                 <SelectContent>
                   {filteredUsers.length === 0 ? (
-                    <SelectItem disabled value="">No available users</SelectItem>
+                    <SelectItem disabled value="none">No available users</SelectItem>
                   ) : (
                     filteredUsers.map(u => (
                       <SelectItem key={u.user} value={u.user}>
