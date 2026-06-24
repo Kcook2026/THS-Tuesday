@@ -42,13 +42,27 @@ export default function Workboards() {
   const { currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
 
-  const load = () => {
+  const load = async () => {
     if (!currentWorkspaceId) return;
     setLoading(true);
-    const wsFilter = { workspace: currentWorkspaceId };
-    Promise.all([base44.entities.Workboard.filter(wsFilter), base44.entities.Project.filter(wsFilter), base44.entities.Team.filter(wsFilter), base44.auth.me()])
-      .then(([b, p, t, me]) => { setBoards(b); setProjects(p); setTeams(t); setUser(me); })
-      .finally(() => setLoading(false));
+    try {
+      const wsFilter = { workspace: currentWorkspaceId };
+      const [b, p, t, me] = await Promise.all([
+        base44.entities.Workboard.filter(wsFilter),
+        base44.entities.Project.filter(wsFilter),
+        base44.entities.Team.filter(wsFilter),
+        base44.auth.me()
+      ]);
+      setBoards(b);
+      setProjects(p);
+      setTeams(t);
+      setUser(me);
+    } catch (error) {
+      console.error('Error loading workboards:', error);
+      toast({ title: 'Error loading workboards', description: error.message, variant: 'destructive', duration: 6000 });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -59,7 +73,12 @@ export default function Workboards() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [currentWorkspaceId]);
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      load();
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [currentWorkspaceId]);
 
   const openForm = (board) => {
     setEditBoard(board);
@@ -141,12 +160,14 @@ export default function Workboards() {
           { label: 'Critical', workspace: currentWorkspaceId, workboard: newBoard.id, color: 'red', sort_order: 3 },
         ];
         await Promise.all(defaultPriorities.map(p => base44.entities.PriorityOption.create(p)));
+        
+        // Update state directly
+        setBoards(prev => [...prev, newBoard]);
       }
       setDialogOpen(false);
-      load();
     } catch (error) {
       console.error('Error saving workboard:', error);
-      toast({ title: 'Error saving workboard', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error saving workboard', description: error.message, variant: 'destructive', duration: 6000 });
     } finally {
       setSaving(false);
     }
@@ -176,7 +197,8 @@ export default function Workboards() {
       await base44.entities.Workboard.delete(b.id);
       logActivity(user, 'deleted workboard', 'Workboard', b.id, b.name);
       toast({ title: 'Workboard deleted', duration: 3000 });
-      load();
+      // Update state directly instead of reloading
+      setBoards(prev => prev.filter(board => board.id !== b.id));
     } catch (error) {
       console.error('Delete error:', error);
       toast({ title: 'Error deleting workboard', description: error.message, variant: 'destructive', duration: 6000 });
