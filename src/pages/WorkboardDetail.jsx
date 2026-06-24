@@ -49,69 +49,119 @@ export default function WorkboardDetail() {
   const [newItemGroup, setNewItemGroup] = useState(null);
   const [user, setUser] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // Split loading functions to prevent rate limiting
+  const loadBoard = useCallback(async () => {
     try {
-      const [b, i, g, c, s, p, u, t, me] = await Promise.all([
-        base44.entities.Workboard.get(id),
-        base44.entities.WorkboardItem.filter({ workboard: id, archived: false }),
+      const b = await base44.entities.Workboard.get(id);
+      setBoard(b);
+      return b;
+    } catch (error) {
+      console.error('Error loading board:', error);
+      throw error;
+    }
+  }, [id]);
+
+  const loadBoardConfig = useCallback(async () => {
+    try {
+      const [g, c, s, p, t] = await Promise.all([
         base44.entities.BoardGroup.filter({ workboard: id, archived: false }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
         base44.entities.BoardColumn.filter({ workboard: id, hidden: false }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
         base44.entities.StatusOption.filter({ workboard: id }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
         base44.entities.PriorityOption.filter({ workboard: id }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
-        base44.entities.User.list(),
         base44.entities.Team.filter({ workspace: currentWorkspaceId }),
-        base44.auth.me(),
       ]);
-      setBoard(b);
-      setItems(i);
       setGroups(g);
       setColumns(c);
       setStatusOptions(s);
       setPriorityOptions(p);
-      setUsers(u);
       setTeams(t);
-      setUser(me);
       
       // Auto-create default groups if none exist
-      if (g.length === 0 && b) {
+      if (g.length === 0) {
         const defaultGroups = [
           { name: 'This Week', workspace: currentWorkspaceId, workboard: id, sort_order: 0, color: 'blue' },
           { name: 'Next Week', workspace: currentWorkspaceId, workboard: id, sort_order: 1, color: 'green' },
           { name: 'Backlog', workspace: currentWorkspaceId, workboard: id, sort_order: 2, color: 'gray' },
           { name: 'Completed', workspace: currentWorkspaceId, workboard: id, sort_order: 3, color: 'green' },
         ];
-        await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
-        const createdGroups = await base44.entities.BoardGroup.filter({ workboard: id, archived: false });
+        const createdGroups = await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
         setGroups(createdGroups.sort((a, b) => a.sort_order - b.sort_order));
       }
     } catch (error) {
+      console.error('Error loading config:', error);
+      throw error;
+    }
+  }, [id, currentWorkspaceId]);
+
+  const loadItems = useCallback(async () => {
+    try {
+      const i = await base44.entities.WorkboardItem.filter({ workboard: id, archived: false });
+      setItems(i);
+    } catch (error) {
+      console.error('Error loading items:', error);
+      throw error;
+    }
+  }, [id]);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      const [u, me] = await Promise.all([
+        base44.entities.User.list(),
+        base44.auth.me(),
+      ]);
+      setUsers(u);
+      setUser(me);
+    } catch (error) {
+      console.error('Error loading users:', error);
+      throw error;
+    }
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all([loadBoard(), loadBoardConfig(), loadItems(), loadUsers()]);
+    } catch (error) {
       console.error('Error loading board:', error);
-      toast({ 
-        title: 'Error loading board', 
-        description: error.message, 
-        variant: 'destructive' 
-      });
+      // Only show error toast once on initial load, not on subscription updates
+      if (isInitialLoad) {
+        toast({ 
+          title: 'Error loading board', 
+          description: error.message, 
+          variant: 'destructive',
+          duration: 6000,
+        });
+      }
     } finally {
       setLoading(false);
+      setIsInitialLoad(false);
     }
-  }, [id, currentWorkspaceId, toast]);
+  }, [loadBoard, loadBoardConfig, loadItems, loadUsers, isInitialLoad, toast]);
 
   useEffect(() => { 
     load(); 
   }, [load]);
 
-  // Subscribe to real-time updates
+  // Subscribe to real-time updates with debounce to prevent rate limiting
   useEffect(() => {
     if (!id) return;
+    let debounceTimer = null;
     const unsubscribe = base44.entities.WorkboardItem.subscribe((event) => {
       if (event.type === 'create' || event.type === 'update' || event.type === 'delete') {
-        load();
+        // Only reload items, not full config
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          loadItems();
+        }, 300); // 300ms debounce
       }
     });
-    return unsubscribe;
-  }, [id, load]);
+    return () => {
+      unsubscribe();
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
+  }, [id, loadItems]);
 
   const userMap = Object.fromEntries(users.map(u => [u.id, u.full_name || u.email]));
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t.name]));
@@ -160,7 +210,7 @@ export default function WorkboardDetail() {
       toast({ title: 'Updated successfully', duration: 3000 });
     } catch (error) {
       console.error('Error updating:', error);
-      toast({ title: 'Error updating', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error updating', description: error.message, variant: 'destructive', duration: 6000 });
     } finally {
       setSaving(false);
       setEditingCell(null);
@@ -169,7 +219,7 @@ export default function WorkboardDetail() {
 
   const handleCreateItem = async () => {
     if (!newItemTitle.trim()) {
-      toast({ title: 'Title required', variant: 'destructive' });
+      toast({ title: 'Title required', variant: 'destructive', duration: 6000 });
       return;
     }
     setSaving(true);
@@ -245,7 +295,7 @@ export default function WorkboardDetail() {
       load();
     } catch (error) {
       console.error('Error creating item:', error);
-      toast({ title: 'Error creating item', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error creating item', description: error.message, variant: 'destructive', duration: 6000 });
     } finally {
       setSaving(false);
     }
@@ -297,7 +347,7 @@ export default function WorkboardDetail() {
       load();
     } catch (error) {
       console.error('Error creating sub-item:', error);
-      toast({ title: 'Error creating sub-item', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error creating sub-item', description: error.message, variant: 'destructive', duration: 6000 });
     } finally {
       setSaving(false);
     }
@@ -317,7 +367,7 @@ export default function WorkboardDetail() {
       load();
     } catch (error) {
       console.error('Error deleting item:', error);
-      toast({ title: 'Error deleting item', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error deleting item', description: error.message, variant: 'destructive', duration: 6000 });
     } finally {
       setSaving(false);
     }
@@ -523,7 +573,7 @@ export default function WorkboardDetail() {
           {board.description && <p className="text-sm text-muted-foreground mt-0.5">{board.description}</p>}
         </div>
         <div className="flex gap-2">
-          <WorkboardMembers workboardId={id} workspaceId={currentWorkspaceId} />
+          <WorkboardMembers workboardId={id} wb={board} />
           <ColumnManager boardId={id} workspaceId={currentWorkspaceId} columns={columns} onColumnsChange={setColumns} />
           {canCreate && <Button onClick={() => setShowNewItem(true)}><Plus className="w-4 h-4 mr-1.5" />Add Item</Button>}
           {canDelete && (
@@ -531,7 +581,6 @@ export default function WorkboardDetail() {
               if (!confirm(`Delete "${board.name}"?\n\nThis will permanently delete:\n- All items and sub-items\n- All groups\n- All columns\n- All status/priority options\n- All board members\n\nThis action cannot be undone.`)) return;
               setSaving(true);
               try {
-                // Cascade delete all related records
                 const [items, groups, columns, statuses, priorities, members] = await Promise.all([
                   base44.entities.WorkboardItem.filter({ workboard: id }),
                   base44.entities.BoardGroup.filter({ workboard: id }),
@@ -541,16 +590,12 @@ export default function WorkboardDetail() {
                   base44.entities.WorkboardMember.filter({ workboard: id }),
                 ]);
                 
-                // Delete items
                 for (const item of items) await base44.entities.WorkboardItem.delete(item.id);
-                // Delete groups, columns, statuses, priorities
                 for (const g of groups) await base44.entities.BoardGroup.delete(g.id);
                 for (const c of columns) await base44.entities.BoardColumn.delete(c.id);
                 for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
                 for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
                 for (const m of members) await base44.entities.WorkboardMember.delete(m.id);
-                
-                // Finally delete the workboard
                 await base44.entities.Workboard.delete(id);
                 
                 toast({ title: 'Board deleted', duration: 3000 });

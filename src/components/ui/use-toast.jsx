@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 
 const TOAST_LIMIT = 20;
-const TOAST_REMOVE_DELAY = 1000000;
+const DEFAULT_TOAST_REMOVE_DELAY = 5000;
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -20,7 +20,7 @@ function genId() {
 
 const toastTimeouts = new Map();
 
-const addToRemoveQueue = (toastId) => {
+const addToRemoveQueue = (toastId, duration) => {
   if (toastTimeouts.has(toastId)) {
     return;
   }
@@ -31,7 +31,7 @@ const addToRemoveQueue = (toastId) => {
       type: actionTypes.REMOVE_TOAST,
       toastId,
     });
-  }, TOAST_REMOVE_DELAY);
+  }, duration || DEFAULT_TOAST_REMOVE_DELAY);
 
   toastTimeouts.set(toastId, timeout);
 };
@@ -63,13 +63,12 @@ export const reducer = (state, action) => {
     case actionTypes.DISMISS_TOAST: {
       const { toastId } = action;
 
-      // ! Side effects ! - This could be extracted into a dismissToast() action,
-      // but I'll keep it here for simplicity
       if (toastId) {
-        addToRemoveQueue(toastId);
+        const toastToDismiss = state.toasts.find(t => t.id === toastId);
+        addToRemoveQueue(toastId, toastToDismiss?.duration);
       } else {
         state.toasts.forEach((toast) => {
-          addToRemoveQueue(toast.id);
+          addToRemoveQueue(toast.id, toast.duration);
         });
       }
 
@@ -112,6 +111,15 @@ function dispatch(action) {
 
 function toast({ ...props }) {
   const id = genId();
+  
+  // Check for duplicate toasts (same title and description)
+  const isDuplicate = memoryState.toasts.some(
+    t => t.title === props.title && t.description === props.description && t.variant === props.variant
+  );
+  
+  if (isDuplicate) {
+    return { id, dismiss: () => {}, update: () => {} };
+  }
 
   const update = (props) =>
     dispatch({
@@ -121,6 +129,11 @@ function toast({ ...props }) {
 
   const dismiss = () =>
     dispatch({ type: actionTypes.DISMISS_TOAST, toastId: id });
+
+  // Auto-dismiss based on duration prop
+  if (props.duration) {
+    setTimeout(() => dismiss(), props.duration);
+  }
 
   dispatch({
     type: actionTypes.ADD_TOAST,
@@ -161,4 +174,4 @@ function useToast() {
   };
 }
 
-export { useToast, toast }; 
+export { useToast, toast };
