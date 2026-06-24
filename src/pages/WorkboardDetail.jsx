@@ -67,7 +67,7 @@ export default function WorkboardDetail() {
     try {
       const [g, c, s, p, t] = await Promise.all([
         base44.entities.BoardGroup.filter({ workboard: id, archived: false }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
-        base44.entities.BoardColumn.filter({ workboard: id, hidden: false }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
+        base44.entities.BoardColumn.filter({ workboard: id }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
         base44.entities.StatusOption.filter({ workboard: id }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
         base44.entities.PriorityOption.filter({ workboard: id }).then(res => res.sort((a, b) => a.sort_order - b.sort_order)),
         base44.entities.Team.filter({ workspace: currentWorkspaceId }),
@@ -89,21 +89,58 @@ export default function WorkboardDetail() {
         const createdGroups = await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
         setGroups(createdGroups.sort((a, b) => a.sort_order - b.sort_order));
       }
+      
+      // Auto-create default columns if none exist (only system columns)
+      if (c.length === 0) {
+        const defaultColumns = [
+          { name: 'Status', workspace: currentWorkspaceId, workboard: id, column_type: 'status', sort_order: 0, width: 120, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
+          { name: 'Priority', workspace: currentWorkspaceId, workboard: id, column_type: 'priority', sort_order: 1, width: 120, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
+          { name: 'Owner', workspace: currentWorkspaceId, workboard: id, column_type: 'person', sort_order: 2, width: 150, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
+          { name: 'Due Date', workspace: currentWorkspaceId, workboard: id, column_type: 'date', sort_order: 3, width: 130, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
+          { name: 'Progress', workspace: currentWorkspaceId, workboard: id, column_type: 'progress', sort_order: 4, width: 140, hidden: false, required: false, settings: JSON.stringify({}), created_by: user?.id },
+        ];
+        const createdColumns = await Promise.all(defaultColumns.map(col => base44.entities.BoardColumn.create(col)));
+        setColumns(createdColumns.sort((a, b) => a.sort_order - b.sort_order));
+      }
     } catch (error) {
       console.error('Error loading config:', error);
       throw error;
     }
-  }, [id, currentWorkspaceId]);
+  }, [id, currentWorkspaceId, user]);
 
   const loadItems = useCallback(async () => {
     try {
       const i = await base44.entities.WorkboardItem.filter({ workboard: id, archived: false });
       setItems(i);
+      
+      // Load custom column values
+      const itemIds = i.map(item => item.id);
+      if (itemIds.length > 0 && columns.length > 0) {
+        const customValues = await base44.entities.WorkboardItemValue.filter({ 
+          workboard: id,
+          item: { $in: itemIds }
+        });
+        
+        // Attach custom values to items
+        const itemsWithValues = i.map(item => {
+          const itemValues = customValues.filter(v => v.item === item.id);
+          const customData = {};
+          itemValues.forEach(v => {
+            const col = columns.find(c => c.id === v.column);
+            if (col) {
+              const fieldName = col.name.toLowerCase().replace(/\s+/g, '_');
+              customData[fieldName] = v.value;
+            }
+          });
+          return { ...item, ...customData };
+        });
+        setItems(itemsWithValues);
+      }
     } catch (error) {
       console.error('Error loading items:', error);
       throw error;
     }
-  }, [id]);
+  }, [id, columns, currentWorkspaceId]);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -194,25 +231,49 @@ export default function WorkboardDetail() {
     setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
   };
 
-  const handleInlineEdit = async (itemId, field, value) => {
+  const handleInlineEdit = async (itemId, field, value, column = null) => {
     setSaving(true);
     try {
-      const updateData = { [field]: value };
+      // For system fields (status, priority, owner, due_date, progress_percentage)
+      if (['status', 'priority', 'owner', 'due_date', 'progress_percentage'].includes(field)) {
+        const updateData = { [field]: value };
+        
+        if (field === 'status') {
+          const status = statusOptions.find(s => s.label === value);
+          if (status) updateData.status_color = status.color;
+        }
+        if (field === 'priority') {
+          const priority = priorityOptions.find(p => p.label === value);
+          if (priority) updateData.priority_color = priority.color;
+        }
+        if (field === 'progress_percentage') {
+          updateData.progress_percentage = parseInt(value) || 0;
+        }
+        
+        await base44.entities.WorkboardItem.update(itemId, updateData);
+        setItems(prev => prev.map(it => it.id === itemId ? { ...it, ...updateData } : it));
+      } else {
+        // For custom columns, use WorkboardItemValue entity
+        const existingValue = await base44.entities.WorkboardItemValue.filter({ 
+          item: itemId, 
+          column: column.id 
+        }).then(res => res[0]);
+        
+        if (existingValue) {
+          await base44.entities.WorkboardItemValue.update(existingValue.id, { value: String(value) });
+        } else {
+          await base44.entities.WorkboardItemValue.create({
+            workspace: currentWorkspaceId,
+            workboard: id,
+            item: itemId,
+            column: column.id,
+            value: String(value),
+            value_type: column.column_type,
+            created_by: user?.id,
+          });
+        }
+      }
       
-      if (field === 'status') {
-        const status = statusOptions.find(s => s.label === value);
-        if (status) updateData.status_color = status.color;
-      }
-      if (field === 'priority') {
-        const priority = priorityOptions.find(p => p.label === value);
-        if (priority) updateData.priority_color = priority.color;
-      }
-      if (field === 'progress_percentage') {
-        updateData.progress_percentage = parseInt(value) || 0;
-      }
-      
-      await base44.entities.WorkboardItem.update(itemId, updateData);
-      setItems(prev => prev.map(it => it.id === itemId ? { ...it, ...updateData } : it));
       toast({ title: 'Updated', description: 'Item updated successfully', duration: 2000 });
     } catch (error) {
       console.error('Error updating:', error);
@@ -381,15 +442,15 @@ export default function WorkboardDetail() {
   };
 
   const renderCell = (item, col) => {
-    const field = col.column_type === 'status' ? 'status' : 
-                  col.column_type === 'priority' ? 'priority' :
-                  col.column_type === 'person' ? 'owner' :
-                  col.column_type === 'team' ? 'assignee' :
-                  col.column_type === 'date' ? 'due_date' :
-                  col.column_type === 'progress' ? 'progress_percentage' :
-                  col.name.toLowerCase();
+    // Get value for system fields
+    const systemField = col.column_type === 'status' ? 'status' : 
+                        col.column_type === 'priority' ? 'priority' :
+                        col.column_type === 'person' ? 'owner' :
+                        col.column_type === 'team' ? 'assignee' :
+                        col.column_type === 'date' ? 'due_date' :
+                        col.column_type === 'progress' ? 'progress_percentage' : null;
     
-    const value = item[field];
+    const value = systemField ? item[systemField] : item[col.name.toLowerCase().replace(/\s+/g, '_')];
     
     if (col.column_type === 'status') {
       const colorClass = STATUS_COLORS[item.status_color] || STATUS_COLORS.gray;
@@ -411,7 +472,7 @@ export default function WorkboardDetail() {
       return (
         <div className="flex items-center gap-2">
           <Users className="w-3 h-3 text-muted-foreground" />
-          <span className="text-sm">{userMap[value] || teamMap[value] || '—'}</span>
+          <span className="text-sm">{teamMap[value] || '—'}</span>
         </div>
       );
     }
@@ -427,6 +488,21 @@ export default function WorkboardDetail() {
         </div>
       );
     }
+    if (col.column_type === 'currency') {
+      return <span className="text-sm">${parseFloat(value || 0).toFixed(2)}</span>;
+    }
+    if (col.column_type === 'checkbox') {
+      return <span className="text-sm">{value === 'true' || value === true ? '✓' : ''}</span>;
+    }
+    if (col.column_type === 'link' && value) {
+      return <a href={value} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline truncate block">{value}</a>;
+    }
+    if (col.column_type === 'email' && value) {
+      return <a href={`mailto:${value}`} className="text-sm text-primary hover:underline truncate block">{value}</a>;
+    }
+    if (col.column_type === 'phone' && value) {
+      return <a href={`tel:${value}`} className="text-sm text-primary hover:underline truncate block">{value}</a>;
+    }
     return <span className="text-sm truncate">{value || '—'}</span>;
   };
 
@@ -437,14 +513,12 @@ export default function WorkboardDetail() {
                   col.column_type === 'date' ? 'due_date' :
                   col.column_type === 'progress' ? 'progress_percentage' : null;
     
-    if (!field) return renderCell(item, col);
-    
-    const isEditing = editingCell?.itemId === item.id && editingCell?.field === field;
+    const isEditing = editingCell?.itemId === item.id && editingCell?.column?.id === col.id;
     
     if (isEditing) {
       if (col.column_type === 'status') {
         return (
-          <Select value={item.status} onValueChange={(value) => handleInlineEdit(item.id, field, value)} onOpenChange={() => setEditingCell(null)}>
+          <Select value={item.status} onValueChange={(value) => handleInlineEdit(item.id, 'status', value, col)} onOpenChange={() => setEditingCell(null)}>
             <SelectTrigger className="h-7 w-auto"><SelectValue /></SelectTrigger>
             <SelectContent>{statusOptions.map(s => <SelectItem key={s.id} value={s.label}>{s.label}</SelectItem>)}</SelectContent>
           </Select>
@@ -452,7 +526,7 @@ export default function WorkboardDetail() {
       }
       if (col.column_type === 'priority') {
         return (
-          <Select value={item.priority} onValueChange={(value) => handleInlineEdit(item.id, field, value)} onOpenChange={() => setEditingCell(null)}>
+          <Select value={item.priority} onValueChange={(value) => handleInlineEdit(item.id, 'priority', value, col)} onOpenChange={() => setEditingCell(null)}>
             <SelectTrigger className="h-7 w-auto"><SelectValue /></SelectTrigger>
             <SelectContent>{priorityOptions.map(p => <SelectItem key={p.id} value={p.label}>{p.label}</SelectItem>)}</SelectContent>
           </Select>
@@ -460,22 +534,32 @@ export default function WorkboardDetail() {
       }
       if (col.column_type === 'person') {
         return (
-          <Select value={item.owner} onValueChange={(value) => handleInlineEdit(item.id, field, value)} onOpenChange={() => setEditingCell(null)}>
-            <SelectTrigger className="h-7 w-auto"><SelectValue /></SelectTrigger>
-            <SelectContent>{users.map(u => <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>)}</SelectContent>
+          <Select value={item.owner || ''} onValueChange={(value) => handleInlineEdit(item.id, 'owner', value, col)} onOpenChange={() => setEditingCell(null)}>
+            <SelectTrigger className="h-7 w-auto"><SelectValue placeholder="Select user" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={null}>Clear</SelectItem>
+              {users.map(u => <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>)}
+            </SelectContent>
           </Select>
         );
       }
       if (col.column_type === 'date') {
-        return <Input type="date" value={item.due_date ? item.due_date.split('T')[0] : ''} onChange={(e) => handleInlineEdit(item.id, field, e.target.value)} onBlur={() => setEditingCell(null)} className="h-7 w-auto" autoFocus />;
+        return <Input type="date" value={item.due_date ? item.due_date.split('T')[0] : ''} onChange={(e) => handleInlineEdit(item.id, 'due_date', e.target.value, col)} onBlur={() => setEditingCell(null)} className="h-7 w-auto" autoFocus />;
       }
       if (col.column_type === 'progress') {
-        return <Input type="number" min="0" max="100" value={item.progress_percentage || 0} onChange={(e) => handleInlineEdit(item.id, field, e.target.value)} onBlur={() => setEditingCell(null)} className="h-7 w-16" autoFocus />;
+        return <Input type="number" min="0" max="100" value={item.progress_percentage || 0} onChange={(e) => handleInlineEdit(item.id, 'progress_percentage', e.target.value, col)} onBlur={() => setEditingCell(null)} className="h-7 w-16" autoFocus />;
+      }
+      // Text-based custom columns
+      if (['text', 'number', 'currency', 'email', 'phone', 'link'].includes(col.column_type)) {
+        const currentValue = item[col.name.toLowerCase().replace(/\s+/g, '_')] || '';
+        return <Input value={currentValue} onChange={(e) => handleInlineEdit(item.id, col.name.toLowerCase().replace(/\s+/g, '_'), e.target.value, col)} onBlur={() => setEditingCell(null)} className="h-7 w-auto" autoFocus />;
       }
     }
     
+    const value = field ? item[field] : item[col.name.toLowerCase().replace(/\s+/g, '_')];
+    
     return (
-      <div className="cursor-pointer hover:bg-accent rounded px-2 py-1 -mx-2" onClick={() => setEditingCell({ itemId: item.id, field, value: item[field] })}>
+      <div className="cursor-pointer hover:bg-accent rounded px-2 py-1 -mx-2" onClick={() => setEditingCell({ itemId: item.id, column: col, value })}>
         {renderCell(item, col)}
       </div>
     );
