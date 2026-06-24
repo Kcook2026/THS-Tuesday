@@ -150,18 +150,24 @@ export default function WorkboardDetail() {
     let debounceTimer = null;
     const unsubscribe = base44.entities.WorkboardItem.subscribe((event) => {
       if (event.type === 'create' || event.type === 'update' || event.type === 'delete') {
-        // Only reload items, not full config
+        // Update local state directly instead of reloading to prevent rate limiting
         if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
-          loadItems();
-        }, 300); // 300ms debounce
+          if (event.type === 'create' && event.data) {
+            setItems(prev => [...prev, event.data]);
+          } else if (event.type === 'update' && event.data) {
+            setItems(prev => prev.map(it => it.id === event.data.id ? { ...it, ...event.data } : it));
+          } else if (event.type === 'delete') {
+            setItems(prev => prev.filter(it => it.id !== event.entity_id));
+          }
+        }, 100);
       }
     });
     return () => {
       unsubscribe();
       if (debounceTimer) clearTimeout(debounceTimer);
     };
-  }, [id, loadItems]);
+  }, [id]);
 
   const userMap = Object.fromEntries(users.map(u => [u.id, u.full_name || u.email]));
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t.name]));
@@ -207,10 +213,10 @@ export default function WorkboardDetail() {
       
       await base44.entities.WorkboardItem.update(itemId, updateData);
       setItems(prev => prev.map(it => it.id === itemId ? { ...it, ...updateData } : it));
-      toast({ title: 'Updated successfully', duration: 3000 });
+      toast({ title: 'Updated', description: 'Item updated successfully', duration: 2000 });
     } catch (error) {
       console.error('Error updating:', error);
-      toast({ title: 'Error updating', description: error.message, variant: 'destructive', duration: 6000 });
+      toast({ title: 'Update failed', description: error.message, variant: 'destructive', duration: 5000 });
     } finally {
       setSaving(false);
       setEditingCell(null);
@@ -219,7 +225,7 @@ export default function WorkboardDetail() {
 
   const handleCreateItem = async () => {
     if (!newItemTitle.trim()) {
-      toast({ title: 'Title required', variant: 'destructive', duration: 6000 });
+      toast({ title: 'Title required', description: 'Please enter a title for the item', variant: 'destructive', duration: 4000 });
       return;
     }
     setSaving(true);
@@ -288,14 +294,14 @@ export default function WorkboardDetail() {
       toast({ 
         title: 'Item created', 
         description: `"${newItem.title}" added to ${selectedGroup?.name || 'This Week'}`,
-        duration: 3000,
+        duration: 2000,
       });
       setNewItemTitle('');
       setShowNewItem(false);
-      load();
+      setItems(prev => [...prev, created]);
     } catch (error) {
       console.error('Error creating item:', error);
-      toast({ title: 'Error creating item', description: error.message, variant: 'destructive', duration: 6000 });
+      toast({ title: 'Failed to create item', description: error.message, variant: 'destructive', duration: 5000 });
     } finally {
       setSaving(false);
     }
@@ -342,12 +348,12 @@ export default function WorkboardDetail() {
       };
       
       const created = await base44.entities.WorkboardItem.create(newItem);
-      toast({ title: 'Sub-item created', duration: 3000 });
+      toast({ title: 'Sub-item created', duration: 2000 });
       setExpandedItems(prev => ({ ...prev, [parentItemId]: true }));
-      load();
+      setItems(prev => [...prev, created]);
     } catch (error) {
       console.error('Error creating sub-item:', error);
-      toast({ title: 'Error creating sub-item', description: error.message, variant: 'destructive', duration: 6000 });
+      toast({ title: 'Failed to create sub-item', description: error.message, variant: 'destructive', duration: 5000 });
     } finally {
       setSaving(false);
     }
@@ -362,12 +368,13 @@ export default function WorkboardDetail() {
       for (const sub of subItems) {
         await base44.entities.WorkboardItem.delete(sub.id);
       }
+      const deletedId = item.id;
       await base44.entities.WorkboardItem.delete(item.id);
-      toast({ title: 'Item deleted', duration: 3000 });
-      load();
+      toast({ title: 'Item deleted', duration: 2000 });
+      setItems(prev => prev.filter(it => it.id !== deletedId && it.parent_item !== deletedId));
     } catch (error) {
       console.error('Error deleting item:', error);
-      toast({ title: 'Error deleting item', description: error.message, variant: 'destructive', duration: 6000 });
+      toast({ title: 'Failed to delete item', description: error.message, variant: 'destructive', duration: 5000 });
     } finally {
       setSaving(false);
     }
@@ -598,11 +605,11 @@ export default function WorkboardDetail() {
                 for (const m of members) await base44.entities.WorkboardMember.delete(m.id);
                 await base44.entities.Workboard.delete(id);
                 
-                toast({ title: 'Board deleted', duration: 3000 });
+                toast({ title: 'Board deleted', duration: 2000 });
                 window.location.href = '/workboards';
               } catch (error) {
                 console.error('Delete error:', error);
-                toast({ title: 'Error deleting board', description: error.message, variant: 'destructive', duration: 6000 });
+                toast({ title: 'Failed to delete board', description: error.message, variant: 'destructive', duration: 5000 });
               } finally {
                 setSaving(false);
               }

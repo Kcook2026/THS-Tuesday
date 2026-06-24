@@ -39,6 +39,7 @@ export default function MembersDrawer({ workboardId, wb, trigger }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [inviteRole, setInviteRole] = useState('workboard_contributor');
+  const [creatorChecked, setCreatorChecked] = useState(false);
 
   const loadMembers = async () => {
     if (!workboardId || !currentWorkspaceId) return;
@@ -50,6 +51,28 @@ export default function MembersDrawer({ workboardId, wb, trigger }) {
         status: 'active',
       });
       setMembers(wbMembers);
+      
+      // Ensure creator is added as owner if not already a member
+      if (wb?.created_by && !wbMembers.find(m => m.user === wb.created_by)) {
+        try {
+          const creatorMember = await base44.entities.WorkboardMember.create({
+            workspace: currentWorkspaceId,
+            workspace_name: currentWorkspace?.workspace_name,
+            workboard: workboardId,
+            workboard_name: wb?.name,
+            user: wb.created_by,
+            user_name: wb.created_by_name || wb.owner_name || 'Board Creator',
+            user_email: '',
+            role: 'workboard_owner',
+            status: 'active',
+            added_by: wb.created_by,
+            joined_date: new Date().toISOString().split('T')[0],
+          });
+          setMembers(prev => [...prev, creatorMember]);
+        } catch (err) {
+          console.error('Failed to add creator as member:', err);
+        }
+      }
     } catch (error) {
       console.error('Error loading members:', error);
     } finally {
@@ -86,9 +109,9 @@ export default function MembersDrawer({ workboardId, wb, trigger }) {
       
       const existingMember = members.find(m => m.user === selectedUserId);
       if (existingMember) {
-        toast({ title: 'User already a member', variant: 'destructive', duration: 6000 });
+        toast({ title: 'Already a member', description: 'This user is already on the workboard', variant: 'destructive', duration: 4000 });
         return;
-      }
+        }
       
       await base44.entities.WorkboardMember.create({
         workspace: currentWorkspaceId,
@@ -103,36 +126,36 @@ export default function MembersDrawer({ workboardId, wb, trigger }) {
         added_by: user.id,
         joined_date: new Date().toISOString().split('T')[0],
       });
-      toast({ title: 'Member added', description: `${userToAdd.user_name} added to workboard`, duration: 3000 });
+      toast({ title: 'Member added', description: `${userToAdd.user_name} added to workboard`, duration: 2000 });
       setSelectedUserId('');
       setInviteRole('workboard_contributor');
       setSearchQuery('');
       loadMembers();
     } catch (error) {
       console.error('Error adding member:', error);
-      toast({ title: 'Failed to add member', description: error.message, variant: 'destructive', duration: 6000 });
+      toast({ title: 'Failed to add member', description: error.message, variant: 'destructive', duration: 5000 });
     }
   };
 
   const handleChangeRole = async (memberId, newRole) => {
     try {
       await base44.entities.WorkboardMember.update(memberId, { role: newRole });
-      toast({ title: 'Role updated', duration: 3000 });
-      loadMembers();
+      toast({ title: 'Role updated', duration: 2000 });
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m));
     } catch (error) {
       console.error('Error updating role:', error);
-      toast({ title: 'Failed to update role', description: error.message, variant: 'destructive', duration: 6000 });
+      toast({ title: 'Failed to update role', description: error.message, variant: 'destructive', duration: 5000 });
     }
   };
 
   const handleRemove = async (memberId) => {
     try {
       await base44.entities.WorkboardMember.update(memberId, { status: 'removed' });
-      toast({ title: 'Member removed', duration: 3000 });
-      loadMembers();
+      toast({ title: 'Member removed', duration: 2000 });
+      setMembers(prev => prev.filter(m => m.id !== memberId));
     } catch (error) {
       console.error('Error removing member:', error);
-      toast({ title: 'Failed to remove', description: error.message, variant: 'destructive', duration: 6000 });
+      toast({ title: 'Failed to remove member', description: error.message, variant: 'destructive', duration: 5000 });
     }
   };
   
