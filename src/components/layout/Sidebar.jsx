@@ -3,16 +3,18 @@ import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, FolderKanban, CheckSquare, Table2, CalendarDays, 
   Users, Building2, BarChart3, Activity, FileText, ChevronLeft, ChevronRight,
-  LogOut, Moon, Sun
+  LogOut, Moon, Sun, LayoutGrid, Workflow
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
+  { label: 'Workboards', icon: LayoutGrid, path: '/workboards' },
   { label: 'Projects', icon: FolderKanban, path: '/projects' },
   { label: 'Task Board', icon: CheckSquare, path: '/tasks/board' },
   { label: 'Task Table', icon: Table2, path: '/tasks/table' },
   { label: 'Calendar', icon: CalendarDays, path: '/calendar' },
+  { label: 'Processes', icon: Workflow, path: '/processes' },
   { label: 'Teams', icon: Users, path: '/teams' },
   { label: 'Clients', icon: Building2, path: '/clients' },
   { label: 'Documents', icon: FileText, path: '/documents' },

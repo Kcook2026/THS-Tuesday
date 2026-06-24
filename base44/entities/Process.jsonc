@@ -1,0 +1,88 @@
+{
+  "name": "Process",
+  "type": "object",
+  "properties": {
+    "process_name": {
+      "type": "string",
+      "title": "Process Name"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owner",
+      "relationType": "User"
+    },
+    "department": {
+      "type": "string",
+      "title": "Department"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "draft",
+        "active",
+        "paused",
+        "completed",
+        "archived"
+      ],
+      "default": "draft"
+    },
+    "related_projects": {
+      "type": "array",
+      "title": "Related Projects",
+      "items": {
+        "type": "string",
+        "relationType": "Project"
+      }
+    },
+    "related_team": {
+      "type": "string",
+      "title": "Related Team",
+      "relationType": "Team"
+    },
+    "steps": {
+      "type": "array",
+      "title": "Steps",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step_name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "due_offset": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed",
+              "skipped"
+            ],
+            "default": "pending"
+          },
+          "required_documents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "process_name"
+  ]
+}

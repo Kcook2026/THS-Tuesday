@@ -1,0 +1,76 @@
+{
+  "name": "Workboard",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Name"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owner",
+      "relationType": "User"
+    },
+    "team": {
+      "type": "string",
+      "title": "Team",
+      "relationType": "Team"
+    },
+    "linked_project": {
+      "type": "string",
+      "title": "Linked Project",
+      "relationType": "Project"
+    },
+    "board_type": {
+      "type": "string",
+      "title": "Board Type",
+      "enum": [
+        "project_board",
+        "task_board",
+        "client_board",
+        "process_board",
+        "operations_board"
+      ],
+      "default": "task_board"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "active",
+        "archived",
+        "template"
+      ],
+      "default": "active"
+    },
+    "default_view": {
+      "type": "string",
+      "title": "Default View",
+      "enum": [
+        "table",
+        "kanban",
+        "timeline",
+        "calendar",
+        "dashboard"
+      ],
+      "default": "table"
+    },
+    "group_by_field": {
+      "type": "string",
+      "title": "Group By Field",
+      "default": "status"
+    },
+    "color": {
+      "type": "string",
+      "title": "Color",
+      "default": "violet"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

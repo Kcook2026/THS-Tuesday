@@ -1,0 +1,49 @@
+{
+  "name": "Notification",
+  "type": "object",
+  "properties": {
+    "user": {
+      "type": "string",
+      "title": "User",
+      "relationType": "User"
+    },
+    "type": {
+      "type": "string",
+      "title": "Type",
+      "enum": [
+        "mention",
+        "assignment",
+        "comment",
+        "status_change",
+        "deadline",
+        "system"
+      ],
+      "default": "system"
+    },
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "message": {
+      "type": "string",
+      "title": "Message"
+    },
+    "record_type": {
+      "type": "string",
+      "title": "Record Type"
+    },
+    "record_id": {
+      "type": "string",
+      "title": "Record ID"
+    },
+    "read_status": {
+      "type": "boolean",
+      "title": "Read",
+      "default": false
+    }
+  },
+  "required": [
+    "title",
+    "user"
+  ]
+}

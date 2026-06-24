@@ -37,6 +37,47 @@
       "type": "string",
       "title": "Version",
       "default": "1.0"
+    },
+    "file_type": {
+      "type": "string",
+      "title": "File Type"
+    },
+    "size": {
+      "type": "number",
+      "title": "Size (bytes)"
+    },
+    "tags": {
+      "type": "array",
+      "title": "Tags",
+      "items": {
+        "type": "string"
+      }
+    },
+    "related_client": {
+      "type": "string",
+      "title": "Related Client",
+      "relationType": "Client"
+    },
+    "related_team": {
+      "type": "string",
+      "title": "Related Team",
+      "relationType": "Team"
+    },
+    "approval_status": {
+      "type": "string",
+      "title": "Approval Status",
+      "enum": [
+        "draft",
+        "in_review",
+        "approved",
+        "archived"
+      ],
+      "default": "draft"
+    },
+    "expiration_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Expiration Date"
     }
   },
   "required": [

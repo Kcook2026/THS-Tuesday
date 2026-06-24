@@ -1,0 +1,39 @@
+{
+  "name": "Comment",
+  "type": "object",
+  "properties": {
+    "user": {
+      "type": "string",
+      "title": "User",
+      "relationType": "User"
+    },
+    "user_name": {
+      "type": "string",
+      "title": "User Name"
+    },
+    "body": {
+      "type": "string",
+      "title": "Body"
+    },
+    "record_type": {
+      "type": "string",
+      "title": "Record Type"
+    },
+    "record_id": {
+      "type": "string",
+      "title": "Record ID"
+    },
+    "mentions": {
+      "type": "array",
+      "title": "Mentions",
+      "items": {
+        "type": "string",
+        "relationType": "User"
+      }
+    }
+  },
+  "required": [
+    "body",
+    "record_type"
+  ]
+}

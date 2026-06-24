@@ -19,9 +19,15 @@ import TaskTable from '@/pages/TaskTable';
 import Calendar from '@/pages/Calendar';
 import Teams from '@/pages/Teams';
 import Clients from '@/pages/Clients';
+import ClientDetail from '@/pages/ClientDetail';
 import Documents from '@/pages/Documents';
 import Reports from '@/pages/Reports';
 import ActivityFeed from '@/pages/ActivityFeed';
+import Workboards from '@/pages/Workboards';
+import WorkboardDetail from '@/pages/WorkboardDetail';
+import Processes from '@/pages/Processes';
+import ProcessDetail from '@/pages/ProcessDetail';
+import Notifications from '@/pages/Notifications';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -57,15 +63,21 @@ const AuthenticatedApp = () => {
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/workboards" element={<Workboards />} />
+          <Route path="/workboards/:id" element={<WorkboardDetail />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/tasks/board" element={<TaskBoard />} />
           <Route path="/tasks/table" element={<TaskTable />} />
           <Route path="/calendar" element={<Calendar />} />
+          <Route path="/processes" element={<Processes />} />
+          <Route path="/processes/:id" element={<ProcessDetail />} />
           <Route path="/teams" element={<Teams />} />
           <Route path="/clients" element={<Clients />} />
+          <Route path="/clients/:id" element={<ClientDetail />} />
           <Route path="/documents" element={<Documents />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/activity" element={<ActivityFeed />} />
+          <Route path="/notifications" element={<Notifications />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />

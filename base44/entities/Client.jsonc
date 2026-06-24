@@ -32,6 +32,37 @@
     "notes": {
       "type": "string",
       "title": "Notes"
+    },
+    "account_owner": {
+      "type": "string",
+      "title": "Account Owner",
+      "relationType": "User"
+    },
+    "contract_value": {
+      "type": "number",
+      "title": "Contract Value"
+    },
+    "renewal_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Renewal Date"
+    },
+    "client_health": {
+      "type": "string",
+      "title": "Client Health",
+      "enum": [
+        "excellent",
+        "good",
+        "at_risk",
+        "critical",
+        "inactive"
+      ],
+      "default": "good"
+    },
+    "last_contact_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Last Contact Date"
     }
   },
   "required": [

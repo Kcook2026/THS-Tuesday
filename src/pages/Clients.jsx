@@ -8,12 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, Building2, Mail, Phone } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, Building2, Mail, Phone, ArrowRight } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { ClientHealthBadge } from '@/components/shared/EnhancedBadges';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { logActivity } from '@/hooks/useActivityLogger';
+import { Link } from 'react-router-dom';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -89,8 +91,8 @@ export default function Clients() {
             <Card key={c.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold text-sm">{c.company_name}</h3>
+                  <div className="min-w-0">
+                    <Link to={`/clients/${c.id}`} className="font-semibold text-sm hover:text-primary">{c.company_name}</Link>
                     {c.contact_name && <p className="text-xs text-muted-foreground mt-0.5">{c.contact_name}</p>}
                   </div>
                   <DropdownMenu>
@@ -103,7 +105,10 @@ export default function Clients() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-                <StatusBadge status={c.status} />
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={c.status} />
+                  <ClientHealthBadge health={c.client_health} />
+                </div>
                 <div className="mt-3 space-y-1">
                   {c.email && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Mail className="w-3 h-3" />{c.email}</p>}
                   {c.phone && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Phone className="w-3 h-3" />{c.phone}</p>}

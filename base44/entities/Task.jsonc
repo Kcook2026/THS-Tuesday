@@ -62,6 +62,83 @@
       "items": {
         "type": "string"
       }
+    },
+    "parent_task": {
+      "type": "string",
+      "title": "Parent Task",
+      "relationType": "Task"
+    },
+    "dependencies": {
+      "type": "array",
+      "title": "Dependencies",
+      "items": {
+        "type": "string",
+        "relationType": "Task"
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "title": "Blockers",
+      "items": {
+        "type": "string"
+      }
+    },
+    "watchers": {
+      "type": "array",
+      "title": "Watchers",
+      "items": {
+        "type": "string",
+        "relationType": "User"
+      }
+    },
+    "recurring": {
+      "type": "boolean",
+      "title": "Recurring",
+      "default": false
+    },
+    "recurring_interval": {
+      "type": "string",
+      "title": "Recurring Interval",
+      "enum": [
+        "daily",
+        "weekly",
+        "monthly",
+        "none"
+      ],
+      "default": "none"
+    },
+    "health": {
+      "type": "string",
+      "title": "Health",
+      "enum": [
+        "on_track",
+        "at_risk",
+        "blocked",
+        "overdue",
+        "complete"
+      ],
+      "default": "on_track"
+    },
+    "checklist": {
+      "type": "array",
+      "title": "Checklist",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    "board": {
+      "type": "string",
+      "title": "Board",
+      "relationType": "Workboard"
     }
   },
   "required": [
