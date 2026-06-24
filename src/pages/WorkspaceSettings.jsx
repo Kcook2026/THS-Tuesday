@@ -17,7 +17,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Building2, Briefcase, Users, FolderKanban, Wrench, Check } from 'lucide-react';
+import { Plus, Building2, Briefcase, Users, FolderKanban, Wrench, Check, Trash2, Archive } from 'lucide-react';
 
 const TYPE_ICONS = {
   company_workspace: Building2,
@@ -51,6 +51,9 @@ export default function WorkspaceSettings() {
   const [departments, setDepartments] = useState('');
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmName, setConfirmName] = useState('');
 
   useEffect(() => {
     if (currentWorkspace) {
@@ -113,6 +116,57 @@ export default function WorkspaceSettings() {
       refresh();
     } catch (e) {
       toast({ title: 'Failed to create', description: e.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleArchiveWorkspace = async () => {
+    if (!currentWorkspaceId) return;
+    setSaving(true);
+    try {
+      await base44.asServiceRole.entities.Workspace.update(currentWorkspaceId, { status: 'archived' });
+      toast({ title: 'Workspace archived', description: currentWorkspace?.workspace_name });
+      setArchiveOpen(false);
+      refresh();
+    } catch (e) {
+      toast({ title: 'Failed to archive', description: e.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteWorkspace = async () => {
+    if (!currentWorkspaceId) return;
+    if (confirmName !== currentWorkspace?.workspace_name) {
+      toast({ title: 'Confirmation failed', description: 'Please type the workspace name correctly', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    try {
+      // Check for related records
+      const [workboards, projects, teams] = await Promise.all([
+        base44.entities.Workboard.filter({ workspace: currentWorkspaceId }),
+        base44.entities.Project.filter({ workspace: currentWorkspaceId }),
+        base44.entities.Team.filter({ workspace: currentWorkspaceId }),
+      ]);
+      
+      if (workboards.length > 0 || projects.length > 0 || teams.length > 0) {
+        toast({ 
+          title: 'Cannot delete workspace', 
+          description: `Delete all ${workboards.length} workboards, ${projects.length} projects, and ${teams.length} teams first`, 
+          variant: 'destructive' 
+        });
+        setDeleteOpen(false);
+        return;
+      }
+      
+      await base44.asServiceRole.entities.Workspace.delete(currentWorkspaceId);
+      toast({ title: 'Workspace deleted', description: currentWorkspace?.workspace_name });
+      setDeleteOpen(false);
+      refresh();
+    } catch (e) {
+      toast({ title: 'Failed to delete', description: e.message, variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -192,7 +246,15 @@ export default function WorkspaceSettings() {
           </div>
 
           {isAdmin && (
-            <div className="flex justify-end">
+            <div className="flex justify-between items-center">
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setArchiveOpen(true)} disabled={saving}>
+                  <Archive className="w-4 h-4 mr-2" /> Archive Workspace
+                </Button>
+                <Button variant="destructive" onClick={() => setDeleteOpen(true)} disabled={saving}>
+                  <Trash2 className="w-4 h-4 mr-2" /> Delete Workspace
+                </Button>
+              </div>
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving...' : 'Save Changes'}
               </Button>
@@ -237,6 +299,61 @@ export default function WorkspaceSettings() {
       )}
 
       <CreateWorkspaceDialog open={createOpen} onOpenChange={setCreateOpen} onCreate={handleCreate} saving={saving} />
+      
+      {/* Archive Dialog */}
+      <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archive Workspace</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Archiving "{currentWorkspace?.workspace_name}" will hide it from the workspace switcher but preserve all data.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Only System Admins and Workspace Owners can archive workspaces.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setArchiveOpen(false)}>Cancel</Button>
+            <Button onClick={handleArchiveWorkspace} disabled={saving}>
+              {saving ? 'Archiving...' : 'Archive Workspace'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Workspace</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              This will permanently delete "{currentWorkspace?.workspace_name}". This action cannot be undone.
+            </p>
+            <div>
+              <Label htmlFor="confirm-delete">Type workspace name to confirm</Label>
+              <Input 
+                id="confirm-delete" 
+                value={confirmName} 
+                onChange={e => setConfirmName(e.target.value)} 
+                placeholder={currentWorkspace?.workspace_name} 
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Warning: All workboards, projects, and teams must be deleted first.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteWorkspace} disabled={saving || confirmName !== currentWorkspace?.workspace_name}>
+              {saving ? 'Deleting...' : 'Delete Workspace'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -47,7 +47,7 @@ export default function WorkboardDetail() {
   const [editValue, setEditValue] = useState('');
   const [showNewItem, setShowNewItem] = useState(false);
   const [newItemTitle, setNewItemTitle] = useState('');
-  const [newItemGroup, setNewItemGroup] = useState('Backlog');
+  const [newItemGroup, setNewItemGroup] = useState(null);
   const [user, setUser] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -74,6 +74,19 @@ export default function WorkboardDetail() {
       setUsers(u);
       setTeams(t);
       setUser(me);
+      
+      // Auto-create default groups if none exist
+      if (g.length === 0 && b) {
+        const defaultGroups = [
+          { name: 'This Week', workspace: currentWorkspaceId, workboard: id, sort_order: 0, color: 'blue' },
+          { name: 'Next Week', workspace: currentWorkspaceId, workboard: id, sort_order: 1, color: 'green' },
+          { name: 'Backlog', workspace: currentWorkspaceId, workboard: id, sort_order: 2, color: 'gray' },
+          { name: 'Completed', workspace: currentWorkspaceId, workboard: id, sort_order: 3, color: 'green' },
+        ];
+        await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
+        const createdGroups = await base44.entities.BoardGroup.filter({ workboard: id, archived: false });
+        setGroups(createdGroups.sort((a, b) => a.sort_order - b.sort_order));
+      }
     } catch (error) {
       console.error('Error loading board:', error);
       toast({ 
@@ -117,7 +130,10 @@ export default function WorkboardDetail() {
 
   const filteredItems = mainItems.filter(item => {
     if (search && !item.title.toLowerCase().includes(search.toLowerCase())) return false;
-    if (groupFilter !== 'all' && item.group !== groupFilter) return false;
+    if (groupFilter !== 'all') {
+      const itemGroup = groups.find(g => g.id === item.group);
+      if (itemGroup?.name !== groupFilter && item.group !== groupFilter) return false;
+    }
     return true;
   });
 
@@ -171,14 +187,29 @@ export default function WorkboardDetail() {
     }
     setSaving(true);
     try {
+      // Auto-create default groups if none exist
+      let targetGroups = groups;
+      if (groups.length === 0) {
+        const defaultGroups = [
+          { name: 'This Week', workspace: currentWorkspaceId, workboard: id, sort_order: 0, color: 'blue' },
+          { name: 'Next Week', workspace: currentWorkspaceId, workboard: id, sort_order: 1, color: 'green' },
+          { name: 'Backlog', workspace: currentWorkspaceId, workboard: id, sort_order: 2, color: 'gray' },
+          { name: 'Completed', workspace: currentWorkspaceId, workboard: id, sort_order: 3, color: 'green' },
+        ];
+        const createdGroups = await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
+        targetGroups = createdGroups;
+        setGroups(createdGroups);
+      }
+      
       const defaultStatus = statusOptions.find(s => s.is_default) || statusOptions[0];
       const defaultPriority = priorityOptions.find(p => p.is_default) || priorityOptions.find(p => p.label === 'Medium') || priorityOptions[0];
+      const selectedGroup = targetGroups.find(g => g.id === newItemGroup) || targetGroups[0];
       
       const newItem = {
         title: newItemTitle.trim(),
         workspace: currentWorkspaceId,
         workboard: id,
-        group: newItemGroup,
+        group: selectedGroup?.id,
         status: defaultStatus?.label || 'Not Started',
         status_color: defaultStatus?.color || 'gray',
         priority: defaultPriority?.label || 'Medium',
@@ -216,12 +247,28 @@ export default function WorkboardDetail() {
       const defaultStatus = statusOptions.find(s => s.is_default) || statusOptions[0];
       const defaultPriority = priorityOptions.find(p => p.is_default) || priorityOptions[0];
       
+      // Auto-create default groups if none exist
+      let targetGroups = groups;
+      if (groups.length === 0) {
+        const defaultGroups = [
+          { name: 'This Week', workspace: currentWorkspaceId, workboard: id, sort_order: 0, color: 'blue' },
+          { name: 'Next Week', workspace: currentWorkspaceId, workboard: id, sort_order: 1, color: 'green' },
+          { name: 'Backlog', workspace: currentWorkspaceId, workboard: id, sort_order: 2, color: 'gray' },
+          { name: 'Completed', workspace: currentWorkspaceId, workboard: id, sort_order: 3, color: 'green' },
+        ];
+        const createdGroups = await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
+        targetGroups = createdGroups;
+        setGroups(createdGroups);
+      }
+      
+      const selectedGroup = targetGroups.find(g => g.id === parent?.group) || targetGroups[0];
+      
       const newItem = {
         title: title.trim(),
         workspace: currentWorkspaceId,
         workboard: id,
         parent_item: parentItemId,
-        group: parent?.group || 'Backlog',
+        group: selectedGroup?.id || parent?.group,
         status: defaultStatus?.label || 'Not Started',
         status_color: defaultStatus?.color || 'gray',
         priority: defaultPriority?.label || 'Medium',
@@ -475,8 +522,9 @@ export default function WorkboardDetail() {
     </div>
   );
 
-  const canEdit = permissions.canManageWorkboards || permissions.canEditWorkboardItems;
-  const canCreate = permissions.canCreateWorkboardItems;
+  const canEdit = permissions.workspacePermissions?.canEdit || permissions.workspacePermissions?.canCreateItems || false;
+  const canCreate = permissions.workspacePermissions?.canCreateItems || false;
+  const canDelete = permissions.workspacePermissions?.canDeleteItems || false;
 
   return (
     <div className="space-y-4">
@@ -544,12 +592,18 @@ export default function WorkboardDetail() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Groups</SelectItem>
-                {groups.map(g => (
-                  <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                ))}
-                {groups.length === 0 && DEFAULT_GROUPS.map(g => (
-                  <SelectItem key={g} value={g}>{g}</SelectItem>
-                ))}
+                {groups.length > 0 ? (
+                  groups.map(g => (
+                    <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                  ))
+                ) : (
+                  <>
+                    <SelectItem value="This Week">This Week</SelectItem>
+                    <SelectItem value="Next Week">Next Week</SelectItem>
+                    <SelectItem value="Backlog">Backlog</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -567,15 +621,21 @@ export default function WorkboardDetail() {
                   />
                   <Select value={newItemGroup} onValueChange={setNewItemGroup}>
                     <SelectTrigger className="w-36">
-                      <SelectValue />
+                      <SelectValue placeholder="Select group" />
                     </SelectTrigger>
                     <SelectContent>
-                      {groups.map(g => (
-                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                      ))}
-                      {groups.length === 0 && DEFAULT_GROUPS.map(g => (
-                        <SelectItem key={g} value={g}>{g}</SelectItem>
-                      ))}
+                      {groups.length > 0 ? (
+                        groups.map(g => (
+                          <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                        ))
+                      ) : (
+                        <>
+                          <SelectItem value="This Week">This Week</SelectItem>
+                          <SelectItem value="Next Week">Next Week</SelectItem>
+                          <SelectItem value="Backlog">Backlog</SelectItem>
+                          <SelectItem value="Completed">Completed</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                   <Button size="sm" onClick={handleCreateItem} disabled={saving}>
@@ -693,7 +753,7 @@ export default function WorkboardDetail() {
                                       Add Sub-item
                                     </DropdownMenuItem>
                                   )}
-                                  {canEdit && (
+                                  {canDelete && (
                                     <DropdownMenuItem onClick={() => handleDeleteItem(item)} className="text-destructive">
                                       Delete
                                     </DropdownMenuItem>
@@ -736,7 +796,7 @@ export default function WorkboardDetail() {
                                 </>
                               )}
                               <TableCell>
-                                {canEdit && (
+                                {canDelete && (
                                   <Button 
                                     variant="ghost" 
                                     size="icon" 
