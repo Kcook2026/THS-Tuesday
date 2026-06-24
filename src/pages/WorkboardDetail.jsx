@@ -21,7 +21,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useWorkspace } from '@/lib/WorkspaceContext';
 import usePermissions from '@/hooks/usePermissions';
 import ColumnManager from '@/components/workboards/ColumnManager';
-import WorkboardMembers from '@/components/workboards/WorkboardMembers';
+import MembersDrawer from '@/components/workboards/MembersDrawer';
 import { STATUS_COLORS, PRIORITY_COLORS } from '@/components/workboards/WorkboardConstants';
 
 export default function WorkboardDetail() {
@@ -573,7 +573,7 @@ export default function WorkboardDetail() {
           {board.description && <p className="text-sm text-muted-foreground mt-0.5">{board.description}</p>}
         </div>
         <div className="flex gap-2">
-          <WorkboardMembers workboardId={id} wb={board} />
+          <MembersDrawer workboardId={id} wb={board} />
           <ColumnManager boardId={id} workspaceId={currentWorkspaceId} columns={columns} onColumnsChange={setColumns} />
           {canCreate && <Button onClick={() => setShowNewItem(true)}><Plus className="w-4 h-4 mr-1.5" />Add Item</Button>}
           {canDelete && (
