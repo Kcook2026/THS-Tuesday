@@ -52,25 +52,32 @@ export default function MembersDrawer({ workboardId, wb, trigger }) {
       });
       setMembers(wbMembers);
       
-      // Ensure creator is added as owner if not already a member
-      if (wb?.created_by && !wbMembers.find(m => m.user === wb.created_by)) {
-        try {
-          const creatorMember = await base44.entities.WorkboardMember.create({
-            workspace: currentWorkspaceId,
-            workspace_name: currentWorkspace?.workspace_name,
-            workboard: workboardId,
-            workboard_name: wb?.name,
-            user: wb.created_by,
-            user_name: wb.created_by_name || wb.owner_name || 'Board Creator',
-            user_email: '',
-            role: 'workboard_owner',
-            status: 'active',
-            added_by: wb.created_by,
-            joined_date: new Date().toISOString().split('T')[0],
-          });
-          setMembers(prev => [...prev, creatorMember]);
-        } catch (err) {
-          console.error('Failed to add creator as member:', err);
+      // Ensure creator is added as owner if not already a member (check all records, not just active)
+      if (wb?.created_by) {
+        const allCreatorMembers = await base44.entities.WorkboardMember.filter({
+          workboard: workboardId,
+          workspace: currentWorkspaceId,
+          user: wb.created_by,
+        });
+        if (!allCreatorMembers || allCreatorMembers.length === 0) {
+          try {
+            const creatorMember = await base44.entities.WorkboardMember.create({
+              workspace: currentWorkspaceId,
+              workspace_name: currentWorkspace?.workspace_name,
+              workboard: workboardId,
+              workboard_name: wb?.name,
+              user: wb.created_by,
+              user_name: wb.created_by_name || wb.owner_name || 'Board Creator',
+              user_email: '',
+              role: 'workboard_owner',
+              status: 'active',
+              added_by: wb.created_by,
+              joined_date: new Date().toISOString().split('T')[0],
+            });
+            setMembers(prev => [...prev, creatorMember]);
+          } catch (err) {
+            console.error('Failed to add creator as member:', err);
+          }
         }
       }
     } catch (error) {
