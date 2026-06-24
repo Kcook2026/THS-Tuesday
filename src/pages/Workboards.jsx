@@ -24,6 +24,7 @@ const BOARD_TYPES = {
   task_board: { label: 'Task Board', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-300' },
   process_board: { label: 'Process Board', color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
   operations_board: { label: 'Operations Board', color: 'bg-orange-500/10 text-orange-700 dark:text-orange-300' },
+  client_board: { label: 'Client Board', color: 'bg-pink-500/10 text-pink-700 dark:text-pink-300', hidden: true },
 };
 
 export default function Workboards() {
@@ -152,13 +153,35 @@ export default function Workboards() {
   };
 
   const handleDelete = async (b) => {
+    if (!confirm(`Delete "${b.name}"?\n\nThis will permanently delete all items, groups, columns, and members in this board.`)) return;
+    setSaving(true);
     try {
+      // Cascade delete all related records
+      const [items, groups, columns, statuses, priorities, members] = await Promise.all([
+        base44.entities.WorkboardItem.filter({ workboard: b.id }),
+        base44.entities.BoardGroup.filter({ workboard: b.id }),
+        base44.entities.BoardColumn.filter({ workboard: b.id }),
+        base44.entities.StatusOption.filter({ workboard: b.id }),
+        base44.entities.PriorityOption.filter({ workboard: b.id }),
+        base44.entities.WorkboardMember.filter({ workboard: b.id }),
+      ]);
+      
+      for (const item of items) await base44.entities.WorkboardItem.delete(item.id);
+      for (const g of groups) await base44.entities.BoardGroup.delete(g.id);
+      for (const c of columns) await base44.entities.BoardColumn.delete(c.id);
+      for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
+      for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
+      for (const m of members) await base44.entities.WorkboardMember.delete(m.id);
+      
       await base44.entities.Workboard.delete(b.id);
       logActivity(user, 'deleted workboard', 'Workboard', b.id, b.name);
       toast({ title: 'Workboard deleted', duration: 3000 });
       load();
     } catch (error) {
-      toast({ title: 'Error deleting workboard', description: error.message, variant: 'destructive' });
+      console.error('Delete error:', error);
+      toast({ title: 'Error deleting workboard', description: error.message, variant: 'destructive', duration: 6000 });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -234,7 +257,7 @@ export default function Workboards() {
                 <Select value={form.board_type} onValueChange={v => setForm(f => ({...f, board_type: v}))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {Object.entries(BOARD_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                    {Object.entries(BOARD_TYPES).filter(([_, v]) => !v.hidden).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

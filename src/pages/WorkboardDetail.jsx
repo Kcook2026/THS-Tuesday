@@ -528,18 +528,40 @@ export default function WorkboardDetail() {
           {canCreate && <Button onClick={() => setShowNewItem(true)}><Plus className="w-4 h-4 mr-1.5" />Add Item</Button>}
           {canDelete && (
             <Button variant="destructive" size="sm" onClick={async () => {
-              if (confirm(`Delete "${board.name}"? This will delete all items in this board.`)) {
-                try {
-                  const itemsToDelete = await base44.entities.WorkboardItem.filter({ workboard: id });
-                  for (const item of itemsToDelete) await base44.entities.WorkboardItem.delete(item.id);
-                  await base44.entities.Workboard.delete(id);
-                  toast({ title: 'Board deleted' });
-                  window.location.href = '/workboards';
-                } catch (error) {
-                  toast({ title: 'Error deleting board', description: error.message, variant: 'destructive' });
-                }
+              if (!confirm(`Delete "${board.name}"?\n\nThis will permanently delete:\n- All items and sub-items\n- All groups\n- All columns\n- All status/priority options\n- All board members\n\nThis action cannot be undone.`)) return;
+              setSaving(true);
+              try {
+                // Cascade delete all related records
+                const [items, groups, columns, statuses, priorities, members] = await Promise.all([
+                  base44.entities.WorkboardItem.filter({ workboard: id }),
+                  base44.entities.BoardGroup.filter({ workboard: id }),
+                  base44.entities.BoardColumn.filter({ workboard: id }),
+                  base44.entities.StatusOption.filter({ workboard: id }),
+                  base44.entities.PriorityOption.filter({ workboard: id }),
+                  base44.entities.WorkboardMember.filter({ workboard: id }),
+                ]);
+                
+                // Delete items
+                for (const item of items) await base44.entities.WorkboardItem.delete(item.id);
+                // Delete groups, columns, statuses, priorities
+                for (const g of groups) await base44.entities.BoardGroup.delete(g.id);
+                for (const c of columns) await base44.entities.BoardColumn.delete(c.id);
+                for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
+                for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
+                for (const m of members) await base44.entities.WorkboardMember.delete(m.id);
+                
+                // Finally delete the workboard
+                await base44.entities.Workboard.delete(id);
+                
+                toast({ title: 'Board deleted', duration: 3000 });
+                window.location.href = '/workboards';
+              } catch (error) {
+                console.error('Delete error:', error);
+                toast({ title: 'Error deleting board', description: error.message, variant: 'destructive', duration: 6000 });
+              } finally {
+                setSaving(false);
               }
-            }}><Trash2 className="w-4 h-4 mr-1.5" />Delete Board</Button>
+            }} disabled={saving}><Trash2 className="w-4 h-4 mr-1.5" />{saving ? 'Deleting...' : 'Delete Board'}</Button>
           )}
         </div>
       </div>

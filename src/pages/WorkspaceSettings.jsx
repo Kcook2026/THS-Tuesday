@@ -128,8 +128,13 @@ export default function WorkspaceSettings() {
     if (!currentWorkspaceId) return;
     setSaving(true);
     try {
+      // Archive all related workboards first
+      const workboards = await base44.entities.Workboard.filter({ workspace: currentWorkspaceId });
+      await Promise.all(workboards.map(wb => base44.entities.Workboard.update(wb.id, { status: 'archived' })));
+      
+      // Archive workspace
       await base44.entities.Workspace.update(currentWorkspaceId, { status: 'archived' });
-      toast({ title: 'Workspace archived', description: currentWorkspace?.workspace_name });
+      toast({ title: 'Workspace archived', description: currentWorkspace?.workspace_name, duration: 3000 });
       setArchiveOpen(false);
       await refresh();
       // Switch to another active workspace if available
@@ -138,7 +143,7 @@ export default function WorkspaceSettings() {
         switchWorkspace(remainingActive[0].id);
       }
     } catch (e) {
-      toast({ title: 'Failed to archive', description: e.message, variant: 'destructive' });
+      toast({ title: 'Failed to archive', description: e.message, variant: 'destructive', duration: 6000 });
     } finally {
       setSaving(false);
     }
@@ -147,62 +152,64 @@ export default function WorkspaceSettings() {
   const handleDeleteWorkspace = async () => {
     if (!currentWorkspaceId) return;
     if (confirmName !== currentWorkspace?.workspace_name) {
-      toast({ title: 'Confirmation failed', description: 'Please type the workspace name correctly', variant: 'destructive' });
+      toast({ title: 'Confirmation failed', description: 'Please type the workspace name correctly', variant: 'destructive', duration: 6000 });
       return;
     }
     setSaving(true);
     try {
-      // Check for related records
-      const [workboards, projects, teams, members] = await Promise.all([
-        base44.entities.Workboard.filter({ workspace: currentWorkspaceId }),
+      // Cascade delete all related records
+      const workboards = await base44.entities.Workboard.filter({ workspace: currentWorkspaceId });
+      
+      // Delete all workboard items, groups, columns, members for each workboard
+      for (const wb of workboards) {
+        const [items, groups, columns, statuses, priorities, wbMembers] = await Promise.all([
+          base44.entities.WorkboardItem.filter({ workboard: wb.id }),
+          base44.entities.BoardGroup.filter({ workboard: wb.id }),
+          base44.entities.BoardColumn.filter({ workboard: wb.id }),
+          base44.entities.StatusOption.filter({ workboard: wb.id }),
+          base44.entities.PriorityOption.filter({ workboard: wb.id }),
+          base44.entities.WorkboardMember.filter({ workboard: wb.id }),
+        ]);
+        
+        // Delete items first
+        for (const item of items) await base44.entities.WorkboardItem.delete(item.id);
+        // Then groups, columns, statuses, priorities
+        for (const g of groups) await base44.entities.BoardGroup.delete(g.id);
+        for (const c of columns) await base44.entities.BoardColumn.delete(c.id);
+        for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
+        for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
+        for (const m of wbMembers) await base44.entities.WorkboardMember.delete(m.id);
+        
+        // Finally delete the workboard
+        await base44.entities.Workboard.delete(wb.id);
+      }
+      
+      // Delete other related records
+      const [projects, teams, wsMembers] = await Promise.all([
         base44.entities.Project.filter({ workspace: currentWorkspaceId }),
         base44.entities.Team.filter({ workspace: currentWorkspaceId }),
         base44.entities.WorkspaceMember.filter({ workspace: currentWorkspaceId }),
       ]);
       
-      if (workboards.length > 0) {
-        toast({ 
-          title: 'Cannot delete workspace', 
-          description: `Delete all ${workboards.length} workboards first`, 
-          variant: 'destructive' 
-        });
-        setDeleteOpen(false);
-        return;
-      }
-      if (projects.length > 0) {
-        toast({ 
-          title: 'Cannot delete workspace', 
-          description: `Delete all ${projects.length} projects first`, 
-          variant: 'destructive' 
-        });
-        setDeleteOpen(false);
-        return;
-      }
-      if (teams.length > 0) {
-        toast({ 
-          title: 'Cannot delete workspace', 
-          description: `Delete all ${teams.length} teams first`, 
-          variant: 'destructive' 
-        });
-        setDeleteOpen(false);
-        return;
-      }
-      if (members.length > 1) {
-        toast({ 
-          title: 'Cannot delete workspace', 
-          description: `Remove all ${members.length - 1} other members first`, 
-          variant: 'destructive' 
-        });
-        setDeleteOpen(false);
-        return;
+      for (const p of projects) await base44.entities.Project.delete(p.id);
+      for (const t of teams) await base44.entities.Team.delete(t.id);
+      for (const m of wsMembers) {
+        if (m.user !== user.id) await base44.entities.WorkspaceMember.delete(m.id);
       }
       
+      // Finally delete the workspace
       await base44.entities.Workspace.delete(currentWorkspaceId);
-      toast({ title: 'Workspace deleted', description: currentWorkspace?.workspace_name });
+      
+      toast({ title: 'Workspace deleted', description: currentWorkspace?.workspace_name, duration: 3000 });
       setDeleteOpen(false);
       refresh();
+      // Switch to another workspace or show create workspace
+      const remainingActive = workspaces.filter(w => w.id !== currentWorkspaceId && w.status !== 'archived');
+      if (remainingActive.length > 0) {
+        switchWorkspace(remainingActive[0].id);
+      }
     } catch (e) {
-      toast({ title: 'Failed to delete', description: e.message, variant: 'destructive' });
+      toast({ title: 'Failed to delete', description: e.message, variant: 'destructive', duration: 6000 });
     } finally {
       setSaving(false);
     }
@@ -378,8 +385,8 @@ export default function WorkspaceSettings() {
                 placeholder={currentWorkspace?.workspace_name} 
               />
             </div>
-            <p className="text-sm text-muted-foreground">
-              Warning: All workboards, projects, and teams must be deleted first.
+            <p className="text-sm text-amber-600 font-medium">
+              ⚠️ Warning: This will permanently delete ALL workboards, items, projects, teams, and members in this workspace.
             </p>
           </div>
           <DialogFooter>
