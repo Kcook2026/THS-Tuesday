@@ -6,8 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 
 export default function TaskFormDialog({ open, onClose, task, onSaved }) {
+  const { currentWorkspaceId } = useWorkspace();
   const [form, setForm] = useState({
     title: '', description: '', project: '', assignee: '', status: 'todo',
     priority: 'medium', due_date: '', estimated_hours: '', actual_hours: '', tags: [], board: '',
@@ -20,7 +22,11 @@ export default function TaskFormDialog({ open, onClose, task, onSaved }) {
 
   useEffect(() => {
     if (open) {
-      Promise.all([base44.entities.Project.list(), base44.entities.User.list(), base44.entities.Workboard.list()])
+      Promise.all([
+        base44.entities.Project.filter({ workspace: currentWorkspaceId }),
+        base44.entities.User.list(),
+        base44.entities.Workboard.filter({ workspace: currentWorkspaceId }),
+      ])
         .then(([p, u, b]) => { setProjects(p); setUsers(u); setBoards(b); });
       if (task) {
         setForm({
@@ -66,7 +72,7 @@ export default function TaskFormDialog({ open, onClose, task, onSaved }) {
     if (task) {
       await base44.entities.Task.update(task.id, data);
     } else {
-      await base44.entities.Task.create(data);
+      await base44.entities.Task.create({ ...data, workspace: currentWorkspaceId });
     }
     setSaving(false);
     onSaved();

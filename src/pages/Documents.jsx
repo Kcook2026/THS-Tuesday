@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,15 +29,18 @@ export default function Documents() {
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const { currentWorkspaceId } = useWorkspace();
 
   const load = () => {
+    if (!currentWorkspaceId) return;
     setLoading(true);
-    Promise.all([base44.entities.Document.list(), base44.entities.Project.list(), base44.entities.User.list(), base44.auth.me()])
+    const wsFilter = { workspace: currentWorkspaceId };
+    Promise.all([base44.entities.Document.filter(wsFilter), base44.entities.Project.filter(wsFilter), base44.entities.User.list(), base44.auth.me()])
       .then(([d, p, u, me]) => { setDocuments(d); setProjects(p); setUsers(u); setCurrentUser(me); })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [currentWorkspaceId]);
 
   const projectMap = Object.fromEntries(projects.map(p => [p.id, p.project_name]));
   const userMap = Object.fromEntries(users.map(u => [u.id, u.full_name]));
@@ -59,7 +63,7 @@ export default function Documents() {
       const res = await base44.integrations.Core.UploadFile({ file });
       fileUrl = res.file_url;
     }
-    const data = { ...form, file_url: fileUrl || '', owner: currentUser?.id };
+    const data = { ...form, file_url: fileUrl || '', owner: currentUser?.id, workspace: currentWorkspaceId };
     if (!data.project) delete data.project;
     if (editDoc) {
       await base44.entities.Document.update(editDoc.id, data);

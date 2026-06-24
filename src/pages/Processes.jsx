@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,15 +26,17 @@ export default function Processes() {
   const [form, setForm] = useState({ process_name: '', description: '', department: '', status: 'draft' });
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
+  const { currentWorkspaceId } = useWorkspace();
 
   const load = () => {
+    if (!currentWorkspaceId) return;
     setLoading(true);
-    Promise.all([base44.entities.Process.list(), base44.auth.me()])
+    Promise.all([base44.entities.Process.filter({ workspace: currentWorkspaceId }), base44.auth.me()])
       .then(([p, me]) => { setProcesses(p); setUser(me); })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [currentWorkspaceId]);
 
   const openForm = (proc) => {
     setEditProcess(proc);
@@ -51,7 +54,7 @@ export default function Processes() {
       await base44.entities.Process.update(editProcess.id, form);
       logActivity(user, 'updated process', 'Process', editProcess.id, editProcess.process_name);
     } else {
-      await base44.entities.Process.create({ ...form, steps: [] });
+      await base44.entities.Process.create({ ...form, steps: [], workspace: currentWorkspaceId });
       logActivity(user, 'created process', 'Process', '', form.process_name);
     }
     setSaving(false);

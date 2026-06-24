@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,15 +38,18 @@ export default function Workboards() {
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
   const { can } = usePermissions();
+  const { currentWorkspaceId } = useWorkspace();
 
   const load = () => {
+    if (!currentWorkspaceId) return;
     setLoading(true);
-    Promise.all([base44.entities.Workboard.list(), base44.entities.Project.list(), base44.entities.Team.list(), base44.auth.me()])
+    const wsFilter = { workspace: currentWorkspaceId };
+    Promise.all([base44.entities.Workboard.filter(wsFilter), base44.entities.Project.filter(wsFilter), base44.entities.Team.filter(wsFilter), base44.auth.me()])
       .then(([b, p, t, me]) => { setBoards(b); setProjects(p); setTeams(t); setUser(me); })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [currentWorkspaceId]);
 
   const openForm = (board) => {
     setEditBoard(board);
@@ -66,7 +70,7 @@ export default function Workboards() {
       await base44.entities.Workboard.update(editBoard.id, data);
       logActivity(user, 'updated workboard', 'Workboard', editBoard.id, editBoard.name);
     } else {
-      await base44.entities.Workboard.create(data);
+      await base44.entities.Workboard.create({ ...data, workspace: currentWorkspaceId });
       logActivity(user, 'created workboard', 'Workboard', '', form.name);
     }
     setSaving(false);

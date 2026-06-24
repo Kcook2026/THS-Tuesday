@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,20 +27,23 @@ export default function Projects() {
   const [editProject, setEditProject] = useState(null);
   const [user, setUser] = useState(null);
   const { can } = usePermissions();
+  const { currentWorkspaceId } = useWorkspace();
 
   const load = () => {
+    if (!currentWorkspaceId) return;
     setLoading(true);
+    const wsFilter = { workspace: currentWorkspaceId };
     Promise.all([
-      base44.entities.Project.list(),
-      base44.entities.Team.list(),
-      base44.entities.Client.list(),
+      base44.entities.Project.filter(wsFilter),
+      base44.entities.Team.filter(wsFilter),
+      base44.entities.Client.filter(wsFilter),
       base44.auth.me(),
     ]).then(([p, t, c, u]) => {
       setProjects(p); setTeams(t); setClients(c); setUser(u);
     }).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [currentWorkspaceId]);
 
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t.name]));
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c.company_name]));

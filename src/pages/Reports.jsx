@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -20,19 +21,22 @@ export default function Reports() {
   const [processes, setProcesses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', team: 'all', project: 'all', client: 'all', assignee: 'all', priority: 'all', status: 'all' });
+  const { currentWorkspaceId } = useWorkspace();
 
   useEffect(() => {
+    if (!currentWorkspaceId) return;
+    const wsFilter = { workspace: currentWorkspaceId };
     Promise.all([
-      base44.entities.Project.list(),
-      base44.entities.Task.list(),
-      base44.entities.Team.list(),
+      base44.entities.Project.filter(wsFilter),
+      base44.entities.Task.filter(wsFilter),
+      base44.entities.Team.filter(wsFilter),
       base44.entities.User.list(),
-      base44.entities.Client.list(),
-      base44.entities.Process.list(),
+      base44.entities.Client.filter(wsFilter),
+      base44.entities.Process.filter(wsFilter),
     ]).then(([p, t, tm, u, c, pr]) => {
       setProjects(p); setTasks(t); setTeams(tm); setUsers(u); setClients(c); setProcesses(pr);
     }).finally(() => setLoading(false));
-  }, []);
+  }, [currentWorkspaceId]);
 
   if (loading) return <LoadingSpinner />;
 

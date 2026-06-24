@@ -5,9 +5,7 @@ import Topbar from './Topbar';
 import GlobalSearch from './GlobalSearch';
 import { WorkspaceProvider } from '@/lib/WorkspaceContext';
 import useTheme from '@/hooks/useTheme';
-import {
-  Sheet, SheetContent,
-} from '@/components/ui/sheet';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -28,16 +26,16 @@ export default function AppLayout() {
 
   return (
     <WorkspaceProvider>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex">
         {/* Desktop Sidebar */}
-        <div className="hidden lg:block">
+        <div className="hidden lg:block shrink-0 sticky top-0 h-screen">
           <Sidebar
             collapsed={collapsed}
             onToggle={() => setCollapsed(c => !c)}
             theme={theme}
             onToggleTheme={toggleTheme}
             onSearchOpen={() => setSearchOpen(true)}
-            className="fixed left-0 top-0 bottom-0"
+            onNavigate={() => {}}
           />
         </div>
 
@@ -46,27 +44,27 @@ export default function AppLayout() {
           <SheetContent side="left" className="w-72 p-0 overflow-hidden">
             <Sidebar
               collapsed={false}
+              mobile
               theme={theme}
               onToggleTheme={toggleTheme}
               onSearchOpen={() => { setSearchOpen(true); setMobileOpen(false); }}
               onNavigate={() => setMobileOpen(false)}
-              className="h-full w-full border-r-0"
+              className="h-full border-r-0"
             />
           </SheetContent>
         </Sheet>
 
         {/* Main Content */}
-        <main className={`transition-all duration-300 ${collapsed ? 'lg:ml-16' : 'lg:ml-60'}`}>
+        <div className="flex-1 min-w-0 flex flex-col">
           <Topbar
             onMobileMenuClick={() => setMobileOpen(true)}
             onSearchOpen={() => setSearchOpen(true)}
           />
-          <div className="p-4 sm:p-6 max-w-[1400px] mx-auto">
+          <main className="flex-1 p-4 sm:p-6 max-w-[1400px] w-full mx-auto">
             <Outlet />
-          </div>
-        </main>
+          </main>
+        </div>
 
-        {/* Global Search */}
         <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
       </div>
     </WorkspaceProvider>

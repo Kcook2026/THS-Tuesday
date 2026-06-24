@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -29,16 +30,18 @@ export default function ActivityFeed() {
   const [actionFilter, setActionFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [users, setUsers] = useState([]);
+  const { currentWorkspaceId } = useWorkspace();
 
   useEffect(() => {
+    if (!currentWorkspaceId) return;
     Promise.all([
-      base44.entities.Activity.list('-created_date', 100),
+      base44.entities.Activity.filter({ workspace: currentWorkspaceId }, '-created_date', 100),
       base44.entities.User.list(),
     ]).then(([a, u]) => {
       setActivities(a);
       setUsers(u);
     }).finally(() => setLoading(false));
-  }, []);
+  }, [currentWorkspaceId]);
 
   if (loading) return <LoadingSpinner />;
 

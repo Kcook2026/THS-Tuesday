@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -12,15 +13,18 @@ export default function Calendar() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const { currentWorkspaceId } = useWorkspace();
 
   useEffect(() => {
+    if (!currentWorkspaceId) return;
+    const wsFilter = { workspace: currentWorkspaceId };
     Promise.all([
-      base44.entities.Task.list(),
-      base44.entities.Project.list(),
+      base44.entities.Task.filter(wsFilter),
+      base44.entities.Project.filter(wsFilter),
     ]).then(([t, p]) => {
       setTasks(t); setProjects(p);
     }).finally(() => setLoading(false));
-  }, []);
+  }, [currentWorkspaceId]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();

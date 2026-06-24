@@ -22,3 +22,20 @@ export async function logAudit(action, details = {}) {
     // silent fail - audit logging should never block operations
   }
 }
+
+export const AUDIT_ACTIONS = {
+  LOGIN: 'login',
+  LOGOUT: 'logout',
+  INVITE_SENT: 'invite_sent',
+  INVITE_ACCEPTED: 'invite_accepted',
+  ROLE_CHANGED: 'role_changed',
+  WORKSPACE_SWITCHED: 'workspace_switched',
+  WORKSPACE_CREATED: 'workspace_created',
+  WORKSPACE_UPDATED: 'workspace_updated',
+  SECURITY_SETTING_CHANGED: 'security_setting_changed',
+  RECORD_CREATED: 'record_created',
+  RECORD_UPDATED: 'record_updated',
+  RECORD_DELETED: 'record_deleted',
+  USER_DISABLED: 'user_disabled',
+  USER_ENABLED: 'user_enabled',
+};

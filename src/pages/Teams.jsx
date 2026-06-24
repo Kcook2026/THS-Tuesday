@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -24,15 +25,17 @@ export default function Teams() {
   const [form, setForm] = useState({ name: '', description: '', manager: '', members: [] });
   const [saving, setSaving] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const { currentWorkspaceId } = useWorkspace();
 
   const load = () => {
+    if (!currentWorkspaceId) return;
     setLoading(true);
-    Promise.all([base44.entities.Team.list(), base44.entities.User.list(), base44.auth.me()])
+    Promise.all([base44.entities.Team.filter({ workspace: currentWorkspaceId }), base44.entities.User.list(), base44.auth.me()])
       .then(([t, u, me]) => { setTeams(t); setAllUsers(u); setCurrentUser(me); })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [currentWorkspaceId]);
 
   const userMap = Object.fromEntries(allUsers.map(u => [u.id, u.full_name]));
 
@@ -54,7 +57,7 @@ export default function Teams() {
       await base44.entities.Team.update(editTeam.id, data);
       logActivity(currentUser, 'updated team', 'Team', editTeam.id, editTeam.name);
     } else {
-      await base44.entities.Team.create(data);
+      await base44.entities.Team.create({ ...data, workspace: currentWorkspaceId });
       logActivity(currentUser, 'created team', 'Team', '', form.name);
     }
     setSaving(false);

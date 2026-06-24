@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/auditLogger';
 
 const WorkspaceContext = createContext(null);
 const STORAGE_KEY = 'tuesday_current_workspace';
@@ -85,9 +86,23 @@ export function WorkspaceProvider({ children }) {
   }, []);
 
   const switchWorkspace = useCallback((workspaceId) => {
+    const prevWorkspace = currentWorkspaceId;
     setCurrentWorkspaceId(workspaceId);
     localStorage.setItem(STORAGE_KEY, workspaceId);
-  }, []);
+    if (prevWorkspace && prevWorkspace !== workspaceId) {
+      logAudit(AUDIT_ACTIONS.WORKSPACE_SWITCHED, {
+        record_id: workspaceId,
+        before_value: { workspace: prevWorkspace },
+        after_value: { workspace: workspaceId },
+      });
+      const membership = memberships.find(m => m.workspace === workspaceId);
+      if (membership) {
+        base44.asServiceRole.entities.WorkspaceMember.update(membership.id, {
+          last_active_date: new Date().toISOString().split('T')[0],
+        }).catch(() => {});
+      }
+    }
+  }, [currentWorkspaceId, memberships]);
 
   const refresh = useCallback(async () => {
     if (!user) return;

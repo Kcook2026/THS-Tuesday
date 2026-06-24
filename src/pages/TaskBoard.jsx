@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,12 +30,15 @@ export default function TaskBoard() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
   const [user, setUser] = useState(null);
+  const { currentWorkspaceId } = useWorkspace();
 
   const load = () => {
+    if (!currentWorkspaceId) return;
     setLoading(true);
+    const wsFilter = { workspace: currentWorkspaceId };
     Promise.all([
-      base44.entities.Task.list(),
-      base44.entities.Project.list(),
+      base44.entities.Task.filter(wsFilter),
+      base44.entities.Project.filter(wsFilter),
       base44.entities.User.list(),
       base44.auth.me(),
     ]).then(([t, p, u, me]) => {
@@ -42,7 +46,7 @@ export default function TaskBoard() {
     }).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [currentWorkspaceId]);
 
   const projectMap = Object.fromEntries(projects.map(p => [p.id, p.project_name]));
   const userMap = Object.fromEntries(users.map(u => [u.id, u.full_name]));

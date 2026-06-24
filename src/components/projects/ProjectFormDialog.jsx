@@ -6,9 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import CommentSection from '@/components/shared/CommentSection';
 
 export default function ProjectFormDialog({ open, onClose, project, onSaved }) {
+  const { currentWorkspaceId } = useWorkspace();
   const [form, setForm] = useState({
     project_name: '', description: '', status: 'planning', priority: 'medium',
     start_date: '', due_date: '', budget: '', completion_percentage: 0, team: '', client: '',
@@ -19,7 +21,10 @@ export default function ProjectFormDialog({ open, onClose, project, onSaved }) {
 
   useEffect(() => {
     if (open) {
-      Promise.all([base44.entities.Team.list(), base44.entities.Client.list()])
+      Promise.all([
+        base44.entities.Team.filter({ workspace: currentWorkspaceId }),
+        base44.entities.Client.filter({ workspace: currentWorkspaceId }),
+      ])
         .then(([t, c]) => { setTeams(t); setClients(c); });
       if (project) {
         setForm({
@@ -48,7 +53,7 @@ export default function ProjectFormDialog({ open, onClose, project, onSaved }) {
     if (project) {
       await base44.entities.Project.update(project.id, data);
     } else {
-      await base44.entities.Project.create(data);
+      await base44.entities.Project.create({ ...data, workspace: currentWorkspaceId });
     }
     setSaving(false);
     onSaved();

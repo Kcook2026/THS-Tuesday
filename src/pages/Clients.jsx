@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,15 +30,17 @@ export default function Clients() {
   const { can } = usePermissions();
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
+  const { currentWorkspaceId } = useWorkspace();
 
   const load = () => {
+    if (!currentWorkspaceId) return;
     setLoading(true);
-    Promise.all([base44.entities.Client.list(), base44.entities.User.list(), base44.auth.me()])
+    Promise.all([base44.entities.Client.filter({ workspace: currentWorkspaceId }), base44.entities.User.list(), base44.auth.me()])
       .then(([c, u, me]) => { setClients(c); setUsers(u); setUser(me); })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [currentWorkspaceId]);
 
   const openForm = (client) => {
     setEditClient(client);
@@ -57,7 +60,7 @@ export default function Clients() {
       await base44.entities.Client.update(editClient.id, data);
       logActivity(user, 'updated client', 'Client', editClient.id, editClient.company_name);
     } else {
-      await base44.entities.Client.create(data);
+      await base44.entities.Client.create({ ...data, workspace: currentWorkspaceId });
       logActivity(user, 'created client', 'Client', '', form.company_name);
     }
     setSaving(false);
