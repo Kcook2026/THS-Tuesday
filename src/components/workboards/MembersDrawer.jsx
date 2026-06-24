@@ -11,7 +11,6 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
-  SheetFooter,
 } from '@/components/ui/sheet';
 import {
   DropdownMenu,
@@ -29,8 +28,8 @@ const ROLE_CONFIG = {
   workboard_viewer: { label: 'Viewer', color: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' },
 };
 
-export default function MembersDrawer({ workboardId, wb, trigger }) {
-  const { user, currentWorkspaceId, currentWorkspace } = useWorkspace();
+export default function MembersDrawer({ workboardId, wb }) {
+  const { user, currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [members, setMembers] = useState([]);
@@ -39,7 +38,6 @@ export default function MembersDrawer({ workboardId, wb, trigger }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [inviteRole, setInviteRole] = useState('workboard_contributor');
-  const [creatorChecked, setCreatorChecked] = useState(false);
 
   const loadMembers = async () => {
     if (!workboardId || !currentWorkspaceId) return;
@@ -61,15 +59,13 @@ export default function MembersDrawer({ workboardId, wb, trigger }) {
         });
         if (!allCreatorMembers || allCreatorMembers.length === 0) {
           try {
-            // Fetch the actual user to get their real name
             const creatorUser = await base44.entities.User.get(wb.created_by);
             const creatorMember = await base44.entities.WorkboardMember.create({
               workspace: currentWorkspaceId,
-              workspace_name: currentWorkspace?.workspace_name,
               workboard: workboardId,
               workboard_name: wb?.name,
               user: wb.created_by,
-              user_name: creatorUser?.full_name || creatorUser?.email || 'Unknown User',
+              user_name: creatorUser?.full_name || creatorUser?.email || 'Board Owner',
               user_email: creatorUser?.email || '',
               role: 'workboard_owner',
               status: 'active',
@@ -120,11 +116,10 @@ export default function MembersDrawer({ workboardId, wb, trigger }) {
       if (existingMember) {
         toast({ title: 'Already a member', description: 'This user is already on the workboard', variant: 'destructive', duration: 4000 });
         return;
-        }
+      }
       
       await base44.entities.WorkboardMember.create({
         workspace: currentWorkspaceId,
-        workspace_name: currentWorkspace?.workspace_name,
         workboard: workboardId,
         workboard_name: wb?.name,
         user: userToAdd.user,

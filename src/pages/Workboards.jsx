@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Link } from 'react-router-dom';
@@ -22,9 +22,9 @@ import { useToast } from '@/components/ui/use-toast';
 const BOARD_TYPES = {
   project_board: { label: 'Project Board', color: 'bg-violet-500/10 text-violet-700 dark:text-violet-300' },
   task_board: { label: 'Task Board', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-300' },
-  process_board: { label: 'Process Board', color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
+  process_board: { label: 'SOP Board', color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
   operations_board: { label: 'Operations Board', color: 'bg-orange-500/10 text-orange-700 dark:text-orange-300' },
-  client_board: { label: 'Client Board', color: 'bg-pink-500/10 text-pink-700 dark:text-pink-300', hidden: true },
+  planning_board: { label: 'Planning Board', color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
 };
 
 export default function Workboards() {
@@ -35,10 +35,9 @@ export default function Workboards() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editBoard, setEditBoard] = useState(null);
-  const [form, setForm] = useState({ name: '', description: '', board_type: 'task_board', linked_project: '', team: '', default_view: 'table', color: 'violet' });
+  const [form, setForm] = useState({ name: '', description: '', board_type: 'task_board', linked_project: '', team: '', color: 'violet' });
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const isLoadingRef = useRef(false);
   const { can } = usePermissions();
   const { currentWorkspaceId } = useWorkspace();
@@ -49,11 +48,10 @@ export default function Workboards() {
     isLoadingRef.current = true;
     setLoading(true);
     try {
-      const wsFilter = { workspace: currentWorkspaceId };
       const [b, p, t, me] = await Promise.all([
-        base44.entities.Workboard.filter(wsFilter),
-        base44.entities.Project.filter(wsFilter),
-        base44.entities.Team.filter(wsFilter),
+        base44.entities.Workboard.filter({ workspace: currentWorkspaceId, archived: false }),
+        base44.entities.Project.filter({ workspace: currentWorkspaceId }),
+        base44.entities.Team.filter({ workspace: currentWorkspaceId }),
         base44.auth.me()
       ]);
       setBoards(b);
@@ -62,43 +60,23 @@ export default function Workboards() {
       setUser(me);
     } catch (error) {
       console.error('Error loading workboards:', error);
-      if (isInitialLoad) {
-        toast({ title: 'Error loading workboards', description: error.message, variant: 'destructive', duration: 6000 });
-      }
+      toast({ title: 'Error loading workboards', description: error.message, variant: 'destructive', duration: 6000 });
     } finally {
       setLoading(false);
       isLoadingRef.current = false;
     }
-  }, [currentWorkspaceId, isInitialLoad, toast]);
+  }, [currentWorkspaceId, toast]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('create') === 'true') {
-      openForm(null);
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
-
-  useEffect(() => {
-    setIsInitialLoad(false);
-  }, []);
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      load();
-    }, 300);
-    return () => {
-      clearTimeout(timeoutId);
-      isLoadingRef.current = false;
-    };
-  }, [currentWorkspaceId]);
+    load();
+  }, [load]);
 
   const openForm = (board) => {
     setEditBoard(board);
     if (board) {
-      setForm({ name: board.name || '', description: board.description || '', board_type: board.board_type || 'task_board', linked_project: board.linked_project || '', team: board.team || '', default_view: board.default_view || 'table', color: board.color || 'violet' });
+      setForm({ name: board.name || '', description: board.description || '', board_type: board.board_type || 'task_board', linked_project: board.linked_project || '', team: board.team || '', color: board.color || 'violet' });
     } else {
-      setForm({ name: '', description: '', board_type: 'task_board', linked_project: '', team: '', default_view: 'table', color: 'violet' });
+      setForm({ name: '', description: '', board_type: 'task_board', linked_project: '', team: '', color: 'violet' });
     }
     setDialogOpen(true);
   };
@@ -109,17 +87,19 @@ export default function Workboards() {
       const data = { ...form };
       if (!data.linked_project) delete data.linked_project;
       if (!data.team) delete data.team;
+      
       if (editBoard) {
         await base44.entities.Workboard.update(editBoard.id, data);
         logActivity(user, 'updated workboard', 'Workboard', editBoard.id, editBoard.name);
         toast({ title: 'Workboard updated', duration: 3000 });
       } else {
-        // Create the workboard with proper owner assignment
         const newBoard = await base44.entities.Workboard.create({ 
           ...data, 
           workspace: currentWorkspaceId, 
           owner: user?.id,
+          created_by: user?.id,
         });
+        
         logActivity(user, 'created workboard', 'Workboard', newBoard.id, form.name);
         toast({ title: 'Workboard created', duration: 3000 });
         
@@ -132,7 +112,6 @@ export default function Workboards() {
         if (existingMembers.length === 0) {
           await base44.entities.WorkboardMember.create({
             workspace: currentWorkspaceId,
-            workspace_name: '',
             workboard: newBoard.id,
             workboard_name: newBoard.name,
             user: user.id,
@@ -154,18 +133,6 @@ export default function Workboards() {
         ];
         await Promise.all(defaultGroups.map(g => base44.entities.BoardGroup.create(g)));
         
-        // Create default columns
-        const defaultColumns = [
-          { name: 'Item', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'text', sort_order: 0, width: 300 },
-          { name: 'Owner', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'person', sort_order: 1, width: 150 },
-          { name: 'Status', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'status', sort_order: 2, width: 120 },
-          { name: 'Priority', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'priority', sort_order: 3, width: 120 },
-          { name: 'Timeline', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'timeline', sort_order: 4, width: 150 },
-          { name: 'Due Date', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'date', sort_order: 5, width: 120 },
-          { name: 'Progress', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'progress', sort_order: 6, width: 120 },
-        ];
-        await Promise.all(defaultColumns.map(c => base44.entities.BoardColumn.create(c)));
-        
         // Create default status options
         const defaultStatuses = [
           { label: 'Not Started', workspace: currentWorkspaceId, workboard: newBoard.id, color: 'gray', sort_order: 0, is_default: true },
@@ -185,7 +152,6 @@ export default function Workboards() {
         ];
         await Promise.all(defaultPriorities.map(p => base44.entities.PriorityOption.create(p)));
         
-        // Update state directly
         setBoards(prev => [...prev, newBoard]);
       }
       setDialogOpen(false);
@@ -198,14 +164,12 @@ export default function Workboards() {
   };
 
   const handleDelete = async (b) => {
-    if (!confirm(`Delete "${b.name}"?\n\nThis will permanently delete all items, groups, columns, and members in this board.`)) return;
+    if (!confirm(`Delete "${b.name}"?\n\nThis will permanently delete all items, groups, and members in this board.`)) return;
     setSaving(true);
     try {
-      // Cascade delete all related records
-      const [items, groups, columns, statuses, priorities, members] = await Promise.all([
+      const [items, groups, statuses, priorities, members] = await Promise.all([
         base44.entities.WorkboardItem.filter({ workboard: b.id }),
         base44.entities.BoardGroup.filter({ workboard: b.id }),
-        base44.entities.BoardColumn.filter({ workboard: b.id }),
         base44.entities.StatusOption.filter({ workboard: b.id }),
         base44.entities.PriorityOption.filter({ workboard: b.id }),
         base44.entities.WorkboardMember.filter({ workboard: b.id }),
@@ -213,7 +177,6 @@ export default function Workboards() {
       
       for (const item of items) await base44.entities.WorkboardItem.delete(item.id);
       for (const g of groups) await base44.entities.BoardGroup.delete(g.id);
-      for (const c of columns) await base44.entities.BoardColumn.delete(c.id);
       for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
       for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
       for (const m of members) await base44.entities.WorkboardMember.delete(m.id);
@@ -221,7 +184,6 @@ export default function Workboards() {
       await base44.entities.Workboard.delete(b.id);
       logActivity(user, 'deleted workboard', 'Workboard', b.id, b.name);
       toast({ title: 'Workboard deleted', duration: 3000 });
-      // Update state directly instead of reloading
       setBoards(prev => prev.filter(board => board.id !== b.id));
     } catch (error) {
       console.error('Delete error:', error);
@@ -297,25 +259,14 @@ export default function Workboards() {
           <div className="space-y-4">
             <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} /></div>
             <div><Label>Description</Label><Textarea value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))} rows={2} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Board Type</Label>
-                <Select value={form.board_type} onValueChange={v => setForm(f => ({...f, board_type: v}))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(BOARD_TYPES).filter(([_, v]) => !v.hidden).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Default View</Label>
-                <Select value={form.default_view} onValueChange={v => setForm(f => ({...f, default_view: v}))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {['table','kanban'].map(v => <SelectItem key={v} value={v}>{v.charAt(0).toUpperCase()+v.slice(1)}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <Label>Board Type</Label>
+              <Select value={form.board_type} onValueChange={v => setForm(f => ({...f, board_type: v}))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(BOARD_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Linked Project</Label>
