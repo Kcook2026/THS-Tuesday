@@ -22,7 +22,6 @@ import { useToast } from '@/components/ui/use-toast';
 const BOARD_TYPES = {
   project_board: { label: 'Project Board', color: 'bg-violet-500/10 text-violet-700 dark:text-violet-300' },
   task_board: { label: 'Task Board', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-300' },
-  client_board: { label: 'Client Board', color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
   process_board: { label: 'Process Board', color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
   operations_board: { label: 'Operations Board', color: 'bg-orange-500/10 text-orange-700 dark:text-orange-300' },
 };
@@ -86,6 +85,21 @@ export default function Workboards() {
         const newBoard = await base44.entities.Workboard.create({ ...data, workspace: currentWorkspaceId, owner: user?.id });
         logActivity(user, 'created workboard', 'Workboard', newBoard.id, form.name);
         toast({ title: 'Workboard created' });
+        
+        // Create WorkboardMember for creator as owner
+        await base44.entities.WorkboardMember.create({
+          workspace: currentWorkspaceId,
+          workspace_name: '',
+          workboard: newBoard.id,
+          workboard_name: newBoard.name,
+          user: user.id,
+          user_name: user.full_name,
+          user_email: user.email,
+          role: 'workboard_owner',
+          status: 'active',
+          added_by: user.id,
+          joined_date: new Date().toISOString().split('T')[0],
+        });
         
         // Create default groups
         const defaultGroups = [

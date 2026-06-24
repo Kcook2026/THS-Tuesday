@@ -23,7 +23,8 @@ export function WorkspaceProvider({ children }) {
       const results = await Promise.all(
         workspaceIds.map(id => base44.entities.Workspace.get(id).catch(() => null))
       );
-      workspaceRecords = results.filter(Boolean);
+      // Filter out archived workspaces
+      workspaceRecords = results.filter(w => w && w.status !== 'archived');
     }
 
     setWorkspaces(workspaceRecords);
@@ -89,7 +90,7 @@ export function WorkspaceProvider({ children }) {
       user: user.id,
       user_name: user.full_name,
       user_email: user.email,
-      role: 'workspace_admin',
+      role: 'workspace_owner',
       status: 'active',
       invited_by: user.id,
       joined_date: new Date().toISOString().split('T')[0],

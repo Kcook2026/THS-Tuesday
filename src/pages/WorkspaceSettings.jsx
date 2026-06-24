@@ -70,7 +70,7 @@ export default function WorkspaceSettings() {
     setSaving(true);
     try {
       const deptList = departments.split(',').map(d => d.trim()).filter(Boolean);
-      await base44.asServiceRole.entities.Workspace.update(currentWorkspaceId, {
+      await base44.entities.Workspace.update(currentWorkspaceId, {
         workspace_name: name,
         description,
         workspace_type: workspaceType,
@@ -89,7 +89,7 @@ export default function WorkspaceSettings() {
   const handleCreate = async (data) => {
     setSaving(true);
     try {
-      const ws = await base44.asServiceRole.entities.Workspace.create({
+      const ws = await base44.entities.Workspace.create({
         workspace_name: data.name,
         description: data.description,
         workspace_type: data.workspaceType,
@@ -100,13 +100,13 @@ export default function WorkspaceSettings() {
         color: 'violet',
         icon: 'Building2',
       });
-      await base44.asServiceRole.entities.WorkspaceMember.create({
+      await base44.entities.WorkspaceMember.create({
         workspace: ws.id,
         workspace_name: ws.workspace_name,
         user: user.id,
         user_name: user.full_name,
         user_email: user.email,
-        role: 'workspace_admin',
+        role: 'workspace_owner',
         status: 'active',
         invited_by: user.id,
         joined_date: new Date().toISOString().split('T')[0],
@@ -121,14 +121,21 @@ export default function WorkspaceSettings() {
     }
   };
 
+  const { switchWorkspace } = useWorkspace();
+  
   const handleArchiveWorkspace = async () => {
     if (!currentWorkspaceId) return;
     setSaving(true);
     try {
-      await base44.asServiceRole.entities.Workspace.update(currentWorkspaceId, { status: 'archived' });
+      await base44.entities.Workspace.update(currentWorkspaceId, { status: 'archived' });
       toast({ title: 'Workspace archived', description: currentWorkspace?.workspace_name });
       setArchiveOpen(false);
-      refresh();
+      await refresh();
+      // Switch to another active workspace if available
+      const remainingActive = workspaces.filter(w => w.id !== currentWorkspaceId && w.status !== 'archived');
+      if (remainingActive.length > 0) {
+        switchWorkspace(remainingActive[0].id);
+      }
     } catch (e) {
       toast({ title: 'Failed to archive', description: e.message, variant: 'destructive' });
     } finally {
@@ -145,23 +152,51 @@ export default function WorkspaceSettings() {
     setSaving(true);
     try {
       // Check for related records
-      const [workboards, projects, teams] = await Promise.all([
+      const [workboards, projects, teams, members] = await Promise.all([
         base44.entities.Workboard.filter({ workspace: currentWorkspaceId }),
         base44.entities.Project.filter({ workspace: currentWorkspaceId }),
         base44.entities.Team.filter({ workspace: currentWorkspaceId }),
+        base44.entities.WorkspaceMember.filter({ workspace: currentWorkspaceId }),
       ]);
       
-      if (workboards.length > 0 || projects.length > 0 || teams.length > 0) {
+      if (workboards.length > 0) {
         toast({ 
           title: 'Cannot delete workspace', 
-          description: `Delete all ${workboards.length} workboards, ${projects.length} projects, and ${teams.length} teams first`, 
+          description: `Delete all ${workboards.length} workboards first`, 
+          variant: 'destructive' 
+        });
+        setDeleteOpen(false);
+        return;
+      }
+      if (projects.length > 0) {
+        toast({ 
+          title: 'Cannot delete workspace', 
+          description: `Delete all ${projects.length} projects first`, 
+          variant: 'destructive' 
+        });
+        setDeleteOpen(false);
+        return;
+      }
+      if (teams.length > 0) {
+        toast({ 
+          title: 'Cannot delete workspace', 
+          description: `Delete all ${teams.length} teams first`, 
+          variant: 'destructive' 
+        });
+        setDeleteOpen(false);
+        return;
+      }
+      if (members.length > 1) {
+        toast({ 
+          title: 'Cannot delete workspace', 
+          description: `Remove all ${members.length - 1} other members first`, 
           variant: 'destructive' 
         });
         setDeleteOpen(false);
         return;
       }
       
-      await base44.asServiceRole.entities.Workspace.delete(currentWorkspaceId);
+      await base44.entities.Workspace.delete(currentWorkspaceId);
       toast({ title: 'Workspace deleted', description: currentWorkspace?.workspace_name });
       setDeleteOpen(false);
       refresh();
