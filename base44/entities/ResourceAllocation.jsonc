@@ -1,0 +1,67 @@
+{
+  "name": "ResourceAllocation",
+  "type": "object",
+  "properties": {
+    "user": {
+      "type": "string",
+      "title": "User",
+      "relationType": "User"
+    },
+    "team": {
+      "type": "string",
+      "title": "Team",
+      "relationType": "Team"
+    },
+    "project": {
+      "type": "string",
+      "title": "Project",
+      "relationType": "Project"
+    },
+    "task": {
+      "type": "string",
+      "title": "Task",
+      "relationType": "Task"
+    },
+    "allocation_percentage": {
+      "type": "number",
+      "title": "Allocation %",
+      "default": 100
+    },
+    "allocated_hours": {
+      "type": "number",
+      "title": "Allocated Hours"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Start Date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date",
+      "title": "End Date"
+    },
+    "role_on_project": {
+      "type": "string",
+      "title": "Role on Project"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "planned",
+        "active",
+        "overallocated",
+        "completed"
+      ],
+      "default": "planned"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes"
+    }
+  },
+  "required": [
+    "user"
+  ]
+}

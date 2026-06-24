@@ -1,0 +1,49 @@
+{
+  "name": "Template",
+  "type": "object",
+  "properties": {
+    "template_name": {
+      "type": "string",
+      "title": "Template Name"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "template_type": {
+      "type": "string",
+      "title": "Template Type",
+      "enum": [
+        "project_template",
+        "task_template",
+        "process_template",
+        "workboard_template",
+        "client_onboarding_template",
+        "document_template"
+      ],
+      "default": "project_template"
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owner",
+      "relationType": "User"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category"
+    },
+    "configuration": {
+      "type": "string",
+      "title": "Configuration"
+    },
+    "related_process": {
+      "type": "string",
+      "title": "Related Process",
+      "relationType": "Process"
+    }
+  },
+  "required": [
+    "template_name",
+    "template_type"
+  ]
+}

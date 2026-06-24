@@ -1,0 +1,50 @@
+{
+  "name": "AutomationRun",
+  "type": "object",
+  "properties": {
+    "automation_rule": {
+      "type": "string",
+      "title": "Automation Rule",
+      "relationType": "AutomationRule"
+    },
+    "automation_rule_name": {
+      "type": "string",
+      "title": "Automation Rule Name"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "success",
+        "failed",
+        "skipped"
+      ],
+      "default": "success"
+    },
+    "trigger_record_type": {
+      "type": "string",
+      "title": "Trigger Record Type"
+    },
+    "trigger_record_id": {
+      "type": "string",
+      "title": "Trigger Record ID"
+    },
+    "result_message": {
+      "type": "string",
+      "title": "Result Message"
+    },
+    "executed_actions": {
+      "type": "string",
+      "title": "Executed Actions"
+    },
+    "run_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Run Date"
+    }
+  },
+  "required": [
+    "automation_rule",
+    "status"
+  ]
+}

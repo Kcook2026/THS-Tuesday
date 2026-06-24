@@ -1,0 +1,88 @@
+{
+  "name": "Risk",
+  "type": "object",
+  "properties": {
+    "risk_title": {
+      "type": "string",
+      "title": "Risk Title"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owner",
+      "relationType": "User"
+    },
+    "related_project": {
+      "type": "string",
+      "title": "Related Project",
+      "relationType": "Project"
+    },
+    "related_portfolio": {
+      "type": "string",
+      "title": "Related Portfolio",
+      "relationType": "Portfolio"
+    },
+    "related_client": {
+      "type": "string",
+      "title": "Related Client",
+      "relationType": "Client"
+    },
+    "probability": {
+      "type": "string",
+      "title": "Probability",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "default": "medium"
+    },
+    "impact": {
+      "type": "string",
+      "title": "Impact",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "default": "medium"
+    },
+    "severity": {
+      "type": "string",
+      "title": "Severity",
+      "enum": [
+        "low",
+        "moderate",
+        "high",
+        "critical"
+      ],
+      "default": "moderate"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "open",
+        "monitoring",
+        "mitigated",
+        "closed"
+      ],
+      "default": "open"
+    },
+    "mitigation_plan": {
+      "type": "string",
+      "title": "Mitigation Plan"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Due Date"
+    }
+  },
+  "required": [
+    "risk_title"
+  ]
+}

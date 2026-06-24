@@ -1,0 +1,101 @@
+{
+  "name": "AutomationRule",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Name"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "active",
+        "paused",
+        "draft",
+        "archived"
+      ],
+      "default": "active"
+    },
+    "trigger_type": {
+      "type": "string",
+      "title": "Trigger Type",
+      "enum": [
+        "status_changed",
+        "priority_changed",
+        "assignee_changed",
+        "due_date_approaching",
+        "due_date_passed",
+        "task_created",
+        "task_completed",
+        "document_uploaded",
+        "comment_added",
+        "process_step_completed",
+        "manual"
+      ]
+    },
+    "trigger_entity": {
+      "type": "string",
+      "title": "Trigger Entity",
+      "enum": [
+        "Task",
+        "Project",
+        "Document",
+        "Comment",
+        "Process",
+        "Client"
+      ]
+    },
+    "trigger_conditions": {
+      "type": "string",
+      "title": "Trigger Conditions"
+    },
+    "action_type": {
+      "type": "string",
+      "title": "Action Type",
+      "enum": [
+        "create_task",
+        "update_status",
+        "assign_user",
+        "send_notification",
+        "create_activity",
+        "create_process_step",
+        "add_comment",
+        "mark_health_at_risk"
+      ]
+    },
+    "action_config": {
+      "type": "string",
+      "title": "Action Config"
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owner",
+      "relationType": "User"
+    },
+    "related_workboard": {
+      "type": "string",
+      "title": "Related Workboard",
+      "relationType": "Workboard"
+    },
+    "related_project": {
+      "type": "string",
+      "title": "Related Project",
+      "relationType": "Project"
+    },
+    "run_count": {
+      "type": "number",
+      "title": "Run Count",
+      "default": 0
+    }
+  },
+  "required": [
+    "name",
+    "trigger_type",
+    "action_type"
+  ]
+}

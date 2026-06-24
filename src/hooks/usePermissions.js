@@ -6,25 +6,45 @@ const ROLE_PERMISSIONS = {
     canCreate: true, canEdit: true, canDelete: true, canView: true,
     canManageUsers: true, canManageSettings: true, canManageBoards: true,
     canManageProcesses: true, canManageCustomFields: true,
-    modules: ['dashboard', 'projects', 'tasks', 'calendar', 'teams', 'clients', 'documents', 'reports', 'activity', 'workboards', 'processes', 'notifications']
+    canManageAutomations: true, canManagePortfolios: true, canManageGoals: true,
+    canManageResources: true, canManageTimesheets: true, canManageFinance: true,
+    canManageRisks: true, canManageTemplates: true, canManageMilestones: true,
+    canApproveTimesheets: true, canApproveFinance: true,
+    canRunAutomations: true,
+    modules: ['dashboard', 'projects', 'tasks', 'calendar', 'teams', 'clients', 'documents', 'reports', 'activity', 'workboards', 'processes', 'notifications', 'automations', 'portfolios', 'goals', 'resources', 'timesheets', 'finance', 'risks', 'templates', 'roadmap']
   },
   manager: {
     canCreate: true, canEdit: true, canDelete: false, canView: true,
     canManageUsers: false, canManageSettings: false, canManageBoards: true,
     canManageProcesses: true, canManageCustomFields: true,
-    modules: ['dashboard', 'projects', 'tasks', 'calendar', 'teams', 'clients', 'documents', 'reports', 'activity', 'workboards', 'processes']
+    canManageAutomations: true, canManagePortfolios: true, canManageGoals: true,
+    canManageResources: true, canManageTimesheets: true, canManageFinance: true,
+    canManageRisks: true, canManageTemplates: true, canManageMilestones: true,
+    canApproveTimesheets: true, canApproveFinance: true,
+    canRunAutomations: true,
+    modules: ['dashboard', 'projects', 'tasks', 'calendar', 'teams', 'clients', 'documents', 'reports', 'activity', 'workboards', 'processes', 'automations', 'portfolios', 'goals', 'resources', 'timesheets', 'finance', 'risks', 'templates', 'roadmap']
   },
   user: {
     canCreate: false, canEdit: true, canDelete: false, canView: true,
     canManageUsers: false, canManageSettings: false, canManageBoards: false,
     canManageProcesses: false, canManageCustomFields: false,
-    modules: ['dashboard', 'projects', 'tasks', 'calendar', 'clients', 'documents', 'reports', 'activity', 'workboards']
+    canManageAutomations: false, canManagePortfolios: false, canManageGoals: false,
+    canManageResources: false, canManageTimesheets: false, canManageFinance: false,
+    canManageRisks: false, canManageTemplates: false, canManageMilestones: false,
+    canApproveTimesheets: false, canApproveFinance: false,
+    canRunAutomations: false,
+    modules: ['dashboard', 'projects', 'tasks', 'calendar', 'clients', 'documents', 'reports', 'activity', 'workboards', 'portfolios', 'goals', 'resources', 'timesheets', 'roadmap']
   },
   read_only: {
     canCreate: false, canEdit: false, canDelete: false, canView: true,
     canManageUsers: false, canManageSettings: false, canManageBoards: false,
     canManageProcesses: false, canManageCustomFields: false,
-    modules: ['dashboard', 'projects', 'tasks', 'calendar', 'clients', 'documents', 'reports', 'activity', 'workboards']
+    canManageAutomations: false, canManagePortfolios: false, canManageGoals: false,
+    canManageResources: false, canManageTimesheets: false, canManageFinance: false,
+    canManageRisks: false, canManageTemplates: false, canManageMilestones: false,
+    canApproveTimesheets: false, canApproveFinance: false,
+    canRunAutomations: false,
+    modules: ['dashboard', 'projects', 'tasks', 'calendar', 'clients', 'documents', 'reports', 'activity', 'workboards', 'portfolios', 'goals', 'resources', 'timesheets', 'roadmap']
   }
 };
 

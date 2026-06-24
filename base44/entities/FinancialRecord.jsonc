@@ -1,0 +1,71 @@
+{
+  "name": "FinancialRecord",
+  "type": "object",
+  "properties": {
+    "record_type": {
+      "type": "string",
+      "title": "Record Type",
+      "enum": [
+        "budget",
+        "expense",
+        "revenue",
+        "invoice",
+        "forecast"
+      ],
+      "default": "budget"
+    },
+    "project": {
+      "type": "string",
+      "title": "Project",
+      "relationType": "Project"
+    },
+    "client": {
+      "type": "string",
+      "title": "Client",
+      "relationType": "Client"
+    },
+    "portfolio": {
+      "type": "string",
+      "title": "Portfolio",
+      "relationType": "Portfolio"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category"
+    },
+    "amount": {
+      "type": "number",
+      "title": "Amount"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "title": "Date"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "planned",
+        "submitted",
+        "approved",
+        "paid",
+        "rejected"
+      ],
+      "default": "planned"
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owner",
+      "relationType": "User"
+    }
+  },
+  "required": [
+    "record_type",
+    "amount"
+  ]
+}

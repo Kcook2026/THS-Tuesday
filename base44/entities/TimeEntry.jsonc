@@ -1,0 +1,74 @@
+{
+  "name": "TimeEntry",
+  "type": "object",
+  "properties": {
+    "user": {
+      "type": "string",
+      "title": "User",
+      "relationType": "User"
+    },
+    "user_name": {
+      "type": "string",
+      "title": "User Name"
+    },
+    "project": {
+      "type": "string",
+      "title": "Project",
+      "relationType": "Project"
+    },
+    "task": {
+      "type": "string",
+      "title": "Task",
+      "relationType": "Task"
+    },
+    "client": {
+      "type": "string",
+      "title": "Client",
+      "relationType": "Client"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "title": "Date"
+    },
+    "hours": {
+      "type": "number",
+      "title": "Hours"
+    },
+    "billable": {
+      "type": "boolean",
+      "title": "Billable",
+      "default": true
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "draft",
+        "submitted",
+        "approved",
+        "rejected"
+      ],
+      "default": "draft"
+    },
+    "approved_by": {
+      "type": "string",
+      "title": "Approved By",
+      "relationType": "User"
+    },
+    "approved_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Approved Date"
+    }
+  },
+  "required": [
+    "user",
+    "date",
+    "hours"
+  ]
+}

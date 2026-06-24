@@ -28,6 +28,16 @@ import WorkboardDetail from '@/pages/WorkboardDetail';
 import Processes from '@/pages/Processes';
 import ProcessDetail from '@/pages/ProcessDetail';
 import Notifications from '@/pages/Notifications';
+import AutomationCenter from '@/pages/AutomationCenter';
+import Portfolios from '@/pages/Portfolios';
+import PortfolioDetail from '@/pages/PortfolioDetail';
+import Goals from '@/pages/Goals';
+import Resources from '@/pages/Resources';
+import Timesheets from '@/pages/Timesheets';
+import Finance from '@/pages/Finance';
+import Roadmap from '@/pages/Roadmap';
+import Risks from '@/pages/Risks';
+import Templates from '@/pages/Templates';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -78,6 +88,16 @@ const AuthenticatedApp = () => {
           <Route path="/reports" element={<Reports />} />
           <Route path="/activity" element={<ActivityFeed />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/automations" element={<AutomationCenter />} />
+          <Route path="/portfolios" element={<Portfolios />} />
+          <Route path="/portfolios/:id" element={<PortfolioDetail />} />
+          <Route path="/goals" element={<Goals />} />
+          <Route path="/resources" element={<Resources />} />
+          <Route path="/timesheets" element={<Timesheets />} />
+          <Route path="/finance" element={<Finance />} />
+          <Route path="/roadmap" element={<Roadmap />} />
+          <Route path="/risks" element={<Risks />} />
+          <Route path="/templates" element={<Templates />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />

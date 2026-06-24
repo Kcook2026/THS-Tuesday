@@ -1,0 +1,141 @@
+{
+  "name": "Goal",
+  "type": "object",
+  "properties": {
+    "goal_name": {
+      "type": "string",
+      "title": "Goal Name"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owner",
+      "relationType": "User"
+    },
+    "department": {
+      "type": "string",
+      "title": "Department"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "not_started",
+        "on_track",
+        "at_risk",
+        "achieved",
+        "missed",
+        "archived"
+      ],
+      "default": "not_started"
+    },
+    "priority": {
+      "type": "string",
+      "title": "Priority",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Start Date"
+    },
+    "target_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Target Date"
+    },
+    "progress_percentage": {
+      "type": "number",
+      "title": "Progress %",
+      "default": 0
+    },
+    "related_portfolio": {
+      "type": "string",
+      "title": "Related Portfolio",
+      "relationType": "Portfolio"
+    },
+    "related_projects": {
+      "type": "array",
+      "title": "Related Projects",
+      "items": {
+        "type": "string",
+        "relationType": "Project"
+      }
+    },
+    "related_teams": {
+      "type": "array",
+      "title": "Related Teams",
+      "items": {
+        "type": "string",
+        "relationType": "Team"
+      }
+    },
+    "key_results": {
+      "type": "array",
+      "title": "Key Results",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "metric_type": {
+            "type": "string",
+            "enum": [
+              "number",
+              "percentage",
+              "currency"
+            ]
+          },
+          "starting_value": {
+            "type": "number"
+          },
+          "current_value": {
+            "type": "number"
+          },
+          "target_value": {
+            "type": "number"
+          },
+          "progress_percentage": {
+            "type": "number",
+            "default": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "on_track",
+              "at_risk",
+              "achieved",
+              "missed"
+            ],
+            "default": "not_started"
+          }
+        }
+      }
+    },
+    "quarter": {
+      "type": "string",
+      "title": "Quarter",
+      "enum": [
+        "Q1",
+        "Q2",
+        "Q3",
+        "Q4"
+      ],
+      "default": "Q1"
+    }
+  },
+  "required": [
+    "goal_name"
+  ]
+}

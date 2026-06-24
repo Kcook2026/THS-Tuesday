@@ -1,0 +1,108 @@
+{
+  "name": "Portfolio",
+  "type": "object",
+  "properties": {
+    "portfolio_name": {
+      "type": "string",
+      "title": "Portfolio Name"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owner",
+      "relationType": "User"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "planning",
+        "active",
+        "paused",
+        "completed",
+        "archived"
+      ],
+      "default": "planning"
+    },
+    "priority": {
+      "type": "string",
+      "title": "Priority",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "strategic_goal": {
+      "type": "string",
+      "title": "Strategic Goal"
+    },
+    "budget": {
+      "type": "number",
+      "title": "Budget"
+    },
+    "actual_spend": {
+      "type": "number",
+      "title": "Actual Spend",
+      "default": 0
+    },
+    "health": {
+      "type": "string",
+      "title": "Health",
+      "enum": [
+        "excellent",
+        "on_track",
+        "at_risk",
+        "critical"
+      ],
+      "default": "on_track"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Start Date"
+    },
+    "target_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Target Date"
+    },
+    "projects": {
+      "type": "array",
+      "title": "Projects",
+      "items": {
+        "type": "string",
+        "relationType": "Project"
+      }
+    },
+    "clients": {
+      "type": "array",
+      "title": "Clients",
+      "items": {
+        "type": "string",
+        "relationType": "Client"
+      }
+    },
+    "teams": {
+      "type": "array",
+      "title": "Teams",
+      "items": {
+        "type": "string",
+        "relationType": "Team"
+      }
+    },
+    "completion_percentage": {
+      "type": "number",
+      "title": "Completion %",
+      "default": 0
+    }
+  },
+  "required": [
+    "portfolio_name"
+  ]
+}
