@@ -201,8 +201,37 @@ export default function WorkboardDetail() {
         setGroups(createdGroups);
       }
       
-      const defaultStatus = statusOptions.find(s => s.is_default) || statusOptions[0];
-      const defaultPriority = priorityOptions.find(p => p.is_default) || priorityOptions.find(p => p.label === 'Medium') || priorityOptions[0];
+      // Auto-create default status options if none exist
+      let targetStatusOptions = statusOptions;
+      if (statusOptions.length === 0) {
+        const defaultStatuses = [
+          { label: 'Not Started', color: 'gray', sort_order: 0, is_default: true, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
+          { label: 'Working On It', color: 'blue', sort_order: 1, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
+          { label: 'Stuck', color: 'red', sort_order: 2, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
+          { label: 'Waiting', color: 'yellow', sort_order: 3, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
+          { label: 'Done', color: 'green', sort_order: 4, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
+        ];
+        const createdStatuses = await Promise.all(defaultStatuses.map(s => base44.entities.StatusOption.create(s)));
+        targetStatusOptions = createdStatuses;
+        setStatusOptions(createdStatuses);
+      }
+      
+      // Auto-create default priority options if none exist
+      let targetPriorityOptions = priorityOptions;
+      if (priorityOptions.length === 0) {
+        const defaultPriorities = [
+          { label: 'Low', color: 'blue', sort_order: 0, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
+          { label: 'Medium', color: 'yellow', sort_order: 1, is_default: true, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
+          { label: 'High', color: 'orange', sort_order: 2, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
+          { label: 'Critical', color: 'red', sort_order: 3, workspace: currentWorkspaceId, workboard: id, created_by: user?.id },
+        ];
+        const createdPriorities = await Promise.all(defaultPriorities.map(p => base44.entities.PriorityOption.create(p)));
+        targetPriorityOptions = createdPriorities;
+        setPriorityOptions(createdPriorities);
+      }
+      
+      const defaultStatus = targetStatusOptions.find(s => s.is_default) || targetStatusOptions[0];
+      const defaultPriority = targetPriorityOptions.find(p => p.is_default) || targetPriorityOptions.find(p => p.label === 'Medium') || targetPriorityOptions[0];
       const selectedGroup = targetGroups.find(g => g.id === newItemGroup) || targetGroups[0];
       
       const newItem = {
@@ -218,10 +247,14 @@ export default function WorkboardDetail() {
         progress_percentage: 0,
         sort_order: items.length,
         created_by: user?.id,
+        archived: false,
       };
       
       const created = await base44.entities.WorkboardItem.create(newItem);
-      toast({ title: 'Item created' });
+      toast({ 
+        title: 'Item created', 
+        description: `"${newItem.title}" added to ${selectedGroup?.name || 'This Week'}`
+      });
       setNewItemTitle('');
       setShowNewItem(false);
       load();
@@ -532,22 +565,17 @@ export default function WorkboardDetail() {
       </div>
     );
   }
-  
-  // Check access permissions
-  if (!permissions.canAccessWorkboard(id, board)) {
-    return (
-      <div className="py-16 text-center">
-        <Shield className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-        <h2 className="text-lg font-semibold mb-2">Access Denied</h2>
-        <p className="text-sm text-muted-foreground">You don't have permission to view this workboard.</p>
-      </div>
-    );
-  }
 
+  // Determine if user can create items - check workspace role OR workboard role
   const workboardPerms = permissions.getWorkboardPermissions(id);
-  const canEdit = workboardPerms.canEditItems || workboardPerms.canCreateItems;
-  const canCreate = workboardPerms.canCreateItems;
-  const canDelete = workboardPerms.canDeleteItems;
+  const workspaceRoleCanCreate = permissions.workspacePermissions?.canCreateWorkboards || permissions.workspacePermissions?.canManageBoards;
+  const workboardRoleCanCreate = workboardPerms.canCreateItems || workboardPerms.canEditItems;
+  const isAdminOrManager = permissions.isSystemAdmin || permissions.isExecutive || permissions.isManager;
+  
+  // User can create if: admin/executive, OR has workspace manage permission, OR has workboard create permission
+  const canCreate = isAdminOrManager || workspaceRoleCanCreate || workboardRoleCanCreate;
+  const canEdit = canCreate; // If you can create, you can edit
+  const canDelete = workboardPerms.canDeleteItems || isAdminOrManager;
 
   return (
     <div className="space-y-4">
@@ -567,31 +595,7 @@ export default function WorkboardDetail() {
               Add Item
             </Button>
           )}
-          {workboardPerms.canDelete && (
-            <Button 
-              variant="destructive" 
-              size="sm"
-              onClick={async () => {
-                if (confirm(`Delete "${board.name}"? This will delete all items in this board.`)) {
-                  try {
-                    const itemsToDelete = await base44.entities.WorkboardItem.filter({ workboard: id });
-                    for (const item of itemsToDelete) {
-                      await base44.entities.WorkboardItem.delete(item.id);
-                    }
-                    await base44.entities.Workboard.delete(id);
-                    toast({ title: 'Board deleted' });
-                    window.location.href = '/workboards';
-                  } catch (error) {
-                    toast({ title: 'Error deleting board', description: error.message, variant: 'destructive' });
-                  }
-                }
-              }}
-            >
-              <Trash2 className="w-4 h-4 mr-1.5" /> 
-              Delete Board
-            </Button>
-          )}
-          {workboardPerms.canDelete && (
+          {canDelete && (
             <Button 
               variant="destructive" 
               size="sm"
@@ -647,6 +651,27 @@ export default function WorkboardDetail() {
         </TabsList>
 
         <TabsContent value="list" className="mt-4">
+          {/* Debug Panel for Admins */}
+          {permissions.isSystemAdmin && (
+            <Card className="mb-4 border-amber-200 bg-amber-50">
+              <CardContent className="p-3">
+                <div className="text-xs space-y-1 font-mono">
+                  <p><strong>Debug:</strong></p>
+                  <p>User: {user?.id} ({user?.full_name})</p>
+                  <p>Role: {permissions.accountRole} / {permissions.workspaceRole}</p>
+                  <p>Workspace: {currentWorkspaceId}</p>
+                  <p>Board: {id} ({board?.name})</p>
+                  <p>Groups: {groups.length}</p>
+                  <p>Items: {items.length}</p>
+                  <p>Status Options: {statusOptions.length}</p>
+                  <p>Priority Options: {priorityOptions.length}</p>
+                  <p>Can Create: {canCreate ? '✅ Yes' : '❌ No'}</p>
+                  <p>Reason: {canCreate ? 'Admin/Manager/Owner/Editor' : 'No permission'}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
           <div className="flex gap-3 mb-4">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -715,6 +740,21 @@ export default function WorkboardDetail() {
                   <Button variant="ghost" size="sm" onClick={() => setShowNewItem(false)}>
                     <X className="w-4 h-4" />
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Permission denied message */}
+          {!canCreate && (
+            <Card className="mb-4 border-amber-200 bg-amber-50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <Shield className="w-5 h-5 text-amber-600" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">Item creation disabled</p>
+                    <p className="text-xs text-amber-700">You do not have permission to add items to this board. Contact your workspace admin or board owner.</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
