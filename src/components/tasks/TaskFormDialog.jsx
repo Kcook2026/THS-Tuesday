@@ -7,9 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function TaskFormDialog({ open, onClose, task, onSaved }) {
   const { currentWorkspaceId } = useWorkspace();
+  const { toast } = useToast();
   const [form, setForm] = useState({
     title: '', description: '', project: '', assignee: '', status: 'todo',
     priority: 'medium', due_date: '', estimated_hours: '', actual_hours: '', tags: [], board: '',
@@ -61,22 +63,29 @@ export default function TaskFormDialog({ open, onClose, task, onSaved }) {
 
   const handleSave = async () => {
     setSaving(true);
-    const data = {
-      ...form,
-      estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : undefined,
-      actual_hours: form.actual_hours ? Number(form.actual_hours) : undefined,
-    };
-    if (!data.project) delete data.project;
-    if (!data.assignee) delete data.assignee;
-    if (!data.board) delete data.board;
-    if (task) {
-      await base44.entities.Task.update(task.id, data);
-    } else {
-      await base44.entities.Task.create({ ...data, workspace: currentWorkspaceId });
+    try {
+      const data = {
+        ...form,
+        estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : undefined,
+        actual_hours: form.actual_hours ? Number(form.actual_hours) : undefined,
+      };
+      if (!data.project) delete data.project;
+      if (!data.assignee) delete data.assignee;
+      if (!data.board) delete data.board;
+      if (task) {
+        await base44.entities.Task.update(task.id, data);
+        toast({ title: 'Task updated' });
+      } else {
+        await base44.entities.Task.create({ ...data, workspace: currentWorkspaceId });
+        toast({ title: 'Task created' });
+      }
+      onSaved();
+      onClose();
+    } catch (error) {
+      toast({ title: 'Error saving task', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    onSaved();
-    onClose();
   };
 
   return (

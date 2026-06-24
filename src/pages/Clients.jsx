@@ -17,6 +17,7 @@ import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { logActivity } from '@/hooks/useActivityLogger';
 import usePermissions from '@/hooks/usePermissions';
+import { useToast } from '@/components/ui/use-toast';
 import { Link } from 'react-router-dom';
 
 export default function Clients() {
@@ -31,6 +32,7 @@ export default function Clients() {
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
   const { currentWorkspaceId } = useWorkspace();
+  const { toast } = useToast();
 
   const load = () => {
     if (!currentWorkspaceId) return;
@@ -39,6 +41,14 @@ export default function Clients() {
       .then(([c, u, me]) => { setClients(c); setUsers(u); setUser(me); })
       .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') === 'true') {
+      openForm(null);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => { load(); }, [currentWorkspaceId]);
 
@@ -54,24 +64,36 @@ export default function Clients() {
 
   const handleSave = async () => {
     setSaving(true);
-    const data = { ...form, contract_value: form.contract_value ? Number(form.contract_value) : undefined };
-    if (!data.account_owner) delete data.account_owner;
-    if (editClient) {
-      await base44.entities.Client.update(editClient.id, data);
-      logActivity(user, 'updated client', 'Client', editClient.id, editClient.company_name);
-    } else {
-      await base44.entities.Client.create({ ...data, workspace: currentWorkspaceId });
-      logActivity(user, 'created client', 'Client', '', form.company_name);
+    try {
+      const data = { ...form, contract_value: form.contract_value ? Number(form.contract_value) : undefined };
+      if (!data.account_owner) delete data.account_owner;
+      if (editClient) {
+        await base44.entities.Client.update(editClient.id, data);
+        logActivity(user, 'updated client', 'Client', editClient.id, editClient.company_name);
+        toast({ title: 'Client updated' });
+      } else {
+        await base44.entities.Client.create({ ...data, workspace: currentWorkspaceId });
+        logActivity(user, 'created client', 'Client', '', form.company_name);
+        toast({ title: 'Client created' });
+      }
+      setDialogOpen(false);
+      load();
+    } catch (error) {
+      toast({ title: 'Error saving client', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setDialogOpen(false);
-    load();
   };
 
   const handleDelete = async (c) => {
-    await base44.entities.Client.delete(c.id);
-    logActivity(user, 'deleted client', 'Client', c.id, c.company_name);
-    load();
+    try {
+      await base44.entities.Client.delete(c.id);
+      logActivity(user, 'deleted client', 'Client', c.id, c.company_name);
+      toast({ title: 'Client deleted' });
+      load();
+    } catch (error) {
+      toast({ title: 'Error deleting client', description: error.message, variant: 'destructive' });
+    }
   };
 
   const filtered = clients.filter(c => !search || c.company_name.toLowerCase().includes(search.toLowerCase()) || (c.contact_name || '').toLowerCase().includes(search.toLowerCase()));

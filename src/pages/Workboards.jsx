@@ -17,6 +17,7 @@ import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { logActivity } from '@/hooks/useActivityLogger';
 import usePermissions from '@/hooks/usePermissions';
+import { useToast } from '@/components/ui/use-toast';
 
 const BOARD_TYPES = {
   project_board: { label: 'Project Board', color: 'bg-violet-500/10 text-violet-700 dark:text-violet-300' },
@@ -39,6 +40,7 @@ export default function Workboards() {
   const [user, setUser] = useState(null);
   const { can } = usePermissions();
   const { currentWorkspaceId } = useWorkspace();
+  const { toast } = useToast();
 
   const load = () => {
     if (!currentWorkspaceId) return;
@@ -48,6 +50,14 @@ export default function Workboards() {
       .then(([b, p, t, me]) => { setBoards(b); setProjects(p); setTeams(t); setUser(me); })
       .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') === 'true') {
+      openForm(null);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => { load(); }, [currentWorkspaceId]);
 
@@ -63,25 +73,37 @@ export default function Workboards() {
 
   const handleSave = async () => {
     setSaving(true);
-    const data = { ...form };
-    if (!data.linked_project) delete data.linked_project;
-    if (!data.team) delete data.team;
-    if (editBoard) {
-      await base44.entities.Workboard.update(editBoard.id, data);
-      logActivity(user, 'updated workboard', 'Workboard', editBoard.id, editBoard.name);
-    } else {
-      await base44.entities.Workboard.create({ ...data, workspace: currentWorkspaceId });
-      logActivity(user, 'created workboard', 'Workboard', '', form.name);
+    try {
+      const data = { ...form };
+      if (!data.linked_project) delete data.linked_project;
+      if (!data.team) delete data.team;
+      if (editBoard) {
+        await base44.entities.Workboard.update(editBoard.id, data);
+        logActivity(user, 'updated workboard', 'Workboard', editBoard.id, editBoard.name);
+        toast({ title: 'Workboard updated' });
+      } else {
+        await base44.entities.Workboard.create({ ...data, workspace: currentWorkspaceId });
+        logActivity(user, 'created workboard', 'Workboard', '', form.name);
+        toast({ title: 'Workboard created' });
+      }
+      setDialogOpen(false);
+      load();
+    } catch (error) {
+      toast({ title: 'Error saving workboard', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setDialogOpen(false);
-    load();
   };
 
   const handleDelete = async (b) => {
-    await base44.entities.Workboard.delete(b.id);
-    logActivity(user, 'deleted workboard', 'Workboard', b.id, b.name);
-    load();
+    try {
+      await base44.entities.Workboard.delete(b.id);
+      logActivity(user, 'deleted workboard', 'Workboard', b.id, b.name);
+      toast({ title: 'Workboard deleted' });
+      load();
+    } catch (error) {
+      toast({ title: 'Error deleting workboard', description: error.message, variant: 'destructive' });
+    }
   };
 
   const filtered = boards.filter(b => !search || b.name.toLowerCase().includes(search.toLowerCase()));
@@ -165,7 +187,7 @@ export default function Workboards() {
                 <Select value={form.default_view} onValueChange={v => setForm(f => ({...f, default_view: v}))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {['table','kanban','timeline','calendar','dashboard'].map(v => <SelectItem key={v} value={v}>{v.charAt(0).toUpperCase()+v.slice(1)}</SelectItem>)}
+                    {['table','kanban'].map(v => <SelectItem key={v} value={v}>{v.charAt(0).toUpperCase()+v.slice(1)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

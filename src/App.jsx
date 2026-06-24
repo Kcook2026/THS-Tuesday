@@ -50,9 +50,7 @@ const AuthenticatedApp = () => {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-lg">T</span>
-          </div>
+          <img src="https://media.base44.com/images/public/6a3c063e27549006eb32fc77/ac9acccc9_Screenshot2026-06-24at134440.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover" />
           <div className="w-6 h-6 border-2 border-muted border-t-primary rounded-full animate-spin" />
         </div>
       </div>

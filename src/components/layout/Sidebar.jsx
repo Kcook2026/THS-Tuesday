@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Home, ListTodo, Search, Bell, Plus, LayoutGrid, FolderKanban,
+  Home, ListTodo, Search, LayoutGrid, FolderKanban,
   CalendarDays, Users, Building2, FileText, Workflow, BarChart3,
   Activity, UserCog, Settings, Shield, ChevronLeft, ChevronRight,
-  ChevronDown, Star, Clock, Moon, Sun, LogOut, Lock, FolderTree,
-  Target, Wrench, DollarSign, Map, AlertTriangle, FileSpreadsheet,
-  Cpu,
+  ChevronDown, Star, Clock, Moon, Sun, LogOut,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
-import usePermissions from '@/hooks/usePermissions';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
 import NotificationBell from '@/components/shared/NotificationBell';
 import QuickCreate from '@/components/shared/QuickCreate';
@@ -18,14 +15,13 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-const primaryNav = [
+const mainNav = [
   { label: 'Home', icon: Home, path: '/' },
   { label: 'My Work', icon: ListTodo, path: '/my-work' },
   { label: 'Workboards', icon: LayoutGrid, path: '/workboards' },
   { label: 'Projects', icon: FolderKanban, path: '/projects' },
   { label: 'Tasks', icon: ListTodo, path: '/tasks/table' },
   { label: 'Calendar', icon: CalendarDays, path: '/calendar' },
-  { label: 'Teams', icon: Users, path: '/teams' },
 ];
 
 const operationsNav = [
@@ -40,18 +36,6 @@ const adminNav = [
   { label: 'Users & Access', icon: UserCog, path: '/users-access' },
   { label: 'Workspace Settings', icon: Settings, path: '/workspace-settings' },
   { label: 'Security', icon: Shield, path: '/security' },
-];
-
-const comingSoonNav = [
-  { label: 'Portfolios', icon: FolderTree, path: '/portfolios' },
-  { label: 'Goals', icon: Target, path: '/goals' },
-  { label: 'Resources', icon: Wrench, path: '/resources' },
-  { label: 'Timesheets', icon: Clock, path: '/timesheets' },
-  { label: 'Finance', icon: DollarSign, path: '/finance' },
-  { label: 'Roadmap', icon: Map, path: '/roadmap' },
-  { label: 'Risks', icon: AlertTriangle, path: '/risks' },
-  { label: 'Templates', icon: FileSpreadsheet, path: '/templates' },
-  { label: 'Automations', icon: Cpu, path: '/automations' },
 ];
 
 function NavItem({ item, collapsed, isActive, onClick }) {
@@ -77,31 +61,6 @@ function NavItem({ item, collapsed, isActive, onClick }) {
         <Tooltip>
           <TooltipTrigger asChild>{content}</TooltipTrigger>
           <TooltipContent side="right" className="text-xs">{item.label}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-  return content;
-}
-
-function ComingSoonItem({ item, collapsed }) {
-  const content = (
-    <div
-      className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[12px] text-sidebar-foreground/30 cursor-not-allowed
-        ${collapsed ? 'justify-center' : ''}`}
-    >
-      <item.icon className="w-3.5 h-3.5 shrink-0" />
-      {!collapsed && <span className="truncate">{item.label}</span>}
-      {!collapsed && <span className="ml-auto text-[9px] px-1 py-0.5 rounded bg-sidebar-accent text-sidebar-foreground/40">Soon</span>}
-    </div>
-  );
-
-  if (collapsed) {
-    return (
-      <TooltipProvider delayDuration={0}>
-        <Tooltip>
-          <TooltipTrigger asChild>{content}</TooltipTrigger>
-          <TooltipContent side="right" className="text-xs">{item.label} (Coming Soon)</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     );
@@ -164,11 +123,6 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
 
   const handleLogout = () => base44.auth.logout('/login');
 
-  const railButtons = [
-    { icon: Home, label: 'Home', action: () => onNavigate('/') },
-    { icon: ListTodo, label: 'My Work', action: () => onNavigate('/my-work') },
-  ];
-
   return (
     <aside className={`flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-full
       ${collapsed ? 'w-16' : 'w-64'} transition-all duration-300`}>
@@ -190,14 +144,21 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
         )}
       </div>
 
-      {/* Workspace Switcher */}
-      {!collapsed && (
-        <div className="px-2 pt-3 pb-1">
+      {/* Workspace Switcher + Quick Create */}
+      <div className="px-2 pt-2 pb-2 space-y-2 border-b border-sidebar-border">
+        {collapsed ? (
+          <div className="flex justify-center">
+            <WorkspaceSwitcher collapsed />
+          </div>
+        ) : (
           <WorkspaceSwitcher />
+        )}
+        <div className={collapsed ? 'flex justify-center' : ''}>
+          <QuickCreate collapsed={collapsed} />
         </div>
-      )}
+      </div>
 
-      {/* Quick Actions */}
+      {/* Search + Notifications */}
       <div className={`flex ${collapsed ? 'flex-col items-center' : 'flex-row'} gap-1.5 px-2 py-2 border-b border-sidebar-border`}>
         <button
           onClick={onSearchOpen}
@@ -215,47 +176,18 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
         <div className={collapsed ? 'w-9 h-9 flex items-center justify-center' : ''}>
           <NotificationBell />
         </div>
-        {!collapsed && <QuickCreate />}
       </div>
-
-      {/* Collapsed: Home + My Work */}
-      {collapsed && (
-        <div className="px-2 py-2 space-y-0.5 border-b border-sidebar-border">
-          {railButtons.map(btn => (
-            <TooltipProvider key={btn.label} delayDuration={0}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button onClick={btn.action} className="w-9 h-9 flex items-center justify-center rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors mx-auto">
-                    <btn.icon className="w-4 h-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs">{btn.label}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ))}
-          <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="w-9 h-9 flex items-center justify-center mx-auto">
-                  <QuickCreate />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs">Quick Create</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      )}
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-3">
-        {/* Primary */}
+        {/* Main */}
         <div className="space-y-0.5">
-          {primaryNav.map(item => (
+          {mainNav.map(item => (
             <NavItem key={item.path} item={item} collapsed={collapsed} isActive={isPathActive(item.path)} onClick={onNavigate} />
           ))}
         </div>
 
-        {/* Workspace Boards */}
+        {/* Workspace Section */}
         {!collapsed && currentWorkspace && (favorites.length > 0 || recent.length > 0) && (
           <div className="space-y-1">
             <p className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40 truncate">
@@ -292,26 +224,21 @@ export default function Sidebar({ collapsed, onToggle, theme, onToggleTheme, onN
           </div>
         )}
 
+        {/* Teams (in Workspace section when collapsed, otherwise standalone) */}
+        <div className="space-y-0.5">
+          {collapsed ? (
+            <NavItem item={{ label: 'Teams', icon: Users, path: '/teams' }} collapsed isActive={isPathActive('/teams')} onClick={onNavigate} />
+          ) : (
+            <NavItem item={{ label: 'Teams', icon: Users, path: '/teams' }} isActive={isPathActive('/teams')} onClick={onNavigate} />
+          )}
+        </div>
+
         {/* Operations */}
         <NavSection label="Operations" items={operationsNav} collapsed={collapsed} isPathActive={isPathActive} onNavigate={onNavigate} />
 
         {/* Administration */}
         {isAdmin && (
           <NavSection label="Administration" items={adminNav} collapsed={collapsed} isPathActive={isPathActive} onNavigate={onNavigate} />
-        )}
-
-        {/* Coming Soon */}
-        {!collapsed && (
-          <div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/30">
-              <Lock className="w-2.5 h-2.5" /> Coming Soon
-            </div>
-            <div className="space-y-0.5">
-              {comingSoonNav.map(item => (
-                <ComingSoonItem key={item.path} item={item} collapsed={false} />
-              ))}
-            </div>
-          </div>
         )}
       </nav>
 

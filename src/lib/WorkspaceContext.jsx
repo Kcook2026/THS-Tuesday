@@ -130,6 +130,32 @@ export function WorkspaceProvider({ children }) {
     }
   }, [user, currentWorkspaceId]);
 
+  const createWorkspace = useCallback(async (data) => {
+    const ws = await base44.asServiceRole.entities.Workspace.create({
+      ...data,
+      owner: user.id,
+      status: 'active',
+    });
+    await base44.asServiceRole.entities.WorkspaceMember.create({
+      workspace: ws.id,
+      workspace_name: ws.workspace_name,
+      user: user.id,
+      user_name: user.full_name,
+      user_email: user.email,
+      role: 'workspace_admin',
+      status: 'active',
+      invited_by: user.id,
+      joined_date: new Date().toISOString().split('T')[0],
+    });
+    logAudit(AUDIT_ACTIONS.WORKSPACE_CREATED, {
+      record_id: ws.id,
+      after_value: { workspace_name: ws.workspace_name, workspace_type: ws.workspace_type },
+    });
+    await refresh();
+    switchWorkspace(ws.id);
+    return ws;
+  }, [user, refresh, switchWorkspace]);
+
   const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId) || null;
   const currentMembership = memberships.find(m => m.workspace === currentWorkspaceId) || null;
   const currentWorkspaceRole = currentMembership?.role || (user?.role === 'admin' ? 'workspace_admin' : 'member');
@@ -143,6 +169,7 @@ export function WorkspaceProvider({ children }) {
     currentWorkspaceId,
     currentWorkspaceRole,
     switchWorkspace,
+    createWorkspace,
     refresh,
     loading,
     isAdmin,

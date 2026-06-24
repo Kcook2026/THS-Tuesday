@@ -15,6 +15,7 @@ import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import ProjectFormDialog from '@/components/projects/ProjectFormDialog';
 import { logActivity } from '@/hooks/useActivityLogger';
 import usePermissions from '@/hooks/usePermissions';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function Projects() {
   const [projects, setProjects] = useState([]);
@@ -28,6 +29,7 @@ export default function Projects() {
   const [user, setUser] = useState(null);
   const { can } = usePermissions();
   const { currentWorkspaceId } = useWorkspace();
+  const { toast } = useToast();
 
   const load = () => {
     if (!currentWorkspaceId) return;
@@ -43,6 +45,15 @@ export default function Projects() {
     }).finally(() => setLoading(false));
   };
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') === 'true') {
+      setEditProject(null);
+      setDialogOpen(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => { load(); }, [currentWorkspaceId]);
 
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t.name]));
@@ -55,9 +66,14 @@ export default function Projects() {
   });
 
   const handleDelete = async (p) => {
-    await base44.entities.Project.delete(p.id);
-    logActivity(user, 'deleted project', 'Project', p.id, p.project_name);
-    load();
+    try {
+      await base44.entities.Project.delete(p.id);
+      logActivity(user, 'deleted project', 'Project', p.id, p.project_name);
+      toast({ title: 'Project deleted' });
+      load();
+    } catch (error) {
+      toast({ title: 'Error deleting project', description: error.message, variant: 'destructive' });
+    }
   };
 
   if (loading) return <LoadingSpinner />;

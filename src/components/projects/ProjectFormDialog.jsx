@@ -8,9 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
 import CommentSection from '@/components/shared/CommentSection';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function ProjectFormDialog({ open, onClose, project, onSaved }) {
   const { currentWorkspaceId } = useWorkspace();
+  const { toast } = useToast();
   const [form, setForm] = useState({
     project_name: '', description: '', status: 'planning', priority: 'medium',
     start_date: '', due_date: '', budget: '', completion_percentage: 0, team: '', client: '',
@@ -47,17 +49,24 @@ export default function ProjectFormDialog({ open, onClose, project, onSaved }) {
 
   const handleSave = async () => {
     setSaving(true);
-    const data = { ...form, budget: form.budget ? Number(form.budget) : undefined, completion_percentage: Number(form.completion_percentage) };
-    if (!data.team) delete data.team;
-    if (!data.client) delete data.client;
-    if (project) {
-      await base44.entities.Project.update(project.id, data);
-    } else {
-      await base44.entities.Project.create({ ...data, workspace: currentWorkspaceId });
+    try {
+      const data = { ...form, budget: form.budget ? Number(form.budget) : undefined, completion_percentage: Number(form.completion_percentage) };
+      if (!data.team) delete data.team;
+      if (!data.client) delete data.client;
+      if (project) {
+        await base44.entities.Project.update(project.id, data);
+        toast({ title: 'Project updated' });
+      } else {
+        await base44.entities.Project.create({ ...data, workspace: currentWorkspaceId });
+        toast({ title: 'Project created' });
+      }
+      onSaved();
+      onClose();
+    } catch (error) {
+      toast({ title: 'Error saving project', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    onSaved();
-    onClose();
   };
 
   return (

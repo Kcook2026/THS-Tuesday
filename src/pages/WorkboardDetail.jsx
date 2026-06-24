@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, Table2, KanbanSquare, Calendar as CalendarIcon, LineChart, GanttChart } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, Table2, KanbanSquare } from 'lucide-react';
 import { StatusBadge, PriorityBadge } from '@/components/shared/StatusBadge';
 import { TaskHealthBadge } from '@/components/shared/EnhancedBadges';
 import Breadcrumbs from '@/components/shared/Breadcrumbs';
@@ -17,6 +17,7 @@ import TaskFormDialog from '@/components/tasks/TaskFormDialog';
 import TaskDetailDrawer from '@/components/tasks/TaskDetailDrawer';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { logActivity } from '@/hooks/useActivityLogger';
+import { useToast } from '@/components/ui/use-toast';
 
 const COLUMNS = [
   { id: 'backlog', label: 'Backlog', color: 'bg-slate-400' },
@@ -29,9 +30,6 @@ const COLUMNS = [
 const VIEWS = [
   { id: 'table', label: 'Table', icon: Table2 },
   { id: 'kanban', label: 'Kanban', icon: KanbanSquare },
-  { id: 'timeline', label: 'Timeline', icon: GanttChart },
-  { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
-  { id: 'dashboard', label: 'Dashboard', icon: LineChart },
 ];
 
 export default function WorkboardDetail() {
@@ -47,6 +45,7 @@ export default function WorkboardDetail() {
   const [editTask, setEditTask] = useState(null);
   const [drawerTask, setDrawerTask] = useState(null);
   const [user, setUser] = useState(null);
+  const { toast } = useToast();
 
   const load = () => {
     setLoading(true);
@@ -78,15 +77,26 @@ export default function WorkboardDetail() {
     if (!result.destination) return;
     const taskId = result.draggableId;
     const newStatus = result.destination.droppableId;
+    const prevStatus = tasks.find(t => t.id === taskId)?.status;
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
-    await base44.entities.Task.update(taskId, { status: newStatus });
-    logActivity(user, `moved task to ${newStatus.replace('_', ' ')}`, 'Task', taskId, tasks.find(t => t.id === taskId)?.title);
+    try {
+      await base44.entities.Task.update(taskId, { status: newStatus });
+      logActivity(user, `moved task to ${newStatus.replace('_', ' ')}`, 'Task', taskId, tasks.find(t => t.id === taskId)?.title);
+    } catch (error) {
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: prevStatus } : t));
+      toast({ title: 'Error moving task', description: error.message, variant: 'destructive' });
+    }
   };
 
   const handleDelete = async (t) => {
-    await base44.entities.Task.delete(t.id);
-    logActivity(user, 'deleted task', 'Task', t.id, t.title);
-    load();
+    try {
+      await base44.entities.Task.delete(t.id);
+      logActivity(user, 'deleted task', 'Task', t.id, t.title);
+      toast({ title: 'Task deleted' });
+      load();
+    } catch (error) {
+      toast({ title: 'Error deleting task', description: error.message, variant: 'destructive' });
+    }
   };
 
   if (loading) return <LoadingSpinner />;

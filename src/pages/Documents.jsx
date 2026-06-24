@@ -14,6 +14,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { logActivity } from '@/hooks/useActivityLogger';
+import { useToast } from '@/components/ui/use-toast';
 
 const CATEGORIES = ['contract', 'proposal', 'report', 'design', 'specification', 'other'];
 
@@ -30,6 +31,7 @@ export default function Documents() {
   const [saving, setSaving] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const { currentWorkspaceId } = useWorkspace();
+  const { toast } = useToast();
 
   const load = () => {
     if (!currentWorkspaceId) return;
@@ -39,6 +41,14 @@ export default function Documents() {
       .then(([d, p, u, me]) => { setDocuments(d); setProjects(p); setUsers(u); setCurrentUser(me); })
       .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') === 'true') {
+      openForm(null);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => { load(); }, [currentWorkspaceId]);
 
@@ -58,29 +68,41 @@ export default function Documents() {
 
   const handleSave = async () => {
     setSaving(true);
-    let fileUrl = editDoc?.file_url;
-    if (file) {
-      const res = await base44.integrations.Core.UploadFile({ file });
-      fileUrl = res.file_url;
+    try {
+      let fileUrl = editDoc?.file_url;
+      if (file) {
+        const res = await base44.integrations.Core.UploadFile({ file });
+        fileUrl = res.file_url;
+      }
+      const data = { ...form, file_url: fileUrl || '', owner: currentUser?.id, workspace: currentWorkspaceId };
+      if (!data.project) delete data.project;
+      if (editDoc) {
+        await base44.entities.Document.update(editDoc.id, data);
+        logActivity(currentUser, 'updated document', 'Document', editDoc.id, editDoc.title);
+        toast({ title: 'Document updated' });
+      } else {
+        await base44.entities.Document.create(data);
+        logActivity(currentUser, 'uploaded document', 'Document', '', form.title);
+        toast({ title: 'Document uploaded' });
+      }
+      setDialogOpen(false);
+      load();
+    } catch (error) {
+      toast({ title: 'Error saving document', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    const data = { ...form, file_url: fileUrl || '', owner: currentUser?.id, workspace: currentWorkspaceId };
-    if (!data.project) delete data.project;
-    if (editDoc) {
-      await base44.entities.Document.update(editDoc.id, data);
-      logActivity(currentUser, 'updated document', 'Document', editDoc.id, editDoc.title);
-    } else {
-      await base44.entities.Document.create(data);
-      logActivity(currentUser, 'uploaded document', 'Document', '', form.title);
-    }
-    setSaving(false);
-    setDialogOpen(false);
-    load();
   };
 
   const handleDelete = async (d) => {
-    await base44.entities.Document.delete(d.id);
-    logActivity(currentUser, 'deleted document', 'Document', d.id, d.title);
-    load();
+    try {
+      await base44.entities.Document.delete(d.id);
+      logActivity(currentUser, 'deleted document', 'Document', d.id, d.title);
+      toast({ title: 'Document deleted' });
+      load();
+    } catch (error) {
+      toast({ title: 'Error deleting document', description: error.message, variant: 'destructive' });
+    }
   };
 
   const filtered = documents.filter(d => !search || d.title.toLowerCase().includes(search.toLowerCase()));

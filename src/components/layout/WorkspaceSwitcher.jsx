@@ -6,6 +6,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
+import WorkspaceFormDialog from '@/components/shared/WorkspaceFormDialog';
 
 const TYPE_ICONS = {
   company_workspace: Building2,
@@ -33,21 +34,33 @@ export default function WorkspaceSwitcher({ collapsed }) {
 
   if (collapsed) {
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="w-9 h-9 rounded-lg bg-sidebar-accent flex items-center justify-center hover:bg-sidebar-accent/80 transition-colors mx-auto">
-            <Icon className="w-4 h-4 text-sidebar-foreground" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="right" align="start" className="w-64">
-          <DropdownMenuLabel className="text-xs text-muted-foreground">Workspaces</DropdownMenuLabel>
-          {workspaces.map(ws => (
-            <DropdownMenuItem key={ws.id} onClick={() => switchWorkspace(ws.id)}>
-              {ws.workspace_name}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="w-9 h-9 rounded-lg bg-sidebar-accent flex items-center justify-center hover:bg-sidebar-accent/80 transition-colors">
+              <Icon className="w-4 h-4 text-sidebar-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start" className="w-64">
+            <DropdownMenuLabel className="text-xs text-muted-foreground">Workspaces</DropdownMenuLabel>
+            {workspaces.map(ws => (
+              <DropdownMenuItem key={ws.id} onClick={() => switchWorkspace(ws.id)} className="gap-2">
+                <span className="flex-1 truncate">{ws.workspace_name}</span>
+                {ws.id === currentWorkspaceId && <Check className="w-3.5 h-3.5 text-primary" />}
+              </DropdownMenuItem>
+            ))}
+            {canCreate && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowCreate(true)} className="gap-2">
+                  <Plus className="w-4 h-4" /> Create Workspace
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <WorkspaceFormDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      </>
     );
   }
 
@@ -55,7 +68,7 @@ export default function WorkspaceSwitcher({ collapsed }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-sidebar-accent transition-colors group">
+          <button className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-sidebar-accent transition-colors">
             <div className="w-7 h-7 rounded-md bg-sidebar-primary flex items-center justify-center shrink-0">
               <Icon className="w-4 h-4 text-sidebar-primary-foreground" />
             </div>
@@ -91,7 +104,7 @@ export default function WorkspaceSwitcher({ collapsed }) {
           {canCreate && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate('/workspace-settings')} className="gap-2.5">
+              <DropdownMenuItem onClick={() => setShowCreate(true)} className="gap-2.5">
                 <Plus className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm">Create Workspace</span>
               </DropdownMenuItem>
@@ -105,6 +118,7 @@ export default function WorkspaceSwitcher({ collapsed }) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <WorkspaceFormDialog open={showCreate} onClose={() => setShowCreate(false)} />
     </>
   );
 }

@@ -36,7 +36,7 @@ const ROLE_PERMISSIONS = {
   },
   team_member: {
     label: 'Team Member',
-    canCreate: false, canEdit: true, canDelete: false, canView: true,
+    canCreate: true, canEdit: true, canDelete: false, canView: true,
     canManageUsers: false, canManageSettings: false, canManageSecurity: false,
     canManageWorkspaces: false, canInviteUsers: false,
     canManageBoards: false, canManageProcesses: false, canManageCustomFields: false,

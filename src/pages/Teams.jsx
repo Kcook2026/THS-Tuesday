@@ -15,6 +15,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { logActivity } from '@/hooks/useActivityLogger';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function Teams() {
   const [teams, setTeams] = useState([]);
@@ -26,6 +27,7 @@ export default function Teams() {
   const [saving, setSaving] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const { currentWorkspaceId } = useWorkspace();
+  const { toast } = useToast();
 
   const load = () => {
     if (!currentWorkspaceId) return;
@@ -34,6 +36,14 @@ export default function Teams() {
       .then(([t, u, me]) => { setTeams(t); setAllUsers(u); setCurrentUser(me); })
       .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') === 'true') {
+      openForm(null);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => { load(); }, [currentWorkspaceId]);
 
@@ -51,24 +61,36 @@ export default function Teams() {
 
   const handleSave = async () => {
     setSaving(true);
-    const data = { ...form };
-    if (!data.manager) delete data.manager;
-    if (editTeam) {
-      await base44.entities.Team.update(editTeam.id, data);
-      logActivity(currentUser, 'updated team', 'Team', editTeam.id, editTeam.name);
-    } else {
-      await base44.entities.Team.create({ ...data, workspace: currentWorkspaceId });
-      logActivity(currentUser, 'created team', 'Team', '', form.name);
+    try {
+      const data = { ...form };
+      if (!data.manager) delete data.manager;
+      if (editTeam) {
+        await base44.entities.Team.update(editTeam.id, data);
+        logActivity(currentUser, 'updated team', 'Team', editTeam.id, editTeam.name);
+        toast({ title: 'Team updated' });
+      } else {
+        await base44.entities.Team.create({ ...data, workspace: currentWorkspaceId });
+        logActivity(currentUser, 'created team', 'Team', '', form.name);
+        toast({ title: 'Team created' });
+      }
+      setDialogOpen(false);
+      load();
+    } catch (error) {
+      toast({ title: 'Error saving team', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setDialogOpen(false);
-    load();
   };
 
   const handleDelete = async (t) => {
-    await base44.entities.Team.delete(t.id);
-    logActivity(currentUser, 'deleted team', 'Team', t.id, t.name);
-    load();
+    try {
+      await base44.entities.Team.delete(t.id);
+      logActivity(currentUser, 'deleted team', 'Team', t.id, t.name);
+      toast({ title: 'Team deleted' });
+      load();
+    } catch (error) {
+      toast({ title: 'Error deleting team', description: error.message, variant: 'destructive' });
+    }
   };
 
   const toggleMember = (userId) => {

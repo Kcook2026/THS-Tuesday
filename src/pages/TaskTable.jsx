@@ -13,6 +13,7 @@ import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import TaskFormDialog from '@/components/tasks/TaskFormDialog';
 import { logActivity } from '@/hooks/useActivityLogger';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function TaskTable() {
   const [tasks, setTasks] = useState([]);
@@ -28,6 +29,7 @@ export default function TaskTable() {
   const [editTask, setEditTask] = useState(null);
   const [user, setUser] = useState(null);
   const { currentWorkspaceId } = useWorkspace();
+  const { toast } = useToast();
 
   const load = () => {
     if (!currentWorkspaceId) return;
@@ -42,6 +44,15 @@ export default function TaskTable() {
       setTasks(t); setProjects(p); setUsers(u); setUser(me);
     }).finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') === 'true') {
+      setEditTask(null);
+      setDialogOpen(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => { load(); }, [currentWorkspaceId]);
 
@@ -65,9 +76,14 @@ export default function TaskTable() {
   };
 
   const handleDelete = async (t) => {
-    await base44.entities.Task.delete(t.id);
-    logActivity(user, 'deleted task', 'Task', t.id, t.title);
-    load();
+    try {
+      await base44.entities.Task.delete(t.id);
+      logActivity(user, 'deleted task', 'Task', t.id, t.title);
+      toast({ title: 'Task deleted' });
+      load();
+    } catch (error) {
+      toast({ title: 'Error deleting task', description: error.message, variant: 'destructive' });
+    }
   };
 
   if (loading) return <LoadingSpinner />;

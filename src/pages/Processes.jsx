@@ -16,6 +16,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { logActivity } from '@/hooks/useActivityLogger';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function Processes() {
   const [processes, setProcesses] = useState([]);
@@ -27,6 +28,7 @@ export default function Processes() {
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
   const { currentWorkspaceId } = useWorkspace();
+  const { toast } = useToast();
 
   const load = () => {
     if (!currentWorkspaceId) return;
@@ -35,6 +37,14 @@ export default function Processes() {
       .then(([p, me]) => { setProcesses(p); setUser(me); })
       .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') === 'true') {
+      openForm(null);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => { load(); }, [currentWorkspaceId]);
 
@@ -50,22 +60,34 @@ export default function Processes() {
 
   const handleSave = async () => {
     setSaving(true);
-    if (editProcess) {
-      await base44.entities.Process.update(editProcess.id, form);
-      logActivity(user, 'updated process', 'Process', editProcess.id, editProcess.process_name);
-    } else {
-      await base44.entities.Process.create({ ...form, steps: [], workspace: currentWorkspaceId });
-      logActivity(user, 'created process', 'Process', '', form.process_name);
+    try {
+      if (editProcess) {
+        await base44.entities.Process.update(editProcess.id, form);
+        logActivity(user, 'updated process', 'Process', editProcess.id, editProcess.process_name);
+        toast({ title: 'Process updated' });
+      } else {
+        await base44.entities.Process.create({ ...form, steps: [], workspace: currentWorkspaceId });
+        logActivity(user, 'created process', 'Process', '', form.process_name);
+        toast({ title: 'Process created' });
+      }
+      setDialogOpen(false);
+      load();
+    } catch (error) {
+      toast({ title: 'Error saving process', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setDialogOpen(false);
-    load();
   };
 
   const handleDelete = async (p) => {
-    await base44.entities.Process.delete(p.id);
-    logActivity(user, 'deleted process', 'Process', p.id, p.process_name);
-    load();
+    try {
+      await base44.entities.Process.delete(p.id);
+      logActivity(user, 'deleted process', 'Process', p.id, p.process_name);
+      toast({ title: 'Process deleted' });
+      load();
+    } catch (error) {
+      toast({ title: 'Error deleting process', description: error.message, variant: 'destructive' });
+    }
   };
 
   const filtered = processes.filter(p => !search || p.process_name.toLowerCase().includes(search.toLowerCase()));
