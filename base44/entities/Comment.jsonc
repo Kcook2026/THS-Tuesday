@@ -30,6 +30,11 @@
         "type": "string",
         "relationType": "User"
       }
+    },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
     }
   },
   "required": [

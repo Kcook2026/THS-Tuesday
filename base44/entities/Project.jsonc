@@ -66,6 +66,11 @@
       "type": "number",
       "title": "Completion %",
       "default": 0
+    },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
     }
   },
   "required": [

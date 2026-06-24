@@ -139,6 +139,11 @@
       "type": "string",
       "title": "Board",
       "relationType": "Workboard"
+    },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
     }
   },
   "required": [

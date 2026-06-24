@@ -1,0 +1,312 @@
+import React, { useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
+import usePermissions from '@/hooks/usePermissions';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import PageHeader from '@/components/shared/PageHeader';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import { useToast } from '@/components/ui/use-toast';
+import { Plus, Building2, Briefcase, Users, FolderKanban, Wrench, Check } from 'lucide-react';
+
+const TYPE_ICONS = {
+  company_workspace: Building2,
+  department_workspace: Briefcase,
+  team_workspace: Users,
+  project_workspace: FolderKanban,
+  operations_workspace: Wrench,
+};
+
+const TYPE_LABELS = {
+  company_workspace: 'Company',
+  department_workspace: 'Department',
+  team_workspace: 'Team',
+  project_workspace: 'Project',
+  operations_workspace: 'Operations',
+};
+
+const VISIBILITY_LABELS = {
+  private: 'Private',
+  department: 'Department',
+  company: 'Company-wide',
+};
+
+export default function WorkspaceSettings() {
+  const { user, currentWorkspace, currentWorkspaceId, workspaces, refresh, isAdmin } = useWorkspace();
+  const { toast } = useToast();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [workspaceType, setWorkspaceType] = useState('company_workspace');
+  const [visibility, setVisibility] = useState('company');
+  const [departments, setDepartments] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  useEffect(() => {
+    if (currentWorkspace) {
+      setName(currentWorkspace.workspace_name || '');
+      setDescription(currentWorkspace.description || '');
+      setWorkspaceType(currentWorkspace.workspace_type || 'company_workspace');
+      setVisibility(currentWorkspace.visibility || 'company');
+      setDepartments((currentWorkspace.departments || []).join(', '));
+    }
+  }, [currentWorkspace]);
+
+  const handleSave = async () => {
+    if (!currentWorkspaceId) return;
+    setSaving(true);
+    try {
+      const deptList = departments.split(',').map(d => d.trim()).filter(Boolean);
+      await base44.asServiceRole.entities.Workspace.update(currentWorkspaceId, {
+        workspace_name: name,
+        description,
+        workspace_type: workspaceType,
+        visibility,
+        departments: deptList,
+      });
+      toast({ title: 'Workspace updated' });
+      refresh();
+    } catch (e) {
+      toast({ title: 'Failed to update', description: e.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreate = async (data) => {
+    setSaving(true);
+    try {
+      const ws = await base44.asServiceRole.entities.Workspace.create({
+        workspace_name: data.name,
+        description: data.description,
+        workspace_type: data.workspaceType,
+        visibility: data.visibility,
+        owner: user.id,
+        status: 'active',
+        departments: data.departments ? data.departments.split(',').map(d => d.trim()).filter(Boolean) : [],
+        color: 'violet',
+        icon: 'Building2',
+      });
+      await base44.asServiceRole.entities.WorkspaceMember.create({
+        workspace: ws.id,
+        workspace_name: ws.workspace_name,
+        user: user.id,
+        user_name: user.full_name,
+        user_email: user.email,
+        role: 'workspace_admin',
+        status: 'active',
+        invited_by: user.id,
+        joined_date: new Date().toISOString().split('T')[0],
+      });
+      toast({ title: 'Workspace created', description: ws.workspace_name });
+      setCreateOpen(false);
+      refresh();
+    } catch (e) {
+      toast({ title: 'Failed to create', description: e.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!currentWorkspace) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Workspace Settings" subtitle="Manage workspace details and configuration">
+        {isAdmin && (
+          <Button onClick={() => setCreateOpen(true)} size="sm">
+            <Plus className="w-4 h-4" /> Create Workspace
+          </Button>
+        )}
+      </PageHeader>
+
+      {/* Current Workspace */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Current Workspace</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3 pb-4 border-b">
+            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+              {React.createElement(TYPE_ICONS[workspaceType] || Building2, { className: 'w-5 h-5 text-primary-foreground' })}
+            </div>
+            <div>
+              <p className="text-sm font-medium">{currentWorkspace.workspace_name}</p>
+              <p className="text-xs text-muted-foreground">
+                {TYPE_LABELS[workspaceType]} · {VISIBILITY_LABELS[visibility]} · {currentWorkspace.status}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="ws-name">Workspace Name</Label>
+              <Input id="ws-name" value={name} onChange={e => setName(e.target.value)} disabled={!isAdmin} />
+            </div>
+            <div>
+              <Label>Workspace Type</Label>
+              <Select value={workspaceType} onValueChange={setWorkspaceType} disabled={!isAdmin}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="company_workspace">Company Workspace</SelectItem>
+                  <SelectItem value="department_workspace">Department Workspace</SelectItem>
+                  <SelectItem value="team_workspace">Team Workspace</SelectItem>
+                  <SelectItem value="project_workspace">Project Workspace</SelectItem>
+                  <SelectItem value="operations_workspace">Operations Workspace</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="ws-desc">Description</Label>
+            <Textarea id="ws-desc" value={description} onChange={e => setDescription(e.target.value)} rows={2} disabled={!isAdmin} />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Visibility</Label>
+              <Select value={visibility} onValueChange={setVisibility} disabled={!isAdmin}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="private">Private</SelectItem>
+                  <SelectItem value="department">Department</SelectItem>
+                  <SelectItem value="company">Company-wide</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="ws-dept">Departments (comma-separated)</Label>
+              <Input id="ws-dept" value={departments} onChange={e => setDepartments(e.target.value)} placeholder="Engineering, Sales, Marketing" disabled={!isAdmin} />
+            </div>
+          </div>
+
+          {isAdmin && (
+            <div className="flex justify-end">
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* All Workspaces */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">All Workspaces</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {workspaces.map(ws => {
+                const Icon = TYPE_ICONS[ws.workspace_type] || Building2;
+                return (
+                  <div key={ws.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                      <Icon className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate flex items-center gap-2">
+                        {ws.workspace_name}
+                        {ws.id === currentWorkspaceId && <Check className="w-3.5 h-3.5 text-green-500" />}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {TYPE_LABELS[ws.workspace_type]} · {VISIBILITY_LABELS[ws.visibility]}
+                      </p>
+                    </div>
+                    <Badge variant={ws.status === 'active' ? 'default' : 'secondary'} className="text-[10px]">
+                      {ws.status}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <CreateWorkspaceDialog open={createOpen} onOpenChange={setCreateOpen} onCreate={handleCreate} saving={saving} />
+    </div>
+  );
+}
+
+function CreateWorkspaceDialog({ open, onOpenChange, onCreate, saving }) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [workspaceType, setWorkspaceType] = useState('team_workspace');
+  const [visibility, setVisibility] = useState('company');
+  const [departments, setDepartments] = useState('');
+
+  const handleSubmit = () => {
+    if (!name.trim()) return;
+    onCreate({ name, description, workspaceType, visibility, departments });
+    setName(''); setDescription(''); setWorkspaceType('team_workspace'); setVisibility('company'); setDepartments('');
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create Workspace</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div>
+            <Label htmlFor="new-ws-name">Workspace Name</Label>
+            <Input id="new-ws-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Marketing Team" />
+          </div>
+          <div>
+            <Label htmlFor="new-ws-desc">Description</Label>
+            <Textarea id="new-ws-desc" value={description} onChange={e => setDescription(e.target.value)} rows={2} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Type</Label>
+              <Select value={workspaceType} onValueChange={setWorkspaceType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="company_workspace">Company</SelectItem>
+                  <SelectItem value="department_workspace">Department</SelectItem>
+                  <SelectItem value="team_workspace">Team</SelectItem>
+                  <SelectItem value="project_workspace">Project</SelectItem>
+                  <SelectItem value="operations_workspace">Operations</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Visibility</Label>
+              <Select value={visibility} onValueChange={setVisibility}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="private">Private</SelectItem>
+                  <SelectItem value="department">Department</SelectItem>
+                  <SelectItem value="company">Company-wide</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="new-ws-dept">Departments (comma-separated)</Label>
+            <Input id="new-ws-dept" value={departments} onChange={e => setDepartments(e.target.value)} placeholder="Engineering, Design" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={saving || !name.trim()}>
+            {saving ? 'Creating...' : 'Create Workspace'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

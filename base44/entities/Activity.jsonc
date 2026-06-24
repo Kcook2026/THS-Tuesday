@@ -26,6 +26,11 @@
     "record_name": {
       "type": "string",
       "title": "Record Name"
+    },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
     }
   },
   "required": [

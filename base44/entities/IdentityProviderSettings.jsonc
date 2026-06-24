@@ -1,0 +1,83 @@
+{
+  "name": "IdentityProviderSettings",
+  "type": "object",
+  "properties": {
+    "provider_name": {
+      "type": "string",
+      "title": "Provider Name"
+    },
+    "provider_type": {
+      "type": "string",
+      "title": "Provider Type",
+      "enum": [
+        "microsoft_entra_id",
+        "saml",
+        "openid_connect"
+      ],
+      "default": "microsoft_entra_id"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "not_configured",
+        "configured",
+        "active",
+        "disabled"
+      ],
+      "default": "not_configured"
+    },
+    "tenant_id": {
+      "type": "string",
+      "title": "Tenant ID"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "Client ID"
+    },
+    "domain_restrictions": {
+      "type": "array",
+      "title": "Domain Restrictions",
+      "items": {
+        "type": "string"
+      }
+    },
+    "auto_provision_users": {
+      "type": "boolean",
+      "title": "Auto-Provision Users",
+      "default": false
+    },
+    "default_role": {
+      "type": "string",
+      "title": "Default Role",
+      "enum": [
+        "admin",
+        "executive",
+        "manager",
+        "team_member",
+        "read_only"
+      ],
+      "default": "team_member"
+    },
+    "allowed_groups": {
+      "type": "array",
+      "title": "Allowed Groups",
+      "items": {
+        "type": "string"
+      }
+    },
+    "session_timeout_minutes": {
+      "type": "number",
+      "title": "Session Timeout (minutes)",
+      "default": 60
+    },
+    "invitation_only": {
+      "type": "boolean",
+      "title": "Invitation Only",
+      "default": true
+    }
+  },
+  "required": [
+    "provider_name"
+  ]
+}

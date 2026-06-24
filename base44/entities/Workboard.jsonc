@@ -68,6 +68,16 @@
       "type": "string",
       "title": "Color",
       "default": "violet"
+    },
+    "is_favorite": {
+      "type": "boolean",
+      "title": "Favorite",
+      "default": false
+    },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
     }
   },
   "required": [

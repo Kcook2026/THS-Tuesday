@@ -22,6 +22,15 @@
     "description": {
       "type": "string",
       "title": "Description"
+    },
+    "department": {
+      "type": "string",
+      "title": "Department"
+    },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
     }
   },
   "required": [

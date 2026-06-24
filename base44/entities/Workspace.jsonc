@@ -2,7 +2,7 @@
   "name": "Workspace",
   "type": "object",
   "properties": {
-    "name": {
+    "workspace_name": {
       "type": "string",
       "title": "Workspace Name"
     },
@@ -14,9 +14,62 @@
       "type": "string",
       "title": "Owner",
       "relationType": "User"
+    },
+    "workspace_type": {
+      "type": "string",
+      "title": "Workspace Type",
+      "enum": [
+        "company_workspace",
+        "department_workspace",
+        "team_workspace",
+        "project_workspace",
+        "operations_workspace"
+      ],
+      "default": "company_workspace"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "default": "active"
+    },
+    "default_team": {
+      "type": "string",
+      "title": "Default Team",
+      "relationType": "Team"
+    },
+    "departments": {
+      "type": "array",
+      "title": "Departments",
+      "items": {
+        "type": "string"
+      }
+    },
+    "visibility": {
+      "type": "string",
+      "title": "Visibility",
+      "enum": [
+        "private",
+        "department",
+        "company"
+      ],
+      "default": "company"
+    },
+    "color": {
+      "type": "string",
+      "title": "Color",
+      "default": "violet"
+    },
+    "icon": {
+      "type": "string",
+      "title": "Icon",
+      "default": "Building2"
     }
   },
   "required": [
-    "name"
+    "workspace_name"
   ]
 }

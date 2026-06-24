@@ -78,6 +78,11 @@
       "type": "string",
       "format": "date",
       "title": "Expiration Date"
+    },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
     }
   },
   "required": [

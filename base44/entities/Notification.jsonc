@@ -40,6 +40,11 @@
       "type": "boolean",
       "title": "Read",
       "default": false
+    },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
     }
   },
   "required": [

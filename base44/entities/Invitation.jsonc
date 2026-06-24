@@ -1,0 +1,69 @@
+{
+  "name": "Invitation",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "format": "email",
+      "title": "Email"
+    },
+    "invited_by": {
+      "type": "string",
+      "title": "Invited By",
+      "relationType": "User"
+    },
+    "invited_by_name": {
+      "type": "string",
+      "title": "Invited By Name"
+    },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "workspace_name": {
+      "type": "string",
+      "title": "Workspace Name"
+    },
+    "role": {
+      "type": "string",
+      "title": "Role",
+      "enum": [
+        "workspace_admin",
+        "manager",
+        "member",
+        "viewer"
+      ],
+      "default": "member"
+    },
+    "department": {
+      "type": "string",
+      "title": "Department"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "pending",
+        "accepted",
+        "expired",
+        "revoked"
+      ],
+      "default": "pending"
+    },
+    "expires_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires Date"
+    },
+    "accepted_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Accepted Date"
+    }
+  },
+  "required": [
+    "email",
+    "workspace"
+  ]
+}

@@ -12,7 +12,11 @@ import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import AppLayout from '@/components/layout/AppLayout';
-import Dashboard from '@/pages/Dashboard';
+import Home from '@/pages/Home';
+import MyWork from '@/pages/MyWork';
+import UsersAccess from '@/pages/UsersAccess';
+import WorkspaceSettings from '@/pages/WorkspaceSettings';
+import SecuritySettings from '@/pages/SecuritySettings';
 import Projects from '@/pages/Projects';
 import TaskBoard from '@/pages/TaskBoard';
 import TaskTable from '@/pages/TaskTable';
@@ -72,7 +76,11 @@ const AuthenticatedApp = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/my-work" element={<MyWork />} />
+          <Route path="/users-access" element={<UsersAccess />} />
+          <Route path="/workspace-settings" element={<WorkspaceSettings />} />
+          <Route path="/security" element={<SecuritySettings />} />
           <Route path="/workboards" element={<Workboards />} />
           <Route path="/workboards/:id" element={<WorkboardDetail />} />
           <Route path="/projects" element={<Projects />} />

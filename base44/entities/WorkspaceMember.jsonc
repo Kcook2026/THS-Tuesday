@@ -1,0 +1,73 @@
+{
+  "name": "WorkspaceMember",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "workspace_name": {
+      "type": "string",
+      "title": "Workspace Name"
+    },
+    "user": {
+      "type": "string",
+      "title": "User",
+      "relationType": "User"
+    },
+    "user_name": {
+      "type": "string",
+      "title": "User Name"
+    },
+    "user_email": {
+      "type": "string",
+      "title": "User Email"
+    },
+    "role": {
+      "type": "string",
+      "title": "Workspace Role",
+      "enum": [
+        "workspace_admin",
+        "manager",
+        "member",
+        "viewer"
+      ],
+      "default": "member"
+    },
+    "department": {
+      "type": "string",
+      "title": "Department"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "invited",
+        "active",
+        "suspended",
+        "removed"
+      ],
+      "default": "invited"
+    },
+    "invited_by": {
+      "type": "string",
+      "title": "Invited By",
+      "relationType": "User"
+    },
+    "joined_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Joined Date"
+    },
+    "last_active_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Last Active Date"
+    }
+  },
+  "required": [
+    "workspace",
+    "user"
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "name": "AuditLog",
+  "type": "object",
+  "properties": {
+    "user": {
+      "type": "string",
+      "title": "User",
+      "relationType": "User"
+    },
+    "user_name": {
+      "type": "string",
+      "title": "User Name"
+    },
+    "action": {
+      "type": "string",
+      "title": "Action",
+      "enum": [
+        "login",
+        "logout",
+        "invite_sent",
+        "invite_accepted",
+        "role_changed",
+        "workspace_switched",
+        "workspace_created",
+        "workspace_updated",
+        "security_setting_changed",
+        "record_created",
+        "record_updated",
+        "record_deleted",
+        "user_disabled",
+        "user_enabled"
+      ]
+    },
+    "module": {
+      "type": "string",
+      "title": "Module"
+    },
+    "record_type": {
+      "type": "string",
+      "title": "Record Type"
+    },
+    "record_id": {
+      "type": "string",
+      "title": "Record ID"
+    },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "before_value": {
+      "type": "string",
+      "title": "Before Value"
+    },
+    "after_value": {
+      "type": "string",
+      "title": "After Value"
+    },
+    "ip_address": {
+      "type": "string",
+      "title": "IP Address"
+    }
+  },
+  "required": [
+    "user",
+    "action"
+  ]
+}

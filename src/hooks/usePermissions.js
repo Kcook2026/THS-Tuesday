@@ -1,52 +1,62 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 
+const ROLE_LABELS = {
+  admin: 'Admin',
+  executive: 'Executive',
+  manager: 'Manager',
+  team_member: 'Team Member',
+  read_only: 'Read Only',
+};
+
 const ROLE_PERMISSIONS = {
   admin: {
+    label: 'Admin',
     canCreate: true, canEdit: true, canDelete: true, canView: true,
-    canManageUsers: true, canManageSettings: true, canManageBoards: true,
-    canManageProcesses: true, canManageCustomFields: true,
-    canManageAutomations: true, canManagePortfolios: true, canManageGoals: true,
-    canManageResources: true, canManageTimesheets: true, canManageFinance: true,
-    canManageRisks: true, canManageTemplates: true, canManageMilestones: true,
-    canApproveTimesheets: true, canApproveFinance: true,
-    canRunAutomations: true,
-    modules: ['dashboard', 'projects', 'tasks', 'calendar', 'teams', 'clients', 'documents', 'reports', 'activity', 'workboards', 'processes', 'notifications', 'automations', 'portfolios', 'goals', 'resources', 'timesheets', 'finance', 'risks', 'templates', 'roadmap']
+    canManageUsers: true, canManageSettings: true, canManageSecurity: true,
+    canManageWorkspaces: true, canInviteUsers: true,
+    canManageBoards: true, canManageProcesses: true, canManageCustomFields: true,
+    canCrossWorkspace: true,
+  },
+  executive: {
+    label: 'Executive',
+    canCreate: true, canEdit: true, canDelete: false, canView: true,
+    canManageUsers: false, canManageSettings: false, canManageSecurity: false,
+    canManageWorkspaces: true, canInviteUsers: true,
+    canManageBoards: true, canManageProcesses: true, canManageCustomFields: true,
+    canCrossWorkspace: true,
   },
   manager: {
+    label: 'Manager',
     canCreate: true, canEdit: true, canDelete: false, canView: true,
-    canManageUsers: false, canManageSettings: false, canManageBoards: true,
-    canManageProcesses: true, canManageCustomFields: true,
-    canManageAutomations: true, canManagePortfolios: true, canManageGoals: true,
-    canManageResources: true, canManageTimesheets: true, canManageFinance: true,
-    canManageRisks: true, canManageTemplates: true, canManageMilestones: true,
-    canApproveTimesheets: true, canApproveFinance: true,
-    canRunAutomations: true,
-    modules: ['dashboard', 'projects', 'tasks', 'calendar', 'teams', 'clients', 'documents', 'reports', 'activity', 'workboards', 'processes', 'automations', 'portfolios', 'goals', 'resources', 'timesheets', 'finance', 'risks', 'templates', 'roadmap']
+    canManageUsers: false, canManageSettings: false, canManageSecurity: false,
+    canManageWorkspaces: true, canInviteUsers: true,
+    canManageBoards: true, canManageProcesses: true, canManageCustomFields: true,
+    canCrossWorkspace: false,
   },
-  user: {
+  team_member: {
+    label: 'Team Member',
     canCreate: false, canEdit: true, canDelete: false, canView: true,
-    canManageUsers: false, canManageSettings: false, canManageBoards: false,
-    canManageProcesses: false, canManageCustomFields: false,
-    canManageAutomations: false, canManagePortfolios: false, canManageGoals: false,
-    canManageResources: false, canManageTimesheets: false, canManageFinance: false,
-    canManageRisks: false, canManageTemplates: false, canManageMilestones: false,
-    canApproveTimesheets: false, canApproveFinance: false,
-    canRunAutomations: false,
-    modules: ['dashboard', 'projects', 'tasks', 'calendar', 'clients', 'documents', 'reports', 'activity', 'workboards', 'portfolios', 'goals', 'resources', 'timesheets', 'roadmap']
+    canManageUsers: false, canManageSettings: false, canManageSecurity: false,
+    canManageWorkspaces: false, canInviteUsers: false,
+    canManageBoards: false, canManageProcesses: false, canManageCustomFields: false,
+    canCrossWorkspace: false,
   },
   read_only: {
+    label: 'Read Only',
     canCreate: false, canEdit: false, canDelete: false, canView: true,
-    canManageUsers: false, canManageSettings: false, canManageBoards: false,
-    canManageProcesses: false, canManageCustomFields: false,
-    canManageAutomations: false, canManagePortfolios: false, canManageGoals: false,
-    canManageResources: false, canManageTimesheets: false, canManageFinance: false,
-    canManageRisks: false, canManageTemplates: false, canManageMilestones: false,
-    canApproveTimesheets: false, canApproveFinance: false,
-    canRunAutomations: false,
-    modules: ['dashboard', 'projects', 'tasks', 'calendar', 'clients', 'documents', 'reports', 'activity', 'workboards', 'portfolios', 'goals', 'resources', 'timesheets', 'roadmap']
-  }
+    canManageUsers: false, canManageSettings: false, canManageSecurity: false,
+    canManageWorkspaces: false, canInviteUsers: false,
+    canManageBoards: false, canManageProcesses: false, canManageCustomFields: false,
+    canCrossWorkspace: false,
+  },
 };
+
+function normalizeRole(role) {
+  if (role === 'user') return 'team_member';
+  if (role && ROLE_PERMISSIONS[role]) return role;
+  return 'team_member';
+}
 
 export default function usePermissions() {
   const [user, setUser] = useState(null);
@@ -59,16 +69,31 @@ export default function usePermissions() {
       .finally(() => setLoading(false));
   }, []);
 
-  const role = user?.role || 'user';
-  const permissions = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.user;
+  const rawRole = user?.role || 'team_member';
+  const role = normalizeRole(rawRole);
+  const permissions = ROLE_PERMISSIONS[role];
+  const roleLabel = ROLE_LABELS[role] || 'Team Member';
 
   const can = useCallback((action) => {
     return Boolean(permissions[action]);
   }, [permissions]);
 
   const canAccess = useCallback((module) => {
-    return permissions.modules.includes(module);
+    return Boolean(permissions[module]) || permissions.canView;
   }, [permissions]);
 
-  return { user, role, permissions, can, canAccess, loading };
+  return {
+    user,
+    role,
+    roleLabel,
+    permissions,
+    can,
+    canAccess,
+    loading,
+    isAdmin: role === 'admin',
+    isManager: role === 'manager' || role === 'admin',
+    canManage: role === 'admin' || role === 'executive' || role === 'manager',
+  };
 }
+
+export { ROLE_PERMISSIONS, ROLE_LABELS };
