@@ -27,9 +27,22 @@
     },
     "role": {
       "type": "string",
-      "title": "Role",
+      "title": "Workspace Role",
       "enum": [
-        "workspace_admin",
+        "workspace_owner",
+        "workspace_manager",
+        "workspace_member",
+        "workspace_viewer",
+        "workspace_observer"
+      ],
+      "default": "workspace_member"
+    },
+    "account_role": {
+      "type": "string",
+      "title": "Account Role",
+      "enum": [
+        "system_admin",
+        "executive",
         "manager",
         "member",
         "viewer"

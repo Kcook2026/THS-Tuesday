@@ -36,6 +36,18 @@
       ],
       "default": "workspace_member"
     },
+    "account_role": {
+      "type": "string",
+      "title": "Account Role",
+      "enum": [
+        "system_admin",
+        "executive",
+        "manager",
+        "member",
+        "viewer"
+      ],
+      "default": "member"
+    },
     "department": {
       "type": "string",
       "title": "Department"

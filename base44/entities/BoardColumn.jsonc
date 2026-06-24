@@ -1,0 +1,102 @@
+{
+  "name": "BoardColumn",
+  "type": "object",
+  "properties": {
+    "column_name": {
+      "type": "string",
+      "title": "Column Name"
+    },
+    "workboard": {
+      "type": "string",
+      "title": "Workboard",
+      "relationType": "Workboard"
+    },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "column_type": {
+      "type": "string",
+      "title": "Column Type",
+      "enum": [
+        "text",
+        "status",
+        "priority",
+        "date",
+        "timeline",
+        "person",
+        "team",
+        "tags",
+        "files",
+        "progress",
+        "formula",
+        "number",
+        "currency",
+        "checkbox",
+        "dropdown"
+      ],
+      "default": "text"
+    },
+    "column_order": {
+      "type": "number",
+      "title": "Column Order",
+      "default": 0
+    },
+    "is_visible": {
+      "type": "boolean",
+      "title": "Is Visible",
+      "default": true
+    },
+    "is_required": {
+      "type": "boolean",
+      "title": "Is Required",
+      "default": false
+    },
+    "is_editable": {
+      "type": "boolean",
+      "title": "Is Editable",
+      "default": true
+    },
+    "default_value": {
+      "type": "string",
+      "title": "Default Value"
+    },
+    "color_config": {
+      "type": "string",
+      "title": "Color Config"
+    },
+    "options": {
+      "type": "array",
+      "title": "Options",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "formula": {
+      "type": "string",
+      "title": "Formula"
+    },
+    "width": {
+      "type": "number",
+      "title": "Width (px)",
+      "default": 200
+    }
+  },
+  "required": [
+    "column_name",
+    "column_type",
+    "workboard"
+  ]
+}

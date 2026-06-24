@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
-import usePermissions, { ACCOUNT_ROLE_PERMISSIONS, WORKSPACE_ROLE_PERMISSIONS } from '@/hooks/usePermissions';
+import usePermissions from '@/hooks/usePermissions';
+import { ACCOUNT_ROLE_PERMISSIONS, WORKSPACE_ROLE_PERMISSIONS, WORKBOARD_ROLE_PERMISSIONS } from '@/config/PermissionConfig';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import PageHeader from '@/components/shared/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -121,7 +122,7 @@ export default function Members() {
 
   const handleInvite = async (email, accountRole, workspaceRole, department, invitationScope, workboards = []) => {
     try {
-      const appRole = accountRole === 'system_admin' || accountRole === 'manager' ? 'admin' : 'user';
+      const appRole = accountRole === 'system_admin' || accountRole === 'executive' || accountRole === 'manager' ? 'admin' : 'user';
       await base44.users.inviteUser(email, appRole);
       
       const expires = new Date();
