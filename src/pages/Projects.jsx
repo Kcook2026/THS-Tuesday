@@ -13,6 +13,7 @@ import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import ProjectFormDialog from '@/components/projects/ProjectFormDialog';
 import { logActivity } from '@/hooks/useActivityLogger';
+import usePermissions from '@/hooks/usePermissions';
 
 export default function Projects() {
   const [projects, setProjects] = useState([]);
@@ -24,6 +25,7 @@ export default function Projects() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editProject, setEditProject] = useState(null);
   const [user, setUser] = useState(null);
+  const { can } = usePermissions();
 
   const load = () => {
     setLoading(true);
@@ -59,9 +61,11 @@ export default function Projects() {
   return (
     <div>
       <PageHeader title="Projects" subtitle={`${projects.length} projects`}>
-        <Button onClick={() => { setEditProject(null); setDialogOpen(true); }}>
-          <Plus className="w-4 h-4 mr-1.5" /> New Project
-        </Button>
+        {can('canCreate') && (
+          <Button onClick={() => { setEditProject(null); setDialogOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1.5" /> New Project
+          </Button>
+        )}
       </PageHeader>
 
       {/* Filters */}
@@ -100,12 +104,12 @@ export default function Projects() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => { setEditProject(p); setDialogOpen(true); }}>
+                      {can('canEdit') && <DropdownMenuItem onClick={() => { setEditProject(p); setDialogOpen(true); }}>
                         <Pencil className="w-3.5 h-3.5 mr-2" /> Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(p)}>
+                      </DropdownMenuItem>}
+                      {can('canDelete') && <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(p)}>
                         <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
-                      </DropdownMenuItem>
+                      </DropdownMenuItem>}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

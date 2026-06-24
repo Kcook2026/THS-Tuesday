@@ -15,6 +15,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { logActivity } from '@/hooks/useActivityLogger';
+import usePermissions from '@/hooks/usePermissions';
 
 const BOARD_TYPES = {
   project_board: { label: 'Project Board', color: 'bg-violet-500/10 text-violet-700 dark:text-violet-300' },
@@ -35,6 +36,7 @@ export default function Workboards() {
   const [form, setForm] = useState({ name: '', description: '', board_type: 'task_board', linked_project: '', team: '', default_view: 'table', color: 'violet' });
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
+  const { can } = usePermissions();
 
   const load = () => {
     setLoading(true);
@@ -85,7 +87,7 @@ export default function Workboards() {
   return (
     <div>
       <PageHeader title="Workboards" subtitle={`${boards.length} boards`}>
-        <Button onClick={() => openForm(null)}><Plus className="w-4 h-4 mr-1.5" /> New Workboard</Button>
+        {can('canManageBoards') && <Button onClick={() => openForm(null)}><Plus className="w-4 h-4 mr-1.5" /> New Workboard</Button>}
       </PageHeader>
 
       <div className="mb-6">
@@ -119,8 +121,8 @@ export default function Workboards() {
                         <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0"><MoreHorizontal className="w-4 h-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openForm(b)}><Pencil className="w-3.5 h-3.5 mr-2" /> Edit</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(b)}><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete</DropdownMenuItem>
+                        {can('canManageBoards') && <DropdownMenuItem onClick={() => openForm(b)}><Pencil className="w-3.5 h-3.5 mr-2" /> Edit</DropdownMenuItem>}
+                        {can('canManageBoards') && <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(b)}><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete</DropdownMenuItem>}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>

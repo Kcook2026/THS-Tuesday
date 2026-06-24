@@ -10,17 +10,18 @@ import { base44 } from '@/api/base44Client';
 export default function TaskFormDialog({ open, onClose, task, onSaved }) {
   const [form, setForm] = useState({
     title: '', description: '', project: '', assignee: '', status: 'todo',
-    priority: 'medium', due_date: '', estimated_hours: '', actual_hours: '', tags: [],
+    priority: 'medium', due_date: '', estimated_hours: '', actual_hours: '', tags: [], board: '',
   });
   const [projects, setProjects] = useState([]);
+  const [boards, setBoards] = useState([]);
   const [users, setUsers] = useState([]);
   const [saving, setSaving] = useState(false);
   const [tagInput, setTagInput] = useState('');
 
   useEffect(() => {
     if (open) {
-      Promise.all([base44.entities.Project.list(), base44.entities.User.list()])
-        .then(([p, u]) => { setProjects(p); setUsers(u); });
+      Promise.all([base44.entities.Project.list(), base44.entities.User.list(), base44.entities.Workboard.list()])
+        .then(([p, u, b]) => { setProjects(p); setUsers(u); setBoards(b); });
       if (task) {
         setForm({
           title: task.title || '',
@@ -33,9 +34,10 @@ export default function TaskFormDialog({ open, onClose, task, onSaved }) {
           estimated_hours: task.estimated_hours || '',
           actual_hours: task.actual_hours || '',
           tags: task.tags || [],
+          board: task.board || '',
         });
       } else {
-        setForm({ title: '', description: '', project: '', assignee: '', status: 'todo', priority: 'medium', due_date: '', estimated_hours: '', actual_hours: '', tags: [] });
+        setForm({ title: '', description: '', project: '', assignee: '', status: 'todo', priority: 'medium', due_date: '', estimated_hours: '', actual_hours: '', tags: [], board: '' });
       }
     }
   }, [open, task]);
@@ -60,6 +62,7 @@ export default function TaskFormDialog({ open, onClose, task, onSaved }) {
     };
     if (!data.project) delete data.project;
     if (!data.assignee) delete data.assignee;
+    if (!data.board) delete data.board;
     if (task) {
       await base44.entities.Task.update(task.id, data);
     } else {
@@ -122,6 +125,15 @@ export default function TaskFormDialog({ open, onClose, task, onSaved }) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div>
+            <Label>Board</Label>
+            <Select value={form.board} onValueChange={v => setForm(f => ({...f, board: v}))}>
+              <SelectTrigger><SelectValue placeholder="Select board" /></SelectTrigger>
+              <SelectContent>
+                {boards.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
           <div><Label>Due Date</Label><Input type="date" value={form.due_date} onChange={e => setForm(f => ({...f, due_date: e.target.value}))} /></div>
           <div className="grid grid-cols-2 gap-3">

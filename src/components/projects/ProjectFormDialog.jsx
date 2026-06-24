@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
+import CommentSection from '@/components/shared/CommentSection';
 
 export default function ProjectFormDialog({ open, onClose, project, onSaved }) {
   const [form, setForm] = useState({
@@ -125,6 +126,11 @@ export default function ProjectFormDialog({ open, onClose, project, onSaved }) {
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button onClick={handleSave} disabled={saving || !form.project_name}>{saving ? 'Saving...' : 'Save'}</Button>
           </div>
+          {project && (
+            <div className="border-t pt-4 mt-2">
+              <CommentSection recordType="Project" recordId={project.id} recordName={project.project_name} />
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

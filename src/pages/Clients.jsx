@@ -15,6 +15,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { logActivity } from '@/hooks/useActivityLogger';
+import usePermissions from '@/hooks/usePermissions';
 import { Link } from 'react-router-dom';
 
 export default function Clients() {
@@ -23,14 +24,16 @@ export default function Clients() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editClient, setEditClient] = useState(null);
-  const [form, setForm] = useState({ company_name: '', contact_name: '', email: '', phone: '', status: 'active', notes: '' });
+  const [users, setUsers] = useState([]);
+  const [form, setForm] = useState({ company_name: '', contact_name: '', email: '', phone: '', status: 'active', client_health: 'good', account_owner: '', contract_value: '', renewal_date: '', last_contact_date: '', notes: '' });
+  const { can } = usePermissions();
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
 
   const load = () => {
     setLoading(true);
-    Promise.all([base44.entities.Client.list(), base44.auth.me()])
-      .then(([c, u]) => { setClients(c); setUser(u); })
+    Promise.all([base44.entities.Client.list(), base44.entities.User.list(), base44.auth.me()])
+      .then(([c, u, me]) => { setClients(c); setUsers(u); setUser(me); })
       .finally(() => setLoading(false));
   };
 
@@ -39,20 +42,22 @@ export default function Clients() {
   const openForm = (client) => {
     setEditClient(client);
     if (client) {
-      setForm({ company_name: client.company_name || '', contact_name: client.contact_name || '', email: client.email || '', phone: client.phone || '', status: client.status || 'active', notes: client.notes || '' });
+      setForm({ company_name: client.company_name || '', contact_name: client.contact_name || '', email: client.email || '', phone: client.phone || '', status: client.status || 'active', client_health: client.client_health || 'good', account_owner: client.account_owner || '', contract_value: client.contract_value || '', renewal_date: client.renewal_date || '', last_contact_date: client.last_contact_date || '', notes: client.notes || '' });
     } else {
-      setForm({ company_name: '', contact_name: '', email: '', phone: '', status: 'active', notes: '' });
+      setForm({ company_name: '', contact_name: '', email: '', phone: '', status: 'active', client_health: 'good', account_owner: '', contract_value: '', renewal_date: '', last_contact_date: '', notes: '' });
     }
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
+    const data = { ...form, contract_value: form.contract_value ? Number(form.contract_value) : undefined };
+    if (!data.account_owner) delete data.account_owner;
     if (editClient) {
-      await base44.entities.Client.update(editClient.id, form);
+      await base44.entities.Client.update(editClient.id, data);
       logActivity(user, 'updated client', 'Client', editClient.id, editClient.company_name);
     } else {
-      await base44.entities.Client.create(form);
+      await base44.entities.Client.create(data);
       logActivity(user, 'created client', 'Client', '', form.company_name);
     }
     setSaving(false);
@@ -73,7 +78,7 @@ export default function Clients() {
   return (
     <div>
       <PageHeader title="Clients" subtitle={`${clients.length} clients`}>
-        <Button onClick={() => openForm(null)}><Plus className="w-4 h-4 mr-1.5" /> New Client</Button>
+        {can('canCreate') && <Button onClick={() => openForm(null)}><Plus className="w-4 h-4 mr-1.5" /> New Client</Button>}
       </PageHeader>
 
       <div className="mb-6">
@@ -100,8 +105,8 @@ export default function Clients() {
                       <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="w-4 h-4" /></Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openForm(c)}><Pencil className="w-3.5 h-3.5 mr-2" /> Edit</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(c)}><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete</DropdownMenuItem>
+                      {can('canEdit') && <DropdownMenuItem onClick={() => openForm(c)}><Pencil className="w-3.5 h-3.5 mr-2" /> Edit</DropdownMenuItem>}
+                      {can('canDelete') && <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(c)}><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete</DropdownMenuItem>}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -138,6 +143,29 @@ export default function Clients() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label>Client Health</Label>
+              <Select value={form.client_health} onValueChange={v => setForm(f => ({...f, client_health: v}))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {['excellent','good','at_risk','critical','inactive'].map(s => <SelectItem key={s} value={s}>{s.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Account Owner</Label>
+              <Select value={form.account_owner} onValueChange={v => setForm(f => ({...f, account_owner: v}))}>
+                <SelectTrigger><SelectValue placeholder="Select owner" /></SelectTrigger>
+                <SelectContent>
+                  {users.map(u => <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Contract Value</Label><Input type="number" value={form.contract_value} onChange={e => setForm(f => ({...f, contract_value: e.target.value}))} /></div>
+              <div><Label>Renewal Date</Label><Input type="date" value={form.renewal_date} onChange={e => setForm(f => ({...f, renewal_date: e.target.value}))} /></div>
+            </div>
+            <div><Label>Last Contact Date</Label><Input type="date" value={form.last_contact_date} onChange={e => setForm(f => ({...f, last_contact_date: e.target.value}))} /></div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} rows={3} /></div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
