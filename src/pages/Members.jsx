@@ -17,7 +17,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/auditLogger';
 import { 
   UserPlus, Mail, Shield, Ban, Trash2, Clock, Check, Crown, Eye, 
-  LayoutGrid, Briefcase, Target, Building2, CalendarDays 
+  LayoutGrid, Briefcase, Target, Building2, CalendarDays, Brush 
 } from 'lucide-react';
 import InviteUserDialog from '@/components/shared/InviteUserDialog';
 
@@ -77,6 +77,7 @@ export default function Members() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [memberWorkboards, setMemberWorkboards] = useState({});
+  const [cleaningStale, setCleaningStale] = useState(false);
 
   const loadData = async () => {
     if (!currentWorkspaceId) return;
@@ -93,6 +94,10 @@ export default function Members() {
       setMembers(mems);
       setWorkboards(boards);
       
+      // Build a set of active, non-archived board IDs for filtering stale memberships
+      const activeBoardIds = new Set(
+        boards.filter(b => !b.archived && b.status !== 'archived' && b.status !== 'template').map(b => b.id)
+      );
       // Load workboard memberships for each member
       const wbMemberships = {};
       for (const member of mems) {
@@ -100,7 +105,8 @@ export default function Members() {
           workspace: currentWorkspaceId, 
           user: member.user 
         }).catch(() => []);
-        wbMemberships[member.id] = wbMembers;
+        // Only count memberships for active, non-archived boards that still exist
+        wbMemberships[member.id] = wbMembers.filter(wm => activeBoardIds.has(wm.workboard));
       }
       setMemberWorkboards(wbMemberships);
     } finally {
@@ -241,12 +247,43 @@ export default function Members() {
     } catch (e) { toast({ title: 'Failed to reactivate', variant: 'destructive' }); }
   };
 
+  const handleCleanStaleMemberships = async () => {
+    if (!confirm('Remove stale board memberships?\n\nThis will remove WorkboardMember records where the related board no longer exists, is archived, or is a template.')) return;
+    setCleaningStale(true);
+    try {
+      const allWbMembers = await base44.entities.WorkboardMember.filter({ workspace: currentWorkspaceId });
+      const activeBoardIds = new Set(
+        workboards.filter(b => !b.archived && b.status !== 'archived' && b.status !== 'template').map(b => b.id)
+      );
+      const stale = allWbMembers.filter(wm => !activeBoardIds.has(wm.workboard));
+      if (stale.length === 0) {
+        toast({ title: 'No stale memberships found', duration: 3000 });
+        return;
+      }
+      for (const wm of stale) {
+        await base44.entities.WorkboardMember.delete(wm.id);
+      }
+      logAudit(AUDIT_ACTIONS.RECORD_DELETED, { record_type: 'WorkboardMember', count: stale.length });
+      toast({ title: `Removed ${stale.length} stale membership${stale.length > 1 ? 's' : ''}`, duration: 4000 });
+      loadData();
+    } catch (e) {
+      toast({ title: 'Failed to clean stale memberships', description: e.message, variant: 'destructive' });
+    } finally {
+      setCleaningStale(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader title="Members" subtitle="Manage members, roles, and access">
-        <Button onClick={() => setInviteOpen(true)} size="sm">
-          <UserPlus className="w-4 h-4 mr-2" /> Invite Member
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleCleanStaleMemberships} disabled={cleaningStale}>
+            <Brush className="w-4 h-4 mr-2" /> {cleaningStale ? 'Cleaning...' : 'Clean Stale Memberships'}
+          </Button>
+          <Button onClick={() => setInviteOpen(true)} size="sm">
+            <UserPlus className="w-4 h-4 mr-2" /> Invite Member
+          </Button>
+        </div>
       </PageHeader>
 
       <InviteUserDialog 

@@ -31,7 +31,6 @@
       "enum": [
         "project_board",
         "task_board",
-        "client_board",
         "process_board",
         "operations_board"
       ],
@@ -46,6 +45,11 @@
         "template"
       ],
       "default": "active"
+    },
+    "archived": {
+      "type": "boolean",
+      "title": "Archived",
+      "default": false
     },
     "default_view": {
       "type": "string",

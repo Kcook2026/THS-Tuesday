@@ -18,7 +18,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { Columns, Plus, Trash2, Eye, EyeOff, Pencil, ArrowUp, ArrowDown } from 'lucide-react';
-import { SYSTEM_COLUMNS } from './WorkboardConstants';
+import { SYSTEM_COLUMNS, COLUMN_TYPE_OPTIONS, AVAILABLE_COLUMN_TYPES } from './WorkboardConstants';
 
 export default function ColumnManager({
   boardId,
@@ -241,10 +241,24 @@ export default function ColumnManager({
               <Label>Column Type</Label>
               <Select value={newColumn.column_type} onValueChange={v => setNewColumn({ ...newColumn, column_type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="text">Text</SelectItem>
-                  <SelectItem value="number">Number</SelectItem>
-                  <SelectItem value="date">Date</SelectItem>
+                <SelectContent className="max-h-[300px]">
+                  {COLUMN_TYPE_OPTIONS.map(group => (
+                    <div key={group.group}>
+                      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {group.group}
+                      </div>
+                      {group.types.map(t => (
+                        <SelectItem
+                          key={t.value}
+                          value={t.value}
+                          disabled={!AVAILABLE_COLUMN_TYPES.includes(t.value)}
+                        >
+                          {t.label}
+                          {t.comingSoon && <span className="ml-1 text-[10px] text-muted-foreground">(Coming Soon)</span>}
+                        </SelectItem>
+                      ))}
+                    </div>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

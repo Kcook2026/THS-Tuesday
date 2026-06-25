@@ -24,7 +24,6 @@ const BOARD_TYPES = {
   task_board: { label: 'Task Board', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-300' },
   process_board: { label: 'SOP Board', color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
   operations_board: { label: 'Operations Board', color: 'bg-orange-500/10 text-orange-700 dark:text-orange-300' },
-  planning_board: { label: 'Planning Board', color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
 };
 
 export default function Workboards() {
@@ -54,7 +53,23 @@ export default function Workboards() {
         base44.entities.Team.filter({ workspace: currentWorkspaceId }),
         base44.auth.me()
       ]);
-      setBoards(b);
+      // Client-side safeguard: filter out archived/template boards and dedupe
+      const seen = new Set();
+      const validBoards = b.filter(board => {
+        if (!board || seen.has(board.id)) return false;
+        if (board.archived === true || board.status === 'archived') return false;
+        if (board.status === 'template') return false;
+        seen.add(board.id);
+        return true;
+      });
+      // Migrate any legacy client_board records to operations_board
+      for (const board of validBoards) {
+        if (board.board_type === 'client_board') {
+          base44.entities.Workboard.update(board.id, { board_type: 'operations_board' }).catch(() => {});
+          board.board_type = 'operations_board';
+        }
+      }
+      setBoards(validBoards);
       setProjects(p);
       setTeams(t);
       setUser(me);
@@ -124,6 +139,17 @@ export default function Workboards() {
           });
         }
         
+        // Create default columns
+        const defaultColumns = [
+          { name: 'Item Name', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'text', sort_order: 0, width: 250 },
+          { name: 'Owner', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'person', sort_order: 1, width: 150 },
+          { name: 'Status', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'status', sort_order: 2, width: 120 },
+          { name: 'Priority', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'priority', sort_order: 3, width: 120 },
+          { name: 'Due Date', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'date', sort_order: 4, width: 120 },
+          { name: 'Progress', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'progress', sort_order: 5, width: 120 },
+        ];
+        await Promise.all(defaultColumns.map(c => base44.entities.BoardColumn.create(c)));
+        
         // Create default groups
         const defaultGroups = [
           { name: 'This Week', workspace: currentWorkspaceId, workboard: newBoard.id, sort_order: 0, color: 'blue' },
@@ -164,19 +190,23 @@ export default function Workboards() {
   };
 
   const handleDelete = async (b) => {
-    if (!confirm(`Delete "${b.name}"?\n\nThis will permanently delete all items, groups, and members in this board.`)) return;
+    if (!confirm(`Delete "${b.name}"?\n\nThis will permanently delete all items, groups, columns, values, and members in this board.`)) return;
     setSaving(true);
     try {
-      const [items, groups, statuses, priorities, members] = await Promise.all([
+      const [items, groups, statuses, priorities, members, columns, itemValues] = await Promise.all([
         base44.entities.WorkboardItem.filter({ workboard: b.id }),
         base44.entities.BoardGroup.filter({ workboard: b.id }),
         base44.entities.StatusOption.filter({ workboard: b.id }),
         base44.entities.PriorityOption.filter({ workboard: b.id }),
         base44.entities.WorkboardMember.filter({ workboard: b.id }),
+        base44.entities.BoardColumn.filter({ workboard: b.id }),
+        base44.entities.WorkboardItemValue.filter({ workboard: b.id }),
       ]);
       
+      for (const iv of itemValues) await base44.entities.WorkboardItemValue.delete(iv.id);
       for (const item of items) await base44.entities.WorkboardItem.delete(item.id);
       for (const g of groups) await base44.entities.BoardGroup.delete(g.id);
+      for (const c of columns) await base44.entities.BoardColumn.delete(c.id);
       for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
       for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
       for (const m of members) await base44.entities.WorkboardMember.delete(m.id);

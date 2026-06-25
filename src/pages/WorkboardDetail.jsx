@@ -74,7 +74,7 @@ export default function WorkboardDetail() {
         base44.entities.BoardGroup.filter({ workboard: id, archived: false }),
         base44.entities.StatusOption.filter({ workboard: id }),
         base44.entities.PriorityOption.filter({ workboard: id }),
-        base44.entities.WorkboardItem.filter({ workboard: id, archived: false }),
+        base44.entities.WorkboardItem.filter({ workspace: currentWorkspaceId, workboard: id, archived: false }),
         base44.entities.User.list(),
         base44.auth.me(),
         base44.entities.BoardColumn.filter({ workboard: id }).catch(() => []),
@@ -101,9 +101,9 @@ export default function WorkboardDetail() {
   useEffect(() => {
     if (!id) return;
     const unsubscribe = base44.entities.WorkboardItem.subscribe((event) => {
-      if (event.type === 'create' && event.data) {
+      if (event.type === 'create' && event.data && event.data.workboard === id) {
         setItems(prev => prev.some(item => item.id === event.data.id) ? prev : [...prev, event.data]);
-      } else if (event.type === 'update' && event.data) {
+      } else if (event.type === 'update' && event.data && event.data.workboard === id) {
         setItems(prev => prev.map(it => it.id === event.data.id ? { ...it, ...event.data } : it));
       } else if (event.type === 'delete') {
         setItems(prev => prev.filter(it => it.id !== event.entity_id));
@@ -380,7 +380,7 @@ export default function WorkboardDetail() {
             <div className="pt-4 border-t">
               <div className="space-y-2">
                 <Button variant="outline" className="w-full justify-start" onClick={async () => {
-                  await base44.entities.Workboard.update(id, { status: 'archived' });
+                  await base44.entities.Workboard.update(id, { status: 'archived', archived: true });
                   toast({ title: 'Board archived', duration: 2000 });
                   window.location.href = '/workboards';
                 }}>
@@ -389,18 +389,22 @@ export default function WorkboardDetail() {
                 </Button>
                 {canDelete && (
                   <Button variant="destructive" className="w-full justify-start" onClick={async () => {
-                    if (!confirm(`Delete "${board.name}"?\n\nThis will permanently delete all items, groups, and members.`)) return;
+                    if (!confirm(`Delete "${board.name}"?\n\nThis will permanently delete all items, groups, columns, values, and members.`)) return;
                     setSaving(true);
                     try {
-                      const [itemsData, groupsData, statuses, priorities, members] = await Promise.all([
+                      const [itemsData, groupsData, statuses, priorities, members, colsData, itemValues] = await Promise.all([
                         base44.entities.WorkboardItem.filter({ workboard: id }),
                         base44.entities.BoardGroup.filter({ workboard: id }),
                         base44.entities.StatusOption.filter({ workboard: id }),
                         base44.entities.PriorityOption.filter({ workboard: id }),
                         base44.entities.WorkboardMember.filter({ workboard: id }),
+                        base44.entities.BoardColumn.filter({ workboard: id }),
+                        base44.entities.WorkboardItemValue.filter({ workboard: id }),
                       ]);
+                      for (const iv of itemValues) await base44.entities.WorkboardItemValue.delete(iv.id);
                       for (const item of itemsData) await base44.entities.WorkboardItem.delete(item.id);
                       for (const g of groupsData) await base44.entities.BoardGroup.delete(g.id);
+                      for (const c of colsData) await base44.entities.BoardColumn.delete(c.id);
                       for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
                       for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
                       for (const m of members) await base44.entities.WorkboardMember.delete(m.id);

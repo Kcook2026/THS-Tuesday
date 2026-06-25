@@ -67,7 +67,10 @@ export default function GroupTable({
     return u?.full_name || u?.email || 'Unassigned';
   };
 
+  const SYSTEM_FIELDS = ['title', 'owner', 'status', 'priority', 'progress_percentage', 'due_date', 'assignee', 'description', 'start_date', 'tags'];
+
   const handleInlineEdit = async (itemId, field, value) => {
+    if (!SYSTEM_FIELDS.includes(field)) return;
     setSaving(true);
     try {
       let updateData = {};

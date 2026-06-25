@@ -33,7 +33,6 @@ const adminNav = [
 const boardTypeIcons = {
   project_board: FolderKanban,
   task_board: LayoutGrid,
-  client_board: Building2,
   process_board: Workflow,
   operations_board: Settings,
 };
@@ -112,10 +111,19 @@ export default function WorkspaceSidebar({ collapsed, onToggle, mobile, onNaviga
     const loadSidebarData = async () => {
       try {
         const [w, t] = await Promise.all([
-          base44.entities.Workboard.filter({ workspace: currentWorkspaceId }, '-updated_date', 20).catch(() => []),
+          base44.entities.Workboard.filter({ workspace: currentWorkspaceId, archived: false }, '-updated_date', 20).catch(() => []),
           base44.entities.Team.filter({ workspace: currentWorkspaceId }, '-updated_date', 10).catch(() => []),
         ]);
-        setWorkboards(w);
+        // Client-side safeguard: filter out archived, deleted, or inaccessible boards + dedupe
+        const seen = new Set();
+        const valid = w.filter(wb => {
+          if (!wb || !wb.id || seen.has(wb.id)) return false;
+          if (wb.archived === true || wb.status === 'archived') return false;
+          if (wb.status === 'template') return false;
+          seen.add(wb.id);
+          return true;
+        });
+        setWorkboards(valid);
         setTeams(t);
       } catch (error) {
         console.error('Sidebar load error:', error);
@@ -127,8 +135,8 @@ export default function WorkspaceSidebar({ collapsed, onToggle, mobile, onNaviga
     loadSidebarData();
   }, [currentWorkspaceId]);
 
-  const favorites = workboards.filter(w => w.is_favorite);
-  const recent = workboards.filter(w => !w.is_favorite).slice(0, 5);
+  const favorites = workboards.filter(w => w.is_favorite && w.status !== 'archived' && !w.archived);
+  const recent = workboards.filter(w => !w.is_favorite && w.status !== 'archived' && !w.archived).slice(0, 5);
 
   const isPathActive = (path) => {
     if (path === '/') return location.pathname === '/';
