@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, ChevronRight, ChevronDown, X, Plus } from 'lucide-react';
+import { MoreHorizontal, ChevronRight, ChevronDown, X, Plus, MessageSquare } from 'lucide-react';
 import { STATUS_COLORS, PRIORITY_COLORS } from './WorkboardConstants';
+import UserAvatar from '@/components/shared/UserAvatar';
 
 export default function WorkboardListView({
   items,
@@ -12,6 +13,7 @@ export default function WorkboardListView({
   priorityOptions,
   userMap,
   teamMap,
+  users,
   expandedItems,
   editingCell,
   editValue,
@@ -24,6 +26,7 @@ export default function WorkboardListView({
   onDeleteItem,
   renderInlineEdit,
   getValue,
+  onOpenItemDetail,
 }) {
   const subItemsMap = items.reduce((acc, item) => {
     if (item.parent_item) {
@@ -53,7 +56,14 @@ export default function WorkboardListView({
     if (col?.column_type === 'person') {
       const field = col.name?.toLowerCase().includes('assignee') ? 'assignee' : 'owner';
       const userId = item[field];
-      return <span className="text-sm">{userId ? userMap[userId] || '—' : '—'}</span>;
+      return (
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
+            {userMap[userId]?.charAt(0) || '?'}
+          </div>
+          <span className="text-sm">{userId ? userMap[userId] || '—' : '—'}</span>
+        </div>
+      );
     }
     if (col?.column_type === 'team') {
       return <span className="text-sm">{teamMap[item.team] || '—'}</span>;
@@ -98,9 +108,10 @@ export default function WorkboardListView({
   };
 
   const defaultColumns = [
+    { id: 'owner', column_type: 'person', name: 'Owner' },
+    { id: 'updates', column_type: 'updates', name: 'Updates' },
     { id: 'status', column_type: 'status', name: 'Status' },
     { id: 'priority', column_type: 'priority', name: 'Priority' },
-    { id: 'owner', column_type: 'person', name: 'Owner' },
     { id: 'due_date', column_type: 'date', name: 'Due Date' },
     { id: 'progress', column_type: 'progress', name: 'Progress' },
   ];
@@ -158,12 +169,31 @@ export default function WorkboardListView({
                             item.item_type === 'sub_item' ? 'bg-blue-400' : 
                             'bg-gray-400'
                           }`} />
-                          {item.title}
+                          <button 
+                            className="hover:underline text-left"
+                            onClick={() => onOpenItemDetail?.(item)}
+                          >
+                            {item.title}
+                          </button>
                         </div>
                       </TableCell>
                       {displayColumns.map(col => (
                         <TableCell key={col.id || col.name}>
-                          {canEdit && editingCell?.itemId === item.id && editingCell?.field === (col.field_name || col.name?.toLowerCase())
+                          {col?.column_type === 'updates' ? (
+                            <div className="flex items-center gap-1.5">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 gap-1.5"
+                                onClick={() => onOpenItemDetail?.(item, 'updates')}
+                              >
+                                <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">
+                                  {item._commentCount || 0}
+                                </span>
+                              </Button>
+                            </div>
+                          ) : canEdit && editingCell?.itemId === item.id && editingCell?.field === (col.field_name || col.name?.toLowerCase())
                             ? renderInlineEdit(item, col)
                             : renderCell(item, col)
                           }

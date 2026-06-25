@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
-import { Upload, File, Trash2, Download, Image as ImageIcon, FileText, Archive } from 'lucide-react';
+import { Upload, File, Trash2, Download, Image as ImageIcon, FileText, Archive, X, Eye } from 'lucide-react';
 import { getUserInitials } from '@/lib/userHelpers';
 
 export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
@@ -14,6 +15,8 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
 
   useEffect(() => {
     loadUser();
@@ -88,6 +91,19 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
       toast({ title: 'File deleted', duration: 2000 });
     } catch (error) {
       toast({ title: 'Delete failed', description: error.message, variant: 'destructive', duration: 5000 });
+    }
+  };
+
+  const handlePreview = async (file) => {
+    try {
+      const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({
+        file_uri: file.file_url,
+        expires_in: 3600,
+      });
+      setPreviewFile(file);
+      setPreviewUrl(signed_url);
+    } catch (error) {
+      toast({ title: 'Preview failed', description: error.message, variant: 'destructive', duration: 5000 });
     }
   };
 
@@ -192,6 +208,17 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    {(file.file_type?.startsWith('image/') || file.file_type?.includes('pdf')) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handlePreview(file)}
+                        title="Preview"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -219,6 +246,28 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
           ))}
         </div>
       )}
+
+      {/* Preview Dialog */}
+      <Dialog open={!!previewFile} onOpenChange={(open) => { if (!open) { setPreviewFile(null); setPreviewUrl(null); } }}>
+        <DialogContent className="max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>{previewFile?.file_name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto" style={{ maxHeight: '60vh' }}>
+            {previewFile?.file_type?.startsWith('image/') ? (
+              <img src={previewUrl} alt={previewFile.file_name} className="w-full h-auto rounded-lg" />
+            ) : previewFile?.file_type?.includes('pdf') ? (
+              <iframe src={previewUrl} className="w-full h-[60vh] rounded-lg" title="PDF Preview" />
+            ) : null}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => { setPreviewFile(null); setPreviewUrl(null); }}>Close</Button>
+            <Button onClick={() => handleDownload(previewFile.file_url, previewFile.file_name)}>
+              <Download className="w-4 h-4 mr-2" /> Download
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

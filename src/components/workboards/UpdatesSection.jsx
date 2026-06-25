@@ -68,14 +68,17 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
     try {
       const me = currentUser || await base44.auth.me();
       const mentions = extractMentions(text);
+      const meName = me.full_name || me.email || 'User';
       
       const comment = await base44.entities.Comment.create({
         body: text.trim(),
         record_type: 'WorkboardItem',
         record_id: item.id,
         workspace: item.workspace || workspaceId,
+        workboard: item.workboard || boardId,
         user: me.id,
-        user_name: me.full_name || me.email || 'Unassigned',
+        user_name: meName,
+        user_email: me.email || '',
         parent_comment: parentId,
         mentions,
         edited: false,
@@ -87,9 +90,21 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
       setReplyingTo(null);
       toast({ title: 'Comment posted', duration: 2000 });
 
-      // Add mentioned users as watchers
+      // Create notifications for mentioned users (do NOT auto-add as watchers)
       if (mentions.length > 0) {
-        await addWatchers(mentions);
+        for (const mentionedUserId of mentions) {
+          if (mentionedUserId !== me.id) {
+            await base44.functions.invoke('createNotification', {
+              type: 'mention',
+              userId: mentionedUserId,
+              title: 'You were mentioned',
+              message: `${meName} mentioned you in a comment`,
+              record_type: 'WorkboardItem',
+              record_id: item.id,
+              workspace: item.workspace || workspaceId,
+            }).catch(() => {});
+          }
+        }
       }
     } catch (error) {
       toast({ title: 'Failed to post comment', description: error.message, variant: 'destructive', duration: 5000 });
@@ -114,29 +129,8 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
     return [...new Set(mentions)];
   };
 
-  const addWatchers = async (userIds) => {
-    if (!item?.id || !workspaceId) return;
-    try {
-      for (const userId of userIds) {
-        const existing = await base44.entities.ItemWatcher.filter({
-          item: item.id,
-          user: userId,
-        }).catch(() => []);
-        
-        if (existing.length === 0) {
-          await base44.entities.ItemWatcher.create({
-            workspace: workspaceId,
-            workboard: item.workboard || boardId,
-            item: item.id,
-            user: userId,
-            added_by: currentUser?.id || (await base44.auth.me()).id,
-          }).catch(() => {});
-        }
-      }
-    } catch (error) {
-      console.error('Failed to add watchers:', error);
-    }
-  };
+  // Removed: auto-adding mentioned users as watchers
+  // Mentions now only create notifications, not watcher subscriptions
 
   const handleEdit = async (commentId) => {
     if (!editText.trim() || saving) return;
@@ -233,9 +227,16 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
 
   const canDeleteComment = (comment) => {
     if (!currentUser) return false;
-    // System Admin or Workboard Owner can delete any
-    // Comment author can delete their own
     return comment.user === currentUser.id;
+  };
+
+  const getAuthorName = (comment) => {
+    // Priority: user_name > lookup from users > user_email > fallback
+    if (comment.user_name) return comment.user_name;
+    if (comment.user_email) return comment.user_email.split('@')[0];
+    const user = users?.find(u => u.id === comment.user);
+    if (user) return user.full_name || user.email || 'User';
+    return 'User';
   };
 
   const renderComment = (comment, isReply = false) => {
@@ -249,7 +250,7 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
           <div className="flex-1">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{comment.user_name || 'User'}</span>
+                <span className="text-sm font-medium">{getAuthorName(comment)}</span>
                 <span className="text-xs text-muted-foreground">{formatTimestamp(comment.created_date)}</span>
                 {comment.edited && <span className="text-xs text-muted-foreground">(edited)</span>}
               </div>

@@ -109,11 +109,32 @@ export default function WorkboardDetail() {
         base44.entities.WorkboardMember.filter({ workboard: id }).catch(() => []),
       ]);
 
+      // Load comment counts for each item (for Updates column)
+      const commentCounts = {};
+      const itemsWithComments = i.filter(item => !item.parent_item);
+      for (const item of itemsWithComments) {
+        try {
+          const comments = await base44.entities.Comment.filter({
+            record_type: 'WorkboardItem',
+            record_id: item.id,
+            deleted: false,
+          });
+          commentCounts[item.id] = comments?.length || 0;
+        } catch (err) {
+          commentCounts[item.id] = 0;
+        }
+      }
+
+      const itemsWithCounts = i.map(item => ({
+        ...item,
+        _commentCount: commentCounts[item.id] || 0,
+      }));
+
       setBoard(b);
       setGroups(g.sort((a, b) => a.sort_order - b.sort_order));
       setStatusOptions(s.sort((a, b) => a.sort_order - b.sort_order));
       setPriorityOptions(p.sort((a, b) => a.sort_order - b.sort_order));
-      setItems(i);
+      setItems(itemsWithCounts);
       setUsers(u);
       setUser(me);
       setColumns(cols);
@@ -268,9 +289,10 @@ export default function WorkboardDetail() {
     }
   };
 
-  const handleItemClick = (item) => {
+  const handleItemClick = (item, tab = 'overview') => {
     setSelectedItem(item);
     setShowItemDetail(true);
+    // Future: could set active tab in drawer
   };
 
   const handleItemUpdateById = (itemId, updateData) => {
@@ -589,6 +611,26 @@ export default function WorkboardDetail() {
   const handleVisibleColumnsChange = (newVis) => {
     setVisibleColumns(newVis);
     localStorage.setItem(`tuesday_wb_cols_${id}`, JSON.stringify(newVis));
+  };
+
+  // Log activity for item changes
+  const logActivity = async (action, beforeValue, afterValue, recordId) => {
+    try {
+      await base44.entities.Activity.create({
+        workspace: currentWorkspaceId,
+        workboard: id,
+        record_type: 'WorkboardItem',
+        record_id: recordId,
+        user: user?.id,
+        user_name: user?.full_name || user?.email || 'User',
+        action,
+        before_value: beforeValue || '',
+        after_value: afterValue || '',
+        created_date: new Date().toISOString(),
+      }).catch(() => {});
+    } catch (err) {
+      console.error('Failed to log activity:', err);
+    }
   };
 
   // Enrich items with sub-item counts for Kanban display

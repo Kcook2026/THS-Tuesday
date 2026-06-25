@@ -34,13 +34,25 @@ export default function WatchersSection({ item, boardId, workspaceId, users, cur
     try {
       const watcherList = await base44.entities.ItemWatcher.filter({
         item: item.id,
-      });
-      setWatchers(watcherList || []);
+      }, '-created_date');
+      // Ensure each watcher has all required fields
+      const enriched = watcherList.map(w => ({
+        ...w,
+        id: w.id,
+        workspace: w.workspace || workspaceId,
+        workboard: w.workboard || boardId,
+        item: w.item || item.id,
+        user: w.user,
+        user_name: w.user_name || users?.find(u => u.id === w.user)?.full_name || '',
+        added_by: w.added_by,
+        created_date: w.created_date,
+      }));
+      setWatchers(enriched || []);
       
       // Check if current user is watching
       const me = currentUser || await base44.auth.me().catch(() => null);
       if (me) {
-        setIsWatching(watcherList?.some(w => w.user === me.id) || false);
+        setIsWatching(enriched?.some(w => w.user === me.id) || false);
       }
     } catch (error) {
       console.error('Error loading watchers:', error);
@@ -93,9 +105,16 @@ export default function WatchersSection({ item, boardId, workspaceId, users, cur
   };
 
   const handleRemoveWatcher = async (watcherId, userId) => {
+    if (!watcherId) {
+      toast({ title: 'Invalid watcher', description: 'Watcher ID is missing', variant: 'destructive', duration: 4000 });
+      return;
+    }
     try {
       await base44.entities.ItemWatcher.delete(watcherId);
       setWatchers(prev => prev.filter(w => w.id !== watcherId));
+      if (userId === currentUser?.id) {
+        setIsWatching(false);
+      }
       toast({ title: 'Watcher removed', duration: 2000 });
     } catch (error) {
       toast({ title: 'Failed to remove', description: error.message, variant: 'destructive', duration: 5000 });
