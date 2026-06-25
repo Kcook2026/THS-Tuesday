@@ -1,32 +1,25 @@
 import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Settings2, Plus, EyeOff, MoveUp, MoveDown, Trash2, Edit2 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
-import { useWorkspace } from '@/lib/WorkspaceContext';
+import { Columns, Plus, Pencil, Trash2, Eye, EyeOff, Settings } from 'lucide-react';
 
 const COLUMN_TYPES = [
   { value: 'text', label: 'Text' },
@@ -34,205 +27,177 @@ const COLUMN_TYPES = [
   { value: 'number', label: 'Number' },
   { value: 'currency', label: 'Currency' },
   { value: 'date', label: 'Date' },
-  { value: 'progress', label: 'Progress' },
   { value: 'checkbox', label: 'Checkbox' },
+  { value: 'dropdown', label: 'Dropdown' },
+  { value: 'tags', label: 'Tags' },
   { value: 'person', label: 'Person' },
-  { value: 'team', label: 'Team' },
   { value: 'email', label: 'Email' },
   { value: 'phone', label: 'Phone' },
   { value: 'link', label: 'Link' },
-  { value: 'tags', label: 'Tags' },
-  { value: 'dropdown', label: 'Dropdown' },
   { value: 'files', label: 'Files' },
-  { value: 'formula', label: 'Formula (Coming Soon)' },
-  { value: 'created_by', label: 'Created By' },
-  { value: 'created_date', label: 'Created Date' },
 ];
 
-const SYSTEM_COLUMNS = ['Item Name', 'Owner', 'Status', 'Priority', 'Timeline', 'Due Date', 'Progress'];
+const SYSTEM_COLUMNS = ['Item', 'Owner', 'Status', 'Priority', 'Due Date', 'Progress'];
 
-export default function ColumnManager({ boardId, workspaceId, columns, onColumnsChange, userRole }) {
+export default function ColumnManager({ boardId, workspaceId, columns = [], onColumnsChange, statusOptions = [], priorityOptions = [] }) {
   const { toast } = useToast();
-  const { user } = useWorkspace();
-  const [open, setOpen] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [showAddColumn, setShowAddColumn] = useState(false);
+  const [newColumn, setNewColumn] = useState({ name: '', column_type: 'text', width: 200 });
   const [editingColumn, setEditingColumn] = useState(null);
-  const [newColumnName, setNewColumnName] = useState('');
-  const [newColumnType, setNewColumnType] = useState('text');
-
-  const canManageColumns = ['system_admin', 'executive', 'workspace_owner', 'workspace_manager', 'workboard_owner'].includes(userRole);
 
   const handleAddColumn = async () => {
-    if (!newColumnName.trim()) {
-      toast({ title: 'Column name required', variant: 'destructive', duration: 4000 });
+    if (!newColumn.name.trim()) {
+      toast({ title: 'Column name required', variant: 'destructive', duration: 3000 });
       return;
     }
     try {
-      const newColumn = {
+      const column = await base44.entities.BoardColumn.create({
         workspace: workspaceId,
         workboard: boardId,
-        name: newColumnName,
-        column_type: newColumnType,
+        name: newColumn.name,
+        column_type: newColumn.column_type,
+        width: newColumn.width,
         sort_order: columns.length,
-        width: 200,
-        hidden: false,
-        required: false,
-        settings: JSON.stringify({}),
-        created_by: user.id,
-      };
-      const created = await base44.entities.BoardColumn.create(newColumn);
-      onColumnsChange([...columns, created]);
+      });
       toast({ title: 'Column added', duration: 2000 });
-      setDialogOpen(false);
-      setNewColumnName('');
-      setNewColumnType('text');
+      onColumnsChange([...columns, column]);
+      setShowAddColumn(false);
+      setNewColumn({ name: '', column_type: 'text', width: 200 });
     } catch (error) {
-      toast({ title: 'Error adding column', description: error.message, variant: 'destructive', duration: 5000 });
-    }
-  };
-
-  const handleUpdateColumn = async () => {
-    if (!newColumnName.trim()) {
-      toast({ title: 'Column name required', variant: 'destructive', duration: 4000 });
-      return;
-    }
-    try {
-      await base44.entities.BoardColumn.update(editingColumn.id, { name: newColumnName, column_type: newColumnType });
-      onColumnsChange(columns.map(c => c.id === editingColumn.id ? { ...c, name: newColumnName, column_type: newColumnType } : c));
-      toast({ title: 'Column updated', duration: 2000 });
-      setDialogOpen(false);
-      setEditingColumn(null);
-      setNewColumnName('');
-      setNewColumnType('text');
-    } catch (error) {
-      toast({ title: 'Error updating column', description: error.message, variant: 'destructive', duration: 5000 });
+      toast({ title: 'Failed to add column', description: error.message, variant: 'destructive', duration: 5000 });
     }
   };
 
   const handleDeleteColumn = async (column) => {
-    if (SYSTEM_COLUMNS.includes(column.name)) {
-      toast({ title: 'Cannot delete system column', variant: 'destructive', duration: 4000 });
-      return;
-    }
+    if (!confirm(`Delete column "${column.name}"?`)) return;
     try {
       await base44.entities.BoardColumn.delete(column.id);
-      onColumnsChange(columns.filter(c => c.id !== column.id));
       toast({ title: 'Column deleted', duration: 2000 });
+      onColumnsChange(columns.filter(c => c.id !== column.id));
     } catch (error) {
-      toast({ title: 'Error deleting column', description: error.message, variant: 'destructive', duration: 5000 });
+      toast({ title: 'Failed to delete column', description: error.message, variant: 'destructive', duration: 5000 });
     }
   };
 
   const handleToggleHidden = async (column) => {
     try {
       await base44.entities.BoardColumn.update(column.id, { hidden: !column.hidden });
+      toast({ title: 'Column updated', duration: 2000 });
       onColumnsChange(columns.map(c => c.id === column.id ? { ...c, hidden: !c.hidden } : c));
-      toast({ title: column.hidden ? 'Column shown' : 'Column hidden', duration: 2000 });
     } catch (error) {
-      toast({ title: 'Error updating column', description: error.message, variant: 'destructive', duration: 5000 });
+      toast({ title: 'Failed to update column', description: error.message, variant: 'destructive', duration: 5000 });
     }
   };
 
-  const handleMoveColumn = async (index, direction) => {
-    const visibleColumns = columns.filter(c => !c.hidden);
-    const newColumns = [...visibleColumns];
-    const temp = newColumns[index];
-    const newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= newColumns.length) return;
-    newColumns[index] = newColumns[newIndex];
-    newColumns[newIndex] = temp;
-    newColumns.forEach((col, idx) => { col.sort_order = idx; });
-    onColumnsChange(newColumns);
+  const handleRenameColumn = async (column, newName) => {
+    if (!newName.trim()) return;
     try {
-      await Promise.all(newColumns.map(col => base44.entities.BoardColumn.update(col.id, { sort_order: col.sort_order })));
-      toast({ title: 'Columns reordered', duration: 2000 });
+      await base44.entities.BoardColumn.update(column.id, { name: newName });
+      toast({ title: 'Column renamed', duration: 2000 });
+      setEditingColumn(null);
+      onColumnsChange(columns.map(c => c.id === column.id ? { ...c, name: newName } : c));
     } catch (error) {
-      toast({ title: 'Error reordering', description: error.message, variant: 'destructive', duration: 5000 });
+      toast({ title: 'Failed to rename column', description: error.message, variant: 'destructive', duration: 5000 });
     }
   };
 
-  const openEditDialog = (column) => {
-    setEditingColumn(column);
-    setNewColumnName(column.name);
-    setNewColumnType(column.column_type);
-    setDialogOpen(true);
-  };
+  const visibleColumns = columns.filter(c => !c.hidden);
+  const hiddenColumns = columns.filter(c => c.hidden);
 
   return (
     <>
-      <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm">
-            <Settings2 className="w-4 h-4 mr-1.5" />
-            Columns
+            <Columns className="w-4 h-4 mr-1.5" />
+            Columns ({visibleColumns.length})
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-72 max-h-[400px] overflow-y-auto">
-          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Visible Columns</div>
-          {columns.filter(c => !c.hidden).map((col, index) => (
-            <DropdownMenuItem key={col.id} className="flex items-center justify-between group">
-              <span className="text-sm truncate flex-1">{col.name}</span>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); handleMoveColumn(index, -1); }} disabled={index === 0}>
-                  <MoveUp className="w-3 h-3" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); handleMoveColumn(index, 1); }} disabled={index === columns.filter(c => !c.hidden).length - 1}>
-                  <MoveDown className="w-3 h-3" />
-                </Button>
-                {canManageColumns && (
-                  <>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); openEditDialog(col); }}>
-                      <Edit2 className="w-3 h-3" />
+        <DropdownMenuContent align="end" className="w-80">
+          <div className="p-2">
+            <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">Visible Columns</div>
+            {visibleColumns.length === 0 ? (
+              <div className="text-xs text-muted-foreground px-2 py-2">No custom columns</div>
+            ) : (
+              visibleColumns.map(column => (
+                <DropdownMenuItem key={column.id} className="flex items-center justify-between px-2 py-1.5">
+                  <span className="text-sm">{column.name}</span>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); handleToggleHidden(column); }}>
+                      <EyeOff className="w-3 h-3" />
                     </Button>
-                    {!SYSTEM_COLUMNS.includes(col.name) && (
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteColumn(col); }}>
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    )}
-                  </>
-                )}
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); handleToggleHidden(col); }}>
-                  <EyeOff className="w-3 h-3" />
-                </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); handleDeleteColumn(column); }}>
+                      <Trash2 className="w-3 h-3 text-destructive" />
+                    </Button>
+                  </div>
+                </DropdownMenuItem>
+              ))
+            )}
+          </div>
+          {hiddenColumns.length > 0 && (
+            <>
+              <div className="h-px bg-muted my-1" />
+              <div className="p-2">
+                <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">Hidden Columns ({hiddenColumns.length})</div>
+                {hiddenColumns.slice(0, 3).map(column => (
+                  <DropdownMenuItem key={column.id} className="flex items-center justify-between px-2 py-1.5 opacity-60">
+                    <span className="text-sm">{column.name}</span>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); handleToggleHidden(column); }}>
+                      <Eye className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuItem>
+                ))}
               </div>
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          {canManageColumns && (
-            <DropdownMenuItem onClick={() => { setEditingColumn(null); setNewColumnName(''); setNewColumnType('text'); setDialogOpen(true); }}>
-              <Plus className="w-3 h-3 mr-2" />
-              Add Column
-            </DropdownMenuItem>
+            </>
           )}
+          <div className="h-px bg-muted my-1" />
+          <DropdownMenuItem onClick={() => setShowAddColumn(true)} className="text-primary">
+            <Plus className="w-3.5 h-3.5 mr-2" />
+            Add Custom Column
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+      <Dialog open={showAddColumn} onOpenChange={setShowAddColumn}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingColumn ? 'Edit Column' : 'Add Column'}</DialogTitle>
+            <DialogTitle>Add Custom Column</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4">
             <div>
-              <Label htmlFor="column-name">Column Name</Label>
-              <Input id="column-name" value={newColumnName} onChange={(e) => setNewColumnName(e.target.value)} placeholder="Enter column name" />
+              <Label>Column Name</Label>
+              <Input
+                value={newColumn.name}
+                onChange={e => setNewColumn({ ...newColumn, name: e.target.value })}
+                placeholder="Enter column name"
+                autoFocus
+              />
             </div>
             <div>
-              <Label htmlFor="column-type">Column Type</Label>
-              <Select value={newColumnType} onValueChange={setNewColumnType}>
-                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {COLUMN_TYPES.map(type => (
-                    <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Column Type</Label>
+              <select
+                className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring"
+                value={newColumn.column_type}
+                onChange={e => setNewColumn({ ...newColumn, column_type: e.target.value })}
+              >
+                {COLUMN_TYPES.map(type => (
+                  <option key={type.value} value={type.value}>{type.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Width (pixels)</Label>
+              <Input
+                type="number"
+                value={newColumn.width}
+                onChange={e => setNewColumn({ ...newColumn, width: parseInt(e.target.value) || 200 })}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowAddColumn(false)}>Cancel</Button>
+              <Button onClick={handleAddColumn}>Add Column</Button>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={editingColumn ? handleUpdateColumn : handleAddColumn}>{editingColumn ? 'Update' : 'Add'}</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

@@ -7,18 +7,23 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
-  Plus, Search, MoreHorizontal, Save, X, User, Trash2, Shield
+  Plus, Search, MoreHorizontal, Save, X, User, Trash2, Shield, Settings, Archive, Eye, EyeOff, GripVertical, Pencil
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import Breadcrumbs from '@/components/shared/Breadcrumbs';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { useToast } from '@/components/ui/use-toast';
 import { useWorkspace } from '@/lib/WorkspaceContext';
 import usePermissions from '@/hooks/usePermissions';
 import MembersDrawer from '@/components/workboards/MembersDrawer';
+import ColumnManager from '@/components/workboards/ColumnManager';
 import { STATUS_COLORS, PRIORITY_COLORS } from '@/components/workboards/WorkboardConstants';
+import { getUserInitials } from '@/lib/userHelpers';
 
 export default function WorkboardDetail() {
   const { id } = useParams();
@@ -42,6 +47,8 @@ export default function WorkboardDetail() {
   const [saving, setSaving] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
+  const [showBoardSettings, setShowBoardSettings] = useState(false);
+  const [columns, setColumns] = useState([]);
 
   const isLoadingRef = useRef(false);
 
@@ -96,7 +103,13 @@ export default function WorkboardDetail() {
     return () => unsubscribe();
   }, [id]);
 
-  const userMap = Object.fromEntries(users.map(u => [u.id, u.full_name || u.email]));
+  const userMap = Object.fromEntries(users.map(u => [u.id, u.full_name || u.email || 'Unassigned']));
+  
+  const getUserDisplay = (userId) => {
+    if (!userId) return 'Unassigned';
+    const user = users.find(u => u.id === userId);
+    return user?.full_name || user?.email || 'Unassigned';
+  };
 
   const filteredItems = items.filter(item => {
     if (search && !item.title.toLowerCase().includes(search.toLowerCase())) return false;
@@ -259,8 +272,8 @@ export default function WorkboardDetail() {
           <Select value={item.owner || ''} onValueChange={(value) => handleInlineEdit(item.id, 'owner', value)} onOpenChange={() => setEditingCell(null)}>
             <SelectTrigger className="h-7 w-auto"><SelectValue placeholder="Select user" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={null}>Clear</SelectItem>
-              {users.map(u => <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>)}
+              <SelectItem value={null}>Unassigned</SelectItem>
+              {users.map(u => <SelectItem key={u.id} value={u.id}>{u.full_name || u.email || 'Unassigned'}</SelectItem>)}
             </SelectContent>
           </Select>
         );
@@ -290,10 +303,13 @@ export default function WorkboardDetail() {
       return <Badge variant="secondary" className={colorClass}>{item.priority || 'Medium'}</Badge>;
     }
     if (field === 'owner') {
+      const userName = getUserDisplay(item.owner);
       return (
         <div className="flex items-center gap-2">
-          <User className="w-3 h-3 text-muted-foreground" />
-          <span className="text-sm">{userMap[item.owner] || '—'}</span>
+          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
+            {getUserInitials(users.find(u => u.id === item.owner))}
+          </div>
+          <span className="text-sm">{userName}</span>
         </div>
       );
     }
@@ -331,39 +347,96 @@ export default function WorkboardDetail() {
         </div>
         <div className="flex gap-2">
           <MembersDrawer workboardId={id} wb={board} />
+          <ColumnManager boardId={id} workspaceId={currentWorkspaceId} columns={columns} onColumnsChange={setColumns} statusOptions={statusOptions} priorityOptions={priorityOptions} />
+          <Button variant="outline" size="sm" onClick={() => setShowBoardSettings(true)}>
+            <Settings className="w-4 h-4 mr-1.5" />
+            Settings
+          </Button>
           {canCreate && <Button onClick={() => setShowNewItem(true)} disabled={isCreating}><Plus className="w-4 h-4 mr-1.5" />Add Item</Button>}
-          {canDelete && (
-            <Button variant="destructive" size="sm" onClick={async () => {
-              if (!confirm(`Delete "${board.name}"?`)) return;
-              setSaving(true);
-              try {
-                const [itemsData, groupsData, statuses, priorities, members] = await Promise.all([
-                  base44.entities.WorkboardItem.filter({ workboard: id }),
-                  base44.entities.BoardGroup.filter({ workboard: id }),
-                  base44.entities.StatusOption.filter({ workboard: id }),
-                  base44.entities.PriorityOption.filter({ workboard: id }),
-                  base44.entities.WorkboardMember.filter({ workboard: id }),
-                ]);
-                
-                for (const item of itemsData) await base44.entities.WorkboardItem.delete(item.id);
-                for (const g of groupsData) await base44.entities.BoardGroup.delete(g.id);
-                for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
-                for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
-                for (const m of members) await base44.entities.WorkboardMember.delete(m.id);
-                await base44.entities.Workboard.delete(id);
-                
-                toast({ title: 'Board deleted', duration: 2000 });
-                window.location.href = '/workboards';
-              } catch (error) {
-                console.error('Delete error:', error);
-                toast({ title: 'Failed to delete board', description: error.message, variant: 'destructive', duration: 5000 });
-              } finally {
-                setSaving(false);
-              }
-            }} disabled={saving}><Trash2 className="w-4 h-4 mr-1.5" />Delete</Button>
-          )}
         </div>
       </div>
+
+      {/* Board Settings Dialog */}
+      <Dialog open={showBoardSettings} onOpenChange={setShowBoardSettings}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Board Settings</DialogTitle>
+            <DialogDescription>Manage board settings and configuration</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Board Name</Label>
+              <Input value={board.name} onChange={async (e) => {
+                await base44.entities.Workboard.update(id, { name: e.target.value });
+                setBoard({ ...board, name: e.target.value });
+                toast({ title: 'Board renamed', duration: 2000 });
+              }} />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea value={board.description || ''} onChange={async (e) => {
+                await base44.entities.Workboard.update(id, { description: e.target.value });
+                setBoard({ ...board, description: e.target.value });
+              }} rows={3} />
+            </div>
+            <div>
+              <Label>Visibility</Label>
+              <Select value={board.visibility} onValueChange={async (v) => {
+                await base44.entities.Workboard.update(id, { visibility: v });
+                setBoard({ ...board, visibility: v });
+              }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public_workspace">Public (Workspace)</SelectItem>
+                  <SelectItem value="private">Private (Members Only)</SelectItem>
+                  <SelectItem value="restricted">Restricted (Assigned Users)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="pt-4 border-t">
+              <div className="space-y-2">
+                <Button variant="outline" className="w-full justify-start" onClick={() => {
+                  setShowBoardSettings(false);
+                  // Archive logic here
+                }}>
+                  <Archive className="w-4 h-4 mr-2" />
+                  Archive Board
+                </Button>
+                {canDelete && (
+                  <Button variant="destructive" className="w-full justify-start" onClick={async () => {
+                    if (!confirm(`Delete "${board.name}"?\n\nThis will permanently delete all items, groups, and members.`)) return;
+                    setSaving(true);
+                    try {
+                      const [itemsData, groupsData, statuses, priorities, members] = await Promise.all([
+                        base44.entities.WorkboardItem.filter({ workboard: id }),
+                        base44.entities.BoardGroup.filter({ workboard: id }),
+                        base44.entities.StatusOption.filter({ workboard: id }),
+                        base44.entities.PriorityOption.filter({ workboard: id }),
+                        base44.entities.WorkboardMember.filter({ workboard: id }),
+                      ]);
+                      for (const item of itemsData) await base44.entities.WorkboardItem.delete(item.id);
+                      for (const g of groupsData) await base44.entities.BoardGroup.delete(g.id);
+                      for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
+                      for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
+                      for (const m of members) await base44.entities.WorkboardMember.delete(m.id);
+                      await base44.entities.Workboard.delete(id);
+                      toast({ title: 'Board deleted', duration: 2000 });
+                      window.location.href = '/workboards';
+                    } catch (error) {
+                      toast({ title: 'Failed to delete board', description: error.message, variant: 'destructive', duration: 5000 });
+                    } finally {
+                      setSaving(false);
+                    }
+                  }} disabled={saving}>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Board
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex gap-3 mb-4">
         <div className="relative flex-1 max-w-sm">

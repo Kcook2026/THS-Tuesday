@@ -13,13 +13,25 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { Users, Search, MoreHorizontal, Shield, Trash2, UserPlus } from 'lucide-react';
+import { getUserInitials } from '@/lib/userHelpers';
 
 const ROLE_CONFIG = {
   workboard_owner: { label: 'Owner', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' },
@@ -38,6 +50,8 @@ export default function MembersDrawer({ workboardId, wb }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [inviteRole, setInviteRole] = useState('workboard_contributor');
+  const [memberToDelete, setMemberToDelete] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const loadMembers = async () => {
     if (!workboardId || !currentWorkspaceId) return;
@@ -65,7 +79,7 @@ export default function MembersDrawer({ workboardId, wb }) {
               workboard: workboardId,
               workboard_name: wb?.name,
               user: wb.created_by,
-              user_name: creatorUser?.full_name || creatorUser?.email || 'Board Owner',
+              user_name: creatorUser?.full_name || creatorUser?.email || 'Unassigned',
               user_email: creatorUser?.email || '',
               role: 'workboard_owner',
               status: 'active',
@@ -92,7 +106,7 @@ export default function MembersDrawer({ workboardId, wb }) {
         workspace: currentWorkspaceId,
         status: 'active',
       });
-      setWorkspaceUsers(wsMembers.filter(m => m.user && m.user_name));
+      setWorkspaceUsers(wsMembers.filter(m => m.user && (m.user_name || m.user_email)));
     } catch (error) {
       console.error('Error loading workspace users:', error);
       setWorkspaceUsers([]);
@@ -123,14 +137,14 @@ export default function MembersDrawer({ workboardId, wb }) {
         workboard: workboardId,
         workboard_name: wb?.name,
         user: userToAdd.user,
-        user_name: userToAdd.user_name,
-        user_email: userToAdd.user_email,
+        user_name: userToAdd.user_name || userToAdd.user_email || 'Unassigned',
+        user_email: userToAdd.user_email || '',
         role: inviteRole,
         status: 'active',
         added_by: user.id,
         joined_date: new Date().toISOString().split('T')[0],
       });
-      toast({ title: 'Member added', description: `${userToAdd.user_name} added to workboard`, duration: 2000 });
+      toast({ title: 'Member added', description: `${userToAdd.user_name || 'User'} added to workboard`, duration: 2000 });
       setSelectedUserId('');
       setInviteRole('workboard_contributor');
       setSearchQuery('');
@@ -152,11 +166,19 @@ export default function MembersDrawer({ workboardId, wb }) {
     }
   };
 
-  const handleRemove = async (memberId) => {
+  const confirmRemove = (member) => {
+    setMemberToDelete(member);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleRemove = async () => {
+    if (!memberToDelete) return;
     try {
-      await base44.entities.WorkboardMember.update(memberId, { status: 'removed' });
+      await base44.entities.WorkboardMember.update(memberToDelete.id, { status: 'removed' });
       toast({ title: 'Member removed', duration: 2000 });
-      setMembers(prev => prev.filter(m => m.id !== memberId));
+      setMembers(prev => prev.filter(m => m.id !== memberToDelete.id));
+      setShowDeleteConfirm(false);
+      setMemberToDelete(null);
     } catch (error) {
       console.error('Error removing member:', error);
       toast({ title: 'Failed to remove member', description: error.message, variant: 'destructive', duration: 5000 });
@@ -199,7 +221,7 @@ export default function MembersDrawer({ workboardId, wb }) {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       id="search-user"
-                      placeholder="Search by name or email..."
+                      placeholder="Search by name or username..."
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
                       className="pl-9"
@@ -209,31 +231,32 @@ export default function MembersDrawer({ workboardId, wb }) {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>Select User</Label>
-                    <select
-                      className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                      value={selectedUserId}
-                      onChange={e => setSelectedUserId(e.target.value)}
-                    >
-                      <option value="">Choose a user</option>
-                      {filteredUsers.map(u => (
-                        <option key={u.user} value={u.user}>
-                          {u.user_name || u.user_email}
-                        </option>
-                      ))}
-                    </select>
+                    <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a user" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredUsers.map(u => (
+                          <SelectItem key={u.user} value={u.user}>
+                            {u.user_name || u.user_email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label>Role</Label>
-                    <select
-                      className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                      value={inviteRole}
-                      onChange={e => setInviteRole(e.target.value)}
-                    >
-                      <option value="workboard_owner">Owner</option>
-                      <option value="workboard_editor">Editor</option>
-                      <option value="workboard_contributor">Member</option>
-                      <option value="workboard_viewer">Viewer</option>
-                    </select>
+                    <Select value={inviteRole} onValueChange={setInviteRole}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="workboard_owner">Owner</SelectItem>
+                        <SelectItem value="workboard_editor">Editor</SelectItem>
+                        <SelectItem value="workboard_contributor">Member</SelectItem>
+                        <SelectItem value="workboard_viewer">Viewer</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <Button 
@@ -260,14 +283,14 @@ export default function MembersDrawer({ workboardId, wb }) {
                 <div className="space-y-2">
                   {members.map(member => {
                     const roleConfig = ROLE_CONFIG[member.role] || ROLE_CONFIG.workboard_contributor;
-                    const initial = (member.user_name || member.user_email || 'U').charAt(0).toUpperCase();
+                    const initial = getUserInitials(member);
                     return (
                       <div key={member.id} className="flex items-center gap-3 p-3 border rounded-lg">
                         <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary shrink-0">
                           {initial}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{member.user_name || member.user_email}</p>
+                          <p className="text-sm font-medium truncate">{member.user_name || member.user_email || 'Unassigned'}</p>
                           <p className="text-xs text-muted-foreground">{member.user_email}</p>
                         </div>
                         <DropdownMenu>
@@ -291,7 +314,7 @@ export default function MembersDrawer({ workboardId, wb }) {
                             </DropdownMenuItem>
                             {member.user !== user.id && (
                               <DropdownMenuItem 
-                                onClick={() => handleRemove(member.id)}
+                                onClick={() => confirmRemove(member)}
                                 className="text-destructive"
                               >
                                 <Trash2 className="w-3.5 h-3.5 mr-2" />
@@ -312,6 +335,22 @@ export default function MembersDrawer({ workboardId, wb }) {
           </div>
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Member</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove {memberToDelete?.user_name || 'this user'} from this workboard?
+              They will lose access to all board content.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemove}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
