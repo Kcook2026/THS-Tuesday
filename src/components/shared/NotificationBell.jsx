@@ -75,6 +75,19 @@ export default function NotificationBell() {
     load();
   };
 
+  const deleteNotification = async (n, e) => {
+    e.stopPropagation();
+    await base44.entities.Notification.delete(n.id);
+    load();
+  };
+
+  const clearAllRead = async () => {
+    const readIds = notifications.filter(n => n.read_status);
+    if (readIds.length === 0) return;
+    await base44.entities.Notification.deleteMany({ id: { $in: readIds.map(n => n.id) } });
+    load();
+  };
+
   return (
     <div className="relative" ref={ref}>
       <button
@@ -93,9 +106,14 @@ export default function NotificationBell() {
         <div className="absolute right-0 top-full mt-2 w-80 bg-popover border rounded-xl shadow-lg z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <span className="text-sm font-semibold">Notifications</span>
-            {unread > 0 && (
-              <button onClick={markAllRead} className="text-xs text-primary hover:underline">Mark all read</button>
-            )}
+            <div className="flex gap-2">
+              {unread > 0 && (
+                <button onClick={markAllRead} className="text-xs text-primary hover:underline">Mark all read</button>
+              )}
+              {notifications.some(n => n.read_status) && (
+                <button onClick={clearAllRead} className="text-xs text-muted-foreground hover:text-foreground hover:underline">Clear read</button>
+              )}
+            </div>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {loading ? (
@@ -104,20 +122,31 @@ export default function NotificationBell() {
               <div className="py-8 text-center text-sm text-muted-foreground">No notifications</div>
             ) : (
               notifications.map(n => (
-                <button
+                <div
                   key={n.id}
-                  onClick={() => markRead(n)}
-                  className={`w-full text-left px-4 py-3 border-b last:border-0 hover:bg-muted/50 transition-colors ${!n.read_status ? 'bg-primary/5' : ''}`}
+                  className={`flex items-start gap-2 px-4 py-3 border-b last:border-0 hover:bg-muted/50 transition-colors ${!n.read_status ? 'bg-primary/5' : ''}`}
                 >
-                  <div className="flex items-start gap-2">
-                    {!n.read_status && <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />}
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{n.title}</p>
-                      {n.message && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>}
-                      <p className="text-[11px] text-muted-foreground mt-1">{new Date(n.created_date).toLocaleString()}</p>
+                  <button
+                    onClick={() => markRead(n)}
+                    className="flex-1 text-left min-w-0"
+                  >
+                    <div className="flex items-start gap-2">
+                      {!n.read_status && <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{n.title}</p>
+                        {n.message && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>}
+                        <p className="text-[11px] text-muted-foreground mt-1">{new Date(n.created_date).toLocaleString()}</p>
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                  <button
+                    onClick={(e) => deleteNotification(n, e)}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                    title="Delete notification"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                  </button>
+                </div>
               ))
             )}
           </div>
