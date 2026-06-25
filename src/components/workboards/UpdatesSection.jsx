@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 import { Send, Trash2, Pencil, AtSign } from 'lucide-react';
 import { getUserInitials } from '@/lib/userHelpers';
 import {
@@ -15,6 +16,7 @@ import {
 
 export default function UpdatesSection({ item, boardId, users }) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState('');
@@ -84,7 +86,12 @@ export default function UpdatesSection({ item, boardId, users }) {
   };
 
   const handleDelete = async (commentId) => {
-    if (!confirm('Delete this comment?')) return;
+    const ok = await confirm({
+      title: 'Delete Comment?',
+      description: 'Are you sure you want to delete this comment?',
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await base44.entities.Comment.delete(commentId);

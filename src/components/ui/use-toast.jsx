@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 
 const TOAST_LIMIT = 20;
-const DEFAULT_TOAST_REMOVE_DELAY = 5000;
+const DEFAULT_TOAST_REMOVE_DELAY = 500;
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -20,7 +20,7 @@ function genId() {
 
 const toastTimeouts = new Map();
 
-const addToRemoveQueue = (toastId, duration) => {
+const addToRemoveQueue = (toastId) => {
   if (toastTimeouts.has(toastId)) {
     return;
   }
@@ -31,7 +31,7 @@ const addToRemoveQueue = (toastId, duration) => {
       type: actionTypes.REMOVE_TOAST,
       toastId,
     });
-  }, duration || DEFAULT_TOAST_REMOVE_DELAY);
+  }, DEFAULT_TOAST_REMOVE_DELAY);
 
   toastTimeouts.set(toastId, timeout);
 };
@@ -64,11 +64,10 @@ export const reducer = (state, action) => {
       const { toastId } = action;
 
       if (toastId) {
-        const toastToDismiss = state.toasts.find(t => t.id === toastId);
-        addToRemoveQueue(toastId, toastToDismiss?.duration);
+        addToRemoveQueue(toastId);
       } else {
         state.toasts.forEach((toast) => {
-          addToRemoveQueue(toast.id, toast.duration);
+          addToRemoveQueue(toast.id);
         });
       }
 
@@ -130,15 +129,18 @@ function toast({ ...props }) {
   const dismiss = () =>
     dispatch({ type: actionTypes.DISMISS_TOAST, toastId: id });
 
-  // Auto-dismiss based on duration prop
-  if (props.duration) {
-    setTimeout(() => dismiss(), props.duration);
+  // Auto-dismiss: default 3s for success, 6s for errors; 0 = persistent
+  const isDestructive = props.variant === 'destructive';
+  const duration = props.duration ?? (isDestructive ? 6000 : 3000);
+  if (duration > 0) {
+    setTimeout(() => dismiss(), duration);
   }
 
   dispatch({
     type: actionTypes.ADD_TOAST,
     toast: {
       ...props,
+      duration,
       id,
       open: true,
       onOpenChange: (open) => {

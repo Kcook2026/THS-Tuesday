@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 import { SYSTEM_COLUMN_NAMES } from '@/components/workboards/WorkboardConstants';
 import {
   ShieldCheck, Trash2, RefreshCw, AlertTriangle, CheckCircle2,
@@ -18,6 +19,7 @@ export default function WorkboardQA() {
   const { currentWorkspaceId } = useWorkspace();
   const { isSystemAdmin, loading: permLoading } = usePermissions();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [cleaning, setCleaning] = useState(null);
   const [diagnostics, setDiagnostics] = useState(null);
@@ -99,7 +101,12 @@ export default function WorkboardQA() {
 
   const handleCleanDuplicateColumns = async () => {
     if (!diagnostics?.duplicateSystemColumns?.length) return;
-    if (!confirm(`Delete ${diagnostics.duplicateSystemColumns.length} duplicate system column(s)?`)) return;
+    const ok = await confirm({
+      title: 'Delete Duplicate Columns?',
+      description: `This will delete ${diagnostics.duplicateSystemColumns.length} duplicate system column(s).`,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     setCleaning('columns');
     try {
       for (const col of diagnostics.duplicateSystemColumns) {
@@ -118,7 +125,13 @@ export default function WorkboardQA() {
     const stale = [...(diagnostics?.staleMembers || []), ...(diagnostics?.duplicateMembers || [])];
     const unique = [...new Map(stale.map(wm => [wm.id, wm])).values()];
     if (!unique.length) return;
-    if (!confirm(`Delete ${unique.length} stale/duplicate membership(s)?`)) return;
+    const ok = await confirm({
+      title: 'Clean Stale Memberships?',
+      description: `This will delete ${unique.length} stale/duplicate membership(s).`,
+      confirmLabel: 'Clean Memberships',
+      variant: 'warning',
+    });
+    if (!ok) return;
     setCleaning('members');
     try {
       for (const wm of unique) {

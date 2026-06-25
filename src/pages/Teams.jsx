@@ -17,6 +17,7 @@ import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { logActivity } from '@/hooks/useActivityLogger';
 import { useToast } from '@/components/ui/use-toast';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 
 export default function Teams() {
   const [teams, setTeams] = useState([]);
@@ -29,6 +30,7 @@ export default function Teams() {
   const [currentUser, setCurrentUser] = useState(null);
   const { currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const { can } = usePermissions();
 
   const load = () => {
@@ -85,6 +87,12 @@ export default function Teams() {
   };
 
   const handleDelete = async (t) => {
+    const ok = await confirm({
+      title: 'Delete Team?',
+      description: `Are you sure you want to delete "${t.name}"? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     try {
       await base44.entities.Team.delete(t.id);
       logActivity(currentUser, 'deleted team', 'Team', t.id, t.name);

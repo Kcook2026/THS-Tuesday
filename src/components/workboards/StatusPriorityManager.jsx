@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 import {
   Plus, ArrowUp, ArrowDown, Trash2, Pencil, Star, Tag, Flag, X,
 } from 'lucide-react';
@@ -30,6 +31,7 @@ export default function StatusPriorityManager({
   trigger,
 }) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('status');
   const [newLabel, setNewLabel] = useState('');
@@ -89,7 +91,12 @@ export default function StatusPriorityManager({
   };
 
   const handleDelete = async (option) => {
-    if (!confirm(`Delete "${option.label}"?`)) return;
+    const ok = await confirm({
+      title: 'Delete Label?',
+      description: `Are you sure you want to delete "${option.label}"?`,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       const entity = activeTab === 'status' ? base44.entities.StatusOption : base44.entities.PriorityOption;

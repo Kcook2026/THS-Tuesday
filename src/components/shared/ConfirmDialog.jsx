@@ -10,6 +10,96 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
+import { Loader2 } from 'lucide-react';
+
+const VARIANT_STYLES = {
+  destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+  archive: 'bg-amber-600 text-white hover:bg-amber-700',
+  warning: 'bg-amber-500 text-white hover:bg-amber-600',
+};
+
+/**
+ * Controlled confirmation dialog.
+ *
+ * Props:
+ *   open, title, description
+ *   confirmLabel (default "Confirm"), cancelLabel (default "Cancel")
+ *   variant: "destructive" | "archive" | "warning"
+ *   requireTypedConfirmation, confirmationText
+ *   onConfirm, onCancel, loading
+ */
+export function ConfirmDialog({
+  open,
+  title,
+  description,
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  variant = 'destructive',
+  requireTypedConfirmation = false,
+  confirmationText = '',
+  onConfirm,
+  onCancel,
+  loading = false,
+}) {
+  const [typedValue, setTypedValue] = useState('');
+
+  const canConfirm = !requireTypedConfirmation || typedValue === confirmationText;
+
+  const reset = () => setTypedValue('');
+
+  const handleConfirm = (e) => {
+    if (!canConfirm || loading) {
+      e.preventDefault();
+      return;
+    }
+    reset();
+    onConfirm?.();
+  };
+
+  const handleCancel = (e) => {
+    if (loading) {
+      e.preventDefault();
+      return;
+    }
+    reset();
+    onCancel?.();
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={(open) => { if (!open) handleCancel(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          {description && <AlertDialogDescription>{description}</AlertDialogDescription>}
+        </AlertDialogHeader>
+        {requireTypedConfirmation && (
+          <div className="py-1">
+            <Input
+              value={typedValue}
+              onChange={(e) => setTypedValue(e.target.value)}
+              placeholder={`Type "${confirmationText}" to confirm`}
+              autoFocus
+              autoComplete="off"
+            />
+          </div>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={handleCancel} disabled={loading}>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogAction
+            className={VARIANT_STYLES[variant] || ''}
+            onClick={handleConfirm}
+            disabled={!canConfirm || loading}
+          >
+            {loading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+            {confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/* ---- Imperative hook wrapper ---- */
 
 const ConfirmContext = createContext(null);
 
@@ -17,11 +107,14 @@ export function ConfirmProvider({ children }) {
   const [state, setState] = useState({
     open: false,
     title: '',
-    message: '',
+    description: '',
     confirmLabel: 'Delete',
+    cancelLabel: 'Cancel',
     variant: 'destructive',
-    requireText: null,
-    onConfirm: null,
+    requireTypedConfirmation: false,
+    confirmationText: '',
+    loading: false,
+    resolve: null,
   });
 
   const confirm = useCallback((opts) => {
@@ -29,65 +122,41 @@ export function ConfirmProvider({ children }) {
       setState({
         open: true,
         title: opts.title || 'Confirm',
-        message: opts.message || 'Are you sure?',
+        description: opts.description || opts.message || 'Are you sure?',
         confirmLabel: opts.confirmLabel || 'Delete',
+        cancelLabel: opts.cancelLabel || 'Cancel',
         variant: opts.variant || 'destructive',
-        requireText: opts.requireText || null,
-        onConfirm: resolve,
+        requireTypedConfirmation: opts.requireTypedConfirmation || !!opts.requireText,
+        confirmationText: opts.confirmationText || opts.requireText || '',
+        loading: false,
+        resolve,
       });
     });
   }, []);
 
   const handleClose = useCallback((result) => {
-    setState(prev => {
-      if (prev.onConfirm) prev.onConfirm(result);
-      return { ...prev, open: false, onConfirm: null };
+    setState((prev) => {
+      if (prev.resolve) prev.resolve(result);
+      return { ...prev, open: false, resolve: null };
     });
   }, []);
 
   return (
     <ConfirmContext.Provider value={confirm}>
       {children}
-      <AlertDialog
+      <ConfirmDialog
         open={state.open}
-        onOpenChange={(open) => { if (!open) handleClose(false); }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{state.title}</AlertDialogTitle>
-            <AlertDialogDescription>{state.message}</AlertDialogDescription>
-          </AlertDialogHeader>
-          {state.requireText && (
-            <div className="py-1">
-              <Input
-                id="confirm-text-input"
-                placeholder={`Type "${state.requireText}" to confirm`}
-                autoFocus
-              />
-            </div>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => handleClose(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className={state.variant === 'destructive'
-                ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                : ''}
-              onClick={(e) => {
-                if (state.requireText) {
-                  const input = document.getElementById('confirm-text-input');
-                  if (input?.value !== state.requireText) {
-                    e.preventDefault();
-                    return;
-                  }
-                }
-                handleClose(true);
-              }}
-            >
-              {state.confirmLabel}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title={state.title}
+        description={state.description}
+        confirmLabel={state.confirmLabel}
+        cancelLabel={state.cancelLabel}
+        variant={state.variant}
+        requireTypedConfirmation={state.requireTypedConfirmation}
+        confirmationText={state.confirmationText}
+        loading={state.loading}
+        onConfirm={() => handleClose(true)}
+        onCancel={() => handleClose(false)}
+      />
     </ConfirmContext.Provider>
   );
 }

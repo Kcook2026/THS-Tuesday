@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 import { Paperclip, Download, Trash2, FileText, Image as ImageIcon, File } from 'lucide-react';
 
 export default function FilesSection({ item, canEdit }) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -51,7 +53,12 @@ export default function FilesSection({ item, canEdit }) {
   };
 
   const handleRemove = async (fileUrl) => {
-    if (!confirm('Remove this file?')) return;
+    const ok = await confirm({
+      title: 'Remove File?',
+      description: 'Are you sure you want to remove this file?',
+      confirmLabel: 'Remove',
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       const updatedFiles = files.filter(f => f !== fileUrl);

@@ -14,6 +14,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/auditLogger';
 import { 
   UserPlus, Mail, Shield, Ban, Trash2, Clock, Check, Crown, Eye, 
@@ -70,6 +71,7 @@ export default function Members() {
     loading: permLoading 
   } = usePermissions();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [users, setUsers] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [members, setMembers] = useState([]);
@@ -250,7 +252,13 @@ export default function Members() {
   };
 
   const handleCleanStaleMemberships = async () => {
-    if (!confirm('Remove stale board memberships?\n\nThis will remove WorkboardMember records where the related board no longer exists, is archived, is a template, or is a duplicate.')) return;
+    const ok = await confirm({
+      title: 'Clean stale memberships?',
+      description: 'This will remove board memberships where the related board no longer exists, is archived, is a template, or is duplicated.',
+      confirmLabel: 'Clean Memberships',
+      variant: 'warning',
+    });
+    if (!ok) return;
     setCleaningStale(true);
     try {
       const [allWbMembers, allUsers] = await Promise.all([
