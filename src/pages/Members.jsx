@@ -23,7 +23,7 @@ import {
 import InviteUserDialog from '@/components/shared/InviteUserDialog';
 import BoardAccessDrawer from '@/components/workboards/BoardAccessDrawer';
 import ArchivedBoards from '@/components/workboards/ArchivedBoards';
-import { getActiveWorkboards, getArchivedWorkboards } from '@/lib/workboardHelpers';
+import { getActiveWorkboards, getArchivedWorkboards, getValidBoardIds } from '@/lib/workboardHelpers';
 
 const ACCOUNT_ROLE_LABELS = {
   system_admin: 'System Admin',
@@ -117,14 +117,15 @@ export default function Members() {
           user: member.user 
         }).catch(() => []);
         allWbMembers.push(...wbMembers);
-        // Only count memberships for active, non-archived boards that still exist
+        // Only count memberships for active boards with active membership status
         wbMemberships[member.id] = wbMembers.filter(wm => activeBoardIds.has(wm.workboard) && wm.status !== 'removed');
       }
       setMemberWorkboards(wbMemberships);
 
-      // Compute hygiene stats
+      // Compute hygiene stats — stale = memberships for deleted/non-existent boards or non-existent users
+      const validBoardIds = getValidBoardIds(boards, currentWorkspaceId);
       const userIds = new Set(allUsers.map(u => u.id));
-      const staleCount = allWbMembers.filter(wm => !activeBoardIds.has(wm.workboard) || !userIds.has(wm.user)).length;
+      const staleCount = allWbMembers.filter(wm => !validBoardIds.has(wm.workboard) || !userIds.has(wm.user)).length;
       const seenPairs = new Set();
       let dupCount = 0;
       const sortedWm = [...allWbMembers].sort((a, b) => (a.created_date || '').localeCompare(b.created_date || ''));
@@ -314,14 +315,12 @@ export default function Members() {
         base44.entities.User.list().catch(() => []),
       ]);
 
-      const activeBoardIds = new Set(
-        getActiveWorkboards(boards, currentWorkspaceId).map(b => b.id)
-      );
+      const validBoardIds = getValidBoardIds(boards, currentWorkspaceId);
       const userIds = new Set(allUsers.map(u => u.id));
 
-      // 4. Remove memberships for deleted/archived boards or non-existent users
+      // 4. Remove memberships for deleted/non-existent boards or non-existent users
       const stale = allWbMembers.filter(wm =>
-        !activeBoardIds.has(wm.workboard) || !userIds.has(wm.user)
+        !validBoardIds.has(wm.workboard) || !userIds.has(wm.user)
       );
 
       // 5. Remove duplicate memberships (same user + same board)
@@ -377,14 +376,12 @@ export default function Members() {
         base44.entities.WorkboardMember.filter({ workspace: currentWorkspaceId }),
         base44.entities.User.list().catch(() => []),
       ]);
-      const activeBoardIds = new Set(
-        getActiveWorkboards(workboards, currentWorkspaceId).map(b => b.id)
-      );
+      const validBoardIds = getValidBoardIds(workboards, currentWorkspaceId);
       const userIds = new Set(allUsers.map(u => u.id));
 
-      // Identify stale: board doesn't exist, is archived/template/deleted, or user doesn't exist
+      // Identify stale: board doesn't exist, is deleted, or user doesn't exist
       const stale = allWbMembers.filter(wm =>
-        !activeBoardIds.has(wm.workboard) || !userIds.has(wm.user)
+        !validBoardIds.has(wm.workboard) || !userIds.has(wm.user)
       );
 
       // Identify duplicates: same user + same board appearing more than once

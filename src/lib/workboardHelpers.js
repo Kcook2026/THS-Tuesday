@@ -93,3 +93,20 @@ export function getDeletedWorkboards(workboards, currentWorkspaceId) {
     return true;
   });
 }
+
+/**
+ * Returns a Set of board IDs that are NOT deleted (active, archived, or template).
+ * Use this to determine which memberships are valid — only deleted boards
+ * and non-existent boards should have their memberships pruned.
+ */
+export function getValidBoardIds(workboards, currentWorkspaceId) {
+  if (!Array.isArray(workboards)) return new Set();
+  const ids = new Set();
+  for (const wb of workboards) {
+    if (!wb || !wb.id) continue;
+    if (currentWorkspaceId && wb.workspace !== currentWorkspaceId) continue;
+    if (isDeletedBoard(wb)) continue;
+    ids.add(wb.id);
+  }
+  return ids;
+}

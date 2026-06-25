@@ -131,7 +131,13 @@ export default function WorkspaceSettings() {
     try {
       // Archive all related workboards first
       const workboards = await base44.entities.Workboard.filter({ workspace: currentWorkspaceId });
-      await Promise.all(workboards.map(wb => base44.entities.Workboard.update(wb.id, { status: 'archived' })));
+      const now = new Date().toISOString();
+      await Promise.all(workboards.map(wb => base44.entities.Workboard.update(wb.id, {
+        status: 'archived',
+        archived: true,
+        archived_date: wb.archived_date || now,
+        archived_by: wb.archived_by || user?.id,
+      })));
       
       // Archive workspace
       await base44.entities.Workspace.update(currentWorkspaceId, { status: 'archived' });
