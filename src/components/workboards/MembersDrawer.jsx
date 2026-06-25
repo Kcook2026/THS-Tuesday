@@ -31,6 +31,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { Users, Search, MoreHorizontal, Shield, Trash2, UserPlus } from 'lucide-react';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 import { getUserInitials } from '@/lib/userHelpers';
 
 const ROLE_CONFIG = {
@@ -43,6 +44,7 @@ const ROLE_CONFIG = {
 export default function MembersDrawer({ workboardId, wb }) {
   const { user, currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -167,7 +169,13 @@ export default function MembersDrawer({ workboardId, wb }) {
   const handleTransferOwnership = async (memberId) => {
     const targetMember = members.find(m => m.id === memberId);
     if (!targetMember) return;
-    if (!confirm(`Transfer ownership to ${targetMember.user_name || targetMember.user_email || 'this user'}?`)) return;
+    const ok = await confirm({
+      title: 'Transfer Ownership?',
+      message: `Are you sure you want to transfer ownership to ${targetMember.user_name || targetMember.user_email || 'this user'}? The current owner will become an Editor.`,
+      confirmLabel: 'Transfer',
+      variant: 'default',
+    });
+    if (!ok) return;
     try {
       const currentOwners = members.filter(m => m.role === 'workboard_owner' && m.status === 'active');
       await Promise.all([

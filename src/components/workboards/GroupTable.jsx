@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 import {
   Plus, MoreHorizontal, ChevronRight, ChevronDown, Trash2,
   Pencil, ExternalLink, Archive, ArrowUp, ArrowDown, Palette,
@@ -30,6 +31,7 @@ export default function GroupTable({
   onGroupColorChange, onGroupReorder,
 }) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [collapsed, setCollapsed] = useState(group.collapsed || false);
   const [editingCell, setEditingCell] = useState(null);
   const [expandedItems, setExpandedItems] = useState({});
@@ -172,7 +174,13 @@ export default function GroupTable({
   };
 
   const handleArchiveGroup = async () => {
-    if (!confirm(`Archive group "${group.name}" and all its items?`)) return;
+    const ok = await confirm({
+      title: 'Archive Group?',
+      message: `Are you sure you want to archive "${group.name}" and all its items?`,
+      confirmLabel: 'Archive',
+      variant: 'default',
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await base44.entities.BoardGroup.update(group.id, { archived: true });
@@ -189,7 +197,12 @@ export default function GroupTable({
   };
 
   const handleDeleteGroup = async () => {
-    if (!confirm(`Permanently delete group "${group.name}" and all its items?`)) return;
+    const ok = await confirm({
+      title: 'Delete Group?',
+      message: `Are you sure you want to permanently delete "${group.name}" and all its items? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       for (const item of items) {
@@ -500,7 +513,6 @@ export default function GroupTable({
         </div>
       )}
 
-      {/* Table */}
       {!collapsed && (
         <div className="border rounded-xl overflow-hidden bg-card">
           <div className="overflow-x-auto">

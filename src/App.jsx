@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { ConfirmProvider } from '@/components/shared/ConfirmDialog';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
@@ -107,10 +108,12 @@ function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
+        <ConfirmProvider>
         <Router>
           <ScrollToTop />
           <AuthenticatedApp />
         </Router>
+        </ConfirmProvider>
         <Toaster />
       </QueryClientProvider>
     </AuthProvider>

@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { Columns, Plus, Trash2, Eye, EyeOff, Pencil, ArrowUp, ArrowDown, Settings } from 'lucide-react';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 import { SYSTEM_COLUMNS, SYSTEM_COLUMN_NAMES, COLUMN_TYPE_OPTIONS, IMPLEMENTED_COLUMN_TYPES } from './WorkboardConstants';
 import { parseSettings } from './CustomCellRenderer';
 
@@ -31,6 +32,7 @@ export default function ColumnManager({
   onVisibleColumnsChange,
 }) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [newColumn, setNewColumn] = useState({ name: '', column_type: 'text' });
   const [renamingColumn, setRenamingColumn] = useState(null);
@@ -97,7 +99,12 @@ export default function ColumnManager({
   };
 
   const handleDeleteColumn = async (column) => {
-    if (!confirm(`Delete column "${column.name}"?`)) return;
+    const ok = await confirm({
+      title: 'Delete Column?',
+      message: `Are you sure you want to delete "${column.name}"? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     try {
       await base44.entities.BoardColumn.delete(column.id);
       toast({ title: 'Column deleted', duration: 2000 });

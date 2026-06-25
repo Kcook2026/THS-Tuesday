@@ -22,6 +22,7 @@ import GroupTable from '@/components/workboards/GroupTable';
 import KanbanBoard from '@/components/workboards/KanbanBoard';
 import CalendarView from '@/components/workboards/CalendarView';
 import { useItemValues } from '@/hooks/useItemValues';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 import {
   Plus, Search, Settings, Archive, Trash2, Save, X, Tag,
   LayoutList, LayoutGrid, Calendar as CalendarIcon
@@ -32,6 +33,7 @@ export default function WorkboardDetail() {
   const { id } = useParams();
   const { currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const permissions = usePermissions();
 
   const [board, setBoard] = useState(null);
@@ -230,7 +232,12 @@ export default function WorkboardDetail() {
   };
 
   const handleDeleteItem = async (item) => {
-    if (!confirm(`Delete "${item.title}"?`)) return;
+    const ok = await confirm({
+      title: 'Delete Item?',
+      message: `Are you sure you want to delete "${item.title}"? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
 
     setSaving(true);
     try {
@@ -407,6 +414,13 @@ export default function WorkboardDetail() {
             <div className="pt-4 border-t">
               <div className="space-y-2">
                 <Button variant="outline" className="w-full justify-start" onClick={async () => {
+                  const ok = await confirm({
+                    title: 'Archive Board?',
+                    message: `Are you sure you want to archive "${board.name}"? You can restore it later if needed.`,
+                    confirmLabel: 'Archive',
+                    variant: 'default',
+                  });
+                  if (!ok) return;
                   await base44.entities.Workboard.update(id, { status: 'archived', archived: true });
                   toast({ title: 'Board archived', duration: 2000 });
                   window.location.href = '/workboards';
@@ -416,7 +430,13 @@ export default function WorkboardDetail() {
                 </Button>
                 {canDelete && (
                   <Button variant="destructive" className="w-full justify-start" onClick={async () => {
-                    if (!confirm(`Delete "${board.name}"?\n\nThis will permanently delete all items, groups, columns, values, and members.`)) return;
+                    const ok = await confirm({
+                      title: 'Delete Board?',
+                      message: `Are you sure you want to delete "${board.name}"? This will permanently delete all items, groups, columns, values, and members.`,
+                      confirmLabel: 'Delete',
+                      requireText: board.name,
+                    });
+                    if (!ok) return;
                     setSaving(true);
                     try {
                       const [itemsData, groupsData, statuses, priorities, members, colsData, itemValues] = await Promise.all([

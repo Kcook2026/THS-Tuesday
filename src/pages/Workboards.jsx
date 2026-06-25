@@ -18,6 +18,7 @@ import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { logActivity } from '@/hooks/useActivityLogger';
 import usePermissions from '@/hooks/usePermissions';
 import { useToast } from '@/components/ui/use-toast';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 
 const BOARD_TYPES = {
   project_board: { label: 'Project Board', color: 'bg-violet-500/10 text-violet-700 dark:text-violet-300' },
@@ -41,6 +42,7 @@ export default function Workboards() {
   const { can } = usePermissions();
   const { currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     if (!currentWorkspaceId || isLoadingRef.current) return;
@@ -183,7 +185,13 @@ export default function Workboards() {
   };
 
   const handleDelete = async (b) => {
-    if (!confirm(`Delete "${b.name}"?\n\nThis will permanently delete all items, groups, columns, values, and members in this board.`)) return;
+    const ok = await confirm({
+      title: 'Delete Board?',
+      message: `Are you sure you want to delete "${b.name}"? This will permanently delete all items, groups, columns, values, and members in this board.`,
+      confirmLabel: 'Delete',
+      requireText: b.name,
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       const [items, groups, statuses, priorities, members, columns, itemValues] = await Promise.all([

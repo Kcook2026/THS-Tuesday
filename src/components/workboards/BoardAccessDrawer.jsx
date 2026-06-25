@@ -8,6 +8,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
 import { Trash2, Plus, LayoutGrid } from 'lucide-react';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 
 const WORKBOARD_ROLE_LABELS = {
   workboard_owner: 'Board Owner',
@@ -24,6 +25,7 @@ const WORKBOARD_ROLE_LABELS = {
  */
 export default function BoardAccessDrawer({ member, workboards = [], isOpen, onClose, onRefresh }) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(false);
   const [boardMemberships, setBoardMemberships] = useState([]);
   const [addingBoard, setAddingBoard] = useState(null);
@@ -72,7 +74,12 @@ export default function BoardAccessDrawer({ member, workboards = [], isOpen, onC
   };
 
   const handleRemoveAccess = async (membership) => {
-    if (!confirm(`Remove access to "${membership.workboard_name}"?`)) return;
+    const ok = await confirm({
+      title: 'Remove Board Access?',
+      message: `Are you sure you want to remove access to "${membership.workboard_name}"? This action cannot be undone.`,
+      confirmLabel: 'Remove',
+    });
+    if (!ok) return;
     try {
       await base44.entities.WorkboardMember.delete(membership.id);
       toast({ title: 'Board access removed', duration: 2000 });
