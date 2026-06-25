@@ -19,6 +19,7 @@ export const ACCOUNT_ROLE_PERMISSIONS = {
     canViewAuditLogs: true,
     canViewAllWorkspaces: true,
     canViewAllWorkboards: true,
+    canManageBoards: true,
     canModifySystemSettings: true,
     canCreateOrganizationAutomations: true,
     canCreateWorkspaceAutomations: true,

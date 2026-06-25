@@ -25,10 +25,12 @@ import { useItemValues } from '@/hooks/useItemValues';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
 import {
   Plus, Search, Settings, Archive, Trash2, Save, X, Tag,
-  LayoutList, LayoutGrid, Calendar as CalendarIcon, Copy
+  LayoutList, LayoutGrid, Calendar as CalendarIcon, Copy, UserPlus, AlertTriangle
 } from 'lucide-react';
 import DuplicateBoardDialog from '@/components/workboards/DuplicateBoardDialog';
+import { isOrphanedBoard, safeDeleteBoardData, assignBoardToMe } from '@/lib/boardLifecycle';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 export default function WorkboardDetail() {
   const { id } = useParams();
@@ -59,6 +61,7 @@ export default function WorkboardDetail() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [showItemDetail, setShowItemDetail] = useState(false);
   const [activeView, setActiveView] = useState('list');
+  const [boardMembers, setBoardMembers] = useState([]);
   const { getValue, saveValue } = useItemValues(id, currentWorkspaceId);
   const [cardFields, setCardFields] = useState(() => {
     try {
@@ -88,7 +91,7 @@ export default function WorkboardDetail() {
     setLoading(true);
 
     try {
-      const [b, g, s, p, i, u, me, cols, t] = await Promise.all([
+      const [b, g, s, p, i, u, me, cols, t, bm] = await Promise.all([
         base44.entities.Workboard.get(id),
         base44.entities.BoardGroup.filter({ workboard: id, archived: false }),
         base44.entities.StatusOption.filter({ workboard: id }),
@@ -98,6 +101,7 @@ export default function WorkboardDetail() {
         base44.auth.me(),
         base44.entities.BoardColumn.filter({ workboard: id }).catch(() => []),
         base44.entities.Team.filter({ workspace: currentWorkspaceId }).catch(() => []),
+        base44.entities.WorkboardMember.filter({ workboard: id }).catch(() => []),
       ]);
 
       setBoard(b);
@@ -109,6 +113,7 @@ export default function WorkboardDetail() {
       setUser(me);
       setColumns(cols);
       setTeams(t);
+      setBoardMembers(bm);
     } catch (error) {
       toast({ title: 'Error loading board', description: error.message, variant: 'destructive', duration: 6000 });
     } finally {
@@ -357,6 +362,20 @@ export default function WorkboardDetail() {
     }
   };
 
+  const handleAssignToMe = async () => {
+    setSaving(true);
+    try {
+      await assignBoardToMe(id, currentWorkspaceId, user);
+      toast({ title: 'Board assigned to you', duration: 2000 });
+      await load();
+      window.dispatchEvent(new Event('workboards-changed'));
+    } catch (error) {
+      toast({ title: 'Failed to assign board', description: error.message, variant: 'destructive', duration: 5000 });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleArchiveBoard = async () => {
     const ok = await confirm({
       title: 'Archive Board?',
@@ -392,6 +411,8 @@ export default function WorkboardDetail() {
     return acc;
   }, {});
 
+  const isOrphaned = isOrphanedBoard(board, boardMembers, users);
+
   const filteredItems = items
     .filter(item => {
       if (search && !item.title.toLowerCase().includes(search.toLowerCase())) return false;
@@ -413,7 +434,12 @@ export default function WorkboardDetail() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{board.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">{board.name}</h1>
+            {permissions.isSystemAdmin && isOrphaned && (
+              <Badge variant="destructive" className="gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Orphaned Board</Badge>
+            )}
+          </div>
           {board.description && <p className="text-sm text-muted-foreground mt-0.5">{board.description}</p>}
         </div>
         <div className="flex gap-2">
@@ -493,6 +519,12 @@ export default function WorkboardDetail() {
             </div>
             <div className="pt-4 border-t">
               <div className="space-y-2">
+                {permissions.isSystemAdmin && isOrphaned && (
+                  <Button variant="outline" className="w-full justify-start" onClick={handleAssignToMe} disabled={saving}>
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Assign Owner to Me
+                  </Button>
+                )}
                 <Button variant="outline" className="w-full justify-start" onClick={() => setShowDuplicate(true)}>
                   <Copy className="w-4 h-4 mr-2" />
                   Duplicate Board
@@ -512,22 +544,7 @@ export default function WorkboardDetail() {
                     if (!ok) return;
                     setSaving(true);
                     try {
-                      const [itemsData, groupsData, statuses, priorities, membersData, colsData, itemValues] = await Promise.all([
-                        base44.entities.WorkboardItem.filter({ workboard: id }),
-                        base44.entities.BoardGroup.filter({ workboard: id }),
-                        base44.entities.StatusOption.filter({ workboard: id }),
-                        base44.entities.PriorityOption.filter({ workboard: id }),
-                        base44.entities.WorkboardMember.filter({ workboard: id }),
-                        base44.entities.BoardColumn.filter({ workboard: id }),
-                        base44.entities.WorkboardItemValue.filter({ workboard: id }),
-                      ]);
-                      for (const iv of itemValues) await base44.entities.WorkboardItemValue.delete(iv.id);
-                      for (const item of itemsData) await base44.entities.WorkboardItem.delete(item.id);
-                      for (const g of groupsData) await base44.entities.BoardGroup.delete(g.id);
-                      for (const c of colsData) await base44.entities.BoardColumn.delete(c.id);
-                      for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
-                      for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
-                      for (const m of membersData) await base44.entities.WorkboardMember.delete(m.id);
+                      await safeDeleteBoardData(id);
                       await base44.entities.Workboard.update(id, {
                         status: 'deleted',
                         deleted_date: new Date().toISOString(),

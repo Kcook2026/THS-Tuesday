@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Link } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, LayoutGrid, ArrowRight, Archive, Copy, ArchiveX } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, LayoutGrid, ArrowRight, Archive, Copy, ArchiveX, UserPlus, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -20,6 +20,7 @@ import usePermissions from '@/hooks/usePermissions';
 import { useToast } from '@/components/ui/use-toast';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
 import { getActiveWorkboards, getArchivedWorkboards } from '@/lib/workboardHelpers';
+import { isOrphanedBoard, safeDeleteBoardData, assignBoardToMe } from '@/lib/boardLifecycle';
 import ArchivedBoards from '@/components/workboards/ArchivedBoards';
 import DuplicateBoardDialog from '@/components/workboards/DuplicateBoardDialog';
 
@@ -46,8 +47,10 @@ export default function Workboards() {
   const [showArchived, setShowArchived] = useState(false);
   const [archivedCount, setArchivedCount] = useState(0);
   const [duplicateTarget, setDuplicateTarget] = useState(null);
+  const [wbMembers, setWbMembers] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const isLoadingRef = useRef(false);
-  const { can } = usePermissions();
+  const { can, isSystemAdmin } = usePermissions();
   const { currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
   const confirm = useConfirm();
@@ -57,13 +60,17 @@ export default function Workboards() {
     isLoadingRef.current = true;
     setLoading(true);
     try {
-      const [b, p, t, me] = await Promise.all([
+      const [b, p, t, me, members, users] = await Promise.all([
         base44.entities.Workboard.filter({ workspace: currentWorkspaceId }),
         base44.entities.Project.filter({ workspace: currentWorkspaceId }),
         base44.entities.Team.filter({ workspace: currentWorkspaceId }),
-        base44.auth.me()
+        base44.auth.me(),
+        base44.entities.WorkboardMember.filter({ workspace: currentWorkspaceId }).catch(() => []),
+        base44.entities.User.list().catch(() => []),
       ]);
       const validBoards = getActiveWorkboards(b, currentWorkspaceId);
+      setWbMembers(members);
+      setAllUsers(users);
       // Migrate any legacy client_board records to operations_board
       for (const board of validBoards) {
         if (board.board_type === 'client_board') {
@@ -218,23 +225,7 @@ export default function Workboards() {
     if (!ok) return;
     setSaving(true);
     try {
-      const [items, groups, statuses, priorities, members, columns, itemValues] = await Promise.all([
-        base44.entities.WorkboardItem.filter({ workboard: b.id }),
-        base44.entities.BoardGroup.filter({ workboard: b.id }),
-        base44.entities.StatusOption.filter({ workboard: b.id }),
-        base44.entities.PriorityOption.filter({ workboard: b.id }),
-        base44.entities.WorkboardMember.filter({ workboard: b.id }),
-        base44.entities.BoardColumn.filter({ workboard: b.id }),
-        base44.entities.WorkboardItemValue.filter({ workboard: b.id }),
-      ]);
-
-      for (const iv of itemValues) await base44.entities.WorkboardItemValue.delete(iv.id);
-      for (const item of items) await base44.entities.WorkboardItem.delete(item.id);
-      for (const g of groups) await base44.entities.BoardGroup.delete(g.id);
-      for (const c of columns) await base44.entities.BoardColumn.delete(c.id);
-      for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
-      for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
-      for (const m of members) await base44.entities.WorkboardMember.delete(m.id);
+      await safeDeleteBoardData(b.id);
 
       await base44.entities.Workboard.update(b.id, {
         status: 'deleted',
@@ -248,6 +239,29 @@ export default function Workboards() {
     } catch (error) {
       console.error('Delete error:', error);
       toast({ title: 'Error deleting workboard', description: error.message, variant: 'destructive', duration: 6000 });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const orphanedBoardIds = useMemo(() => {
+    const set = new Set();
+    for (const wb of boards) {
+      const members = wbMembers.filter(m => m.workboard === wb.id);
+      if (isOrphanedBoard(wb, members, allUsers)) set.add(wb.id);
+    }
+    return set;
+  }, [boards, wbMembers, allUsers]);
+
+  const handleAssignToMe = async (b) => {
+    setSaving(true);
+    try {
+      await assignBoardToMe(b.id, currentWorkspaceId, user);
+      toast({ title: 'Board assigned to you', duration: 3000 });
+      await load();
+      window.dispatchEvent(new Event('workboards-changed'));
+    } catch (error) {
+      toast({ title: 'Failed to assign board', description: error.message, variant: 'destructive', duration: 6000 });
     } finally {
       setSaving(false);
     }
@@ -301,6 +315,7 @@ export default function Workboards() {
                       <DropdownMenuContent align="end">
                         {can('canManageBoards') && <DropdownMenuItem onClick={() => openForm(b)}><Pencil className="w-3.5 h-3.5 mr-2" /> Edit</DropdownMenuItem>}
                         {can('canManageBoards') && <DropdownMenuItem onClick={() => setDuplicateTarget(b)}><Copy className="w-3.5 h-3.5 mr-2" /> Duplicate</DropdownMenuItem>}
+                        {isSystemAdmin && orphanedBoardIds.has(b.id) && <DropdownMenuItem onClick={() => handleAssignToMe(b)}><UserPlus className="w-3.5 h-3.5 mr-2" /> Assign Owner to Me</DropdownMenuItem>}
                         {can('canManageBoards') && <DropdownMenuItem onClick={() => handleArchive(b)}><Archive className="w-3.5 h-3.5 mr-2" /> Archive</DropdownMenuItem>}
                         {can('canManageBoards') && <DropdownMenuItem className="text-destructive" onClick={() => handlePermanentDelete(b)}><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete Permanently</DropdownMenuItem>}
                       </DropdownMenuContent>
@@ -308,6 +323,7 @@ export default function Workboards() {
                   </div>
                   <div className="flex items-center gap-2 mb-3">
                     <Badge variant="secondary" className={`text-[11px] ${typeConfig.color}`}>{typeConfig.label}</Badge>
+                    {isSystemAdmin && orphanedBoardIds.has(b.id) && <Badge variant="destructive" className="text-[11px] gap-1"><AlertTriangle className="w-3 h-3" /> Orphaned</Badge>}
                     {b.status === 'archived' && <Badge variant="outline" className="text-[11px]">Archived</Badge>}
                   </div>
                   <Link to={`/workboards/${b.id}`} className="flex items-center gap-1 text-sm text-primary hover:gap-2 transition-all">
