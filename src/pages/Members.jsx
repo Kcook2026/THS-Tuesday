@@ -20,6 +20,7 @@ import {
   LayoutGrid, Briefcase, Target, Building2, CalendarDays, Brush 
 } from 'lucide-react';
 import InviteUserDialog from '@/components/shared/InviteUserDialog';
+import BoardAccessDrawer from '@/components/workboards/BoardAccessDrawer';
 
 const ACCOUNT_ROLE_LABELS = {
   system_admin: 'System Admin',
@@ -78,6 +79,7 @@ export default function Members() {
   const [selectedMember, setSelectedMember] = useState(null);
   const [memberWorkboards, setMemberWorkboards] = useState({});
   const [cleaningStale, setCleaningStale] = useState(false);
+  const [boardAccessMember, setBoardAccessMember] = useState(null);
 
   const loadData = async () => {
     if (!currentWorkspaceId) return;
@@ -248,23 +250,48 @@ export default function Members() {
   };
 
   const handleCleanStaleMemberships = async () => {
-    if (!confirm('Remove stale board memberships?\n\nThis will remove WorkboardMember records where the related board no longer exists, is archived, or is a template.')) return;
+    if (!confirm('Remove stale board memberships?\n\nThis will remove WorkboardMember records where the related board no longer exists, is archived, is a template, or is a duplicate.')) return;
     setCleaningStale(true);
     try {
-      const allWbMembers = await base44.entities.WorkboardMember.filter({ workspace: currentWorkspaceId });
+      const [allWbMembers, allUsers] = await Promise.all([
+        base44.entities.WorkboardMember.filter({ workspace: currentWorkspaceId }),
+        base44.entities.User.list().catch(() => []),
+      ]);
       const activeBoardIds = new Set(
         workboards.filter(b => !b.archived && b.status !== 'archived' && b.status !== 'template').map(b => b.id)
       );
-      const stale = allWbMembers.filter(wm => !activeBoardIds.has(wm.workboard));
-      if (stale.length === 0) {
+      const userIds = new Set(allUsers.map(u => u.id));
+
+      // Identify stale: board doesn't exist, archived, or user doesn't exist
+      const stale = allWbMembers.filter(wm =>
+        !activeBoardIds.has(wm.workboard) || !userIds.has(wm.user)
+      );
+
+      // Identify duplicates: same user + same board appearing more than once
+      const seenPairs = new Set();
+      const duplicates = [];
+      const sorted = [...allWbMembers].sort((a, b) => (a.created_date || '').localeCompare(b.created_date || ''));
+      for (const wm of sorted) {
+        const key = `${wm.user}::${wm.workboard}`;
+        if (seenPairs.has(key)) {
+          duplicates.push(wm);
+        } else {
+          seenPairs.add(key);
+        }
+      }
+
+      const toDelete = [...stale, ...duplicates];
+      const uniqueToDelete = [...new Map(toDelete.map(wm => [wm.id, wm])).values()];
+
+      if (uniqueToDelete.length === 0) {
         toast({ title: 'No stale memberships found', duration: 3000 });
         return;
       }
-      for (const wm of stale) {
+      for (const wm of uniqueToDelete) {
         await base44.entities.WorkboardMember.delete(wm.id);
       }
-      logAudit(AUDIT_ACTIONS.RECORD_DELETED, { record_type: 'WorkboardMember', count: stale.length });
-      toast({ title: `Removed ${stale.length} stale membership${stale.length > 1 ? 's' : ''}`, duration: 4000 });
+      logAudit(AUDIT_ACTIONS.RECORD_DELETED, { record_type: 'WorkboardMember', count: uniqueToDelete.length });
+      toast({ title: `Removed ${uniqueToDelete.length} stale/duplicate membership${uniqueToDelete.length > 1 ? 's' : ''}`, duration: 4000 });
       loadData();
     } catch (e) {
       toast({ title: 'Failed to clean stale memberships', description: e.message, variant: 'destructive' });
@@ -347,29 +374,33 @@ export default function Members() {
                       </div>
                       {m.status === 'active' ? (
                         <div className="flex items-center gap-2">
-                          <Select defaultValue={m.role} onValueChange={(v) => handleChangeWorkspaceRole(m.id, v)}>
-                            <SelectTrigger className="w-40 h-8 text-xs">
-                              <SelectValue placeholder="Workspace Role" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="workspace_owner">Workspace Owner</SelectItem>
-                              <SelectItem value="workspace_manager">Workspace Manager</SelectItem>
-                              <SelectItem value="workspace_member">Workspace Member</SelectItem>
-                              <SelectItem value="workspace_viewer">Workspace Viewer</SelectItem>
-                              <SelectItem value="workspace_observer">Workspace Observer</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {m.role !== 'workspace_owner' && (
-                            <>
-                              <Button variant="ghost" size="icon" onClick={() => handleSuspendMember(m)} title="Suspend" className="text-amber-600 hover:text-amber-700">
-                                <Ban className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleRemoveMember(m)} title="Remove Access" className="text-destructive hover:text-destructive">
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setBoardAccessMember(m)}>
+                             <LayoutGrid className="w-3.5 h-3.5 mr-1.5" />
+                             Board Access
+                           </Button>
+                           <Select defaultValue={m.role} onValueChange={(v) => handleChangeWorkspaceRole(m.id, v)}>
+                             <SelectTrigger className="w-40 h-8 text-xs">
+                               <SelectValue placeholder="Workspace Role" />
+                             </SelectTrigger>
+                             <SelectContent>
+                               <SelectItem value="workspace_owner">Workspace Owner</SelectItem>
+                               <SelectItem value="workspace_manager">Workspace Manager</SelectItem>
+                               <SelectItem value="workspace_member">Workspace Member</SelectItem>
+                               <SelectItem value="workspace_viewer">Workspace Viewer</SelectItem>
+                               <SelectItem value="workspace_observer">Workspace Observer</SelectItem>
+                             </SelectContent>
+                           </Select>
+                           {m.role !== 'workspace_owner' && (
+                             <>
+                               <Button variant="ghost" size="icon" onClick={() => handleSuspendMember(m)} title="Suspend" className="text-amber-600 hover:text-amber-700">
+                                 <Ban className="w-4 h-4" />
+                               </Button>
+                               <Button variant="ghost" size="icon" onClick={() => handleRemoveMember(m)} title="Remove Access" className="text-destructive hover:text-destructive">
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
+                             </>
+                           )}
+                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
                           <Badge variant="secondary" className="text-[10px] capitalize">{m.status}</Badge>
@@ -519,9 +550,17 @@ export default function Members() {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
+
+      <BoardAccessDrawer
+        member={boardAccessMember}
+        workboards={workboards}
+        isOpen={!!boardAccessMember}
+        onClose={() => setBoardAccessMember(null)}
+        onRefresh={loadData}
+      />
+      </div>
+      );
+      }
 
 function EmptyRow({ message }) {
   return <div className="py-10 text-center text-sm text-muted-foreground">{message}</div>;

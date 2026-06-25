@@ -36,6 +36,13 @@ export const SYSTEM_COLUMNS = [
   { id: 'progress_percentage', name: 'Progress' },
 ];
 
+// Column types that are fully implemented and editable
+export const IMPLEMENTED_COLUMN_TYPES = [
+  'text', 'long_text', 'number', 'currency', 'date',
+  'checkbox', 'dropdown', 'multi_select', 'tags',
+  'email', 'phone', 'link', 'person', 'team', 'department',
+];
+
 export const COLUMN_TYPE_OPTIONS = [
   { group: 'Core', types: [
     { value: 'text', label: 'Text' },
@@ -47,12 +54,12 @@ export const COLUMN_TYPE_OPTIONS = [
     { value: 'date', label: 'Date' },
     { value: 'timeline', label: 'Timeline', comingSoon: true },
     { value: 'progress', label: 'Progress' },
-    { value: 'checkbox', label: 'Checkbox', comingSoon: true },
+    { value: 'checkbox', label: 'Checkbox' },
   ]},
   { group: 'People', types: [
     { value: 'person', label: 'Person' },
-    { value: 'team', label: 'Team', comingSoon: true },
-    { value: 'department', label: 'Department', comingSoon: true },
+    { value: 'team', label: 'Team' },
+    { value: 'department', label: 'Department' },
   ]},
   { group: 'Communication', types: [
     { value: 'email', label: 'Email' },
@@ -61,11 +68,11 @@ export const COLUMN_TYPE_OPTIONS = [
   ]},
   { group: 'Classification', types: [
     { value: 'tags', label: 'Tags' },
-    { value: 'dropdown', label: 'Dropdown', comingSoon: true },
-    { value: 'multi_select', label: 'Multi Select', comingSoon: true },
+    { value: 'dropdown', label: 'Dropdown' },
+    { value: 'multi_select', label: 'Multi Select' },
   ]},
   { group: 'Files', types: [
-    { value: 'files', label: 'Files' },
+    { value: 'files', label: 'Files', comingSoon: true },
     { value: 'images', label: 'Images', comingSoon: true },
   ]},
   { group: 'System', types: [
@@ -86,10 +93,7 @@ export const COLUMN_TYPE_OPTIONS = [
   ]},
 ];
 
-export const AVAILABLE_COLUMN_TYPES = [
-  'text', 'long_text', 'number', 'currency', 'status', 'priority',
-  'date', 'progress', 'tags', 'files', 'email', 'phone', 'link', 'person'
-];
+export const AVAILABLE_COLUMN_TYPES = IMPLEMENTED_COLUMN_TYPES;
 
 export const BOARD_TYPES = {
   project_board: { label: 'Project Board', color: 'bg-violet-500/10 text-violet-700 dark:text-violet-300' },

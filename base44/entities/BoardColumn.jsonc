@@ -78,7 +78,14 @@
     },
     "settings": {
       "type": "string",
-      "title": "Settings"
+      "title": "Settings",
+      "description": "JSON string for column-specific options (dropdown choices, currency symbol, etc.)"
+    },
+    "system_column": {
+      "type": "boolean",
+      "title": "System Column",
+      "default": false,
+      "description": "True for built-in system columns (title, owner, status, etc.)"
     },
     "created_by": {
       "type": "string",

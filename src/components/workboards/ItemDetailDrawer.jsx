@@ -16,12 +16,13 @@ import {
 } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
-import { Calendar, CheckCircle, MessageSquare, Paperclip } from 'lucide-react';
+import { Calendar, CheckCircle, MessageSquare, Paperclip, ListTree } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { STATUS_COLORS, PRIORITY_COLORS, GROUP_COLOR_CLASSES } from './WorkboardConstants';
 import { getUserInitials } from '@/lib/userHelpers';
 import UpdatesSection from './UpdatesSection';
 import FilesSection from './FilesSection';
+import SubItemsList from './SubItemsList';
 
 export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, onClose, onUpdate }) {
   const { user, currentWorkspaceId } = useWorkspace();
@@ -33,6 +34,7 @@ export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, o
   const [statusOptions, setStatusOptions] = useState([]);
   const [priorityOptions, setPriorityOptions] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [subItems, setSubItems] = useState([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -45,16 +47,18 @@ export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, o
 
   const loadBoardData = async () => {
     try {
-      const [s, p, g, u] = await Promise.all([
+      const [s, p, g, u, subs] = await Promise.all([
         base44.entities.StatusOption.filter({ workboard: boardId }),
         base44.entities.PriorityOption.filter({ workboard: boardId }),
         base44.entities.BoardGroup.filter({ workboard: boardId, archived: false }),
         base44.entities.User.list(),
+        item?.id ? base44.entities.WorkboardItem.filter({ parent_item: item.id, archived: false }).catch(() => []) : [],
       ]);
       setStatusOptions(s.sort((a, b) => a.sort_order - b.sort_order));
       setPriorityOptions(p.sort((a, b) => a.sort_order - b.sort_order));
       setGroups(g.sort((a, b) => a.sort_order - b.sort_order));
       setUsers(u);
+      setSubItems(subs);
     } catch (error) {
       console.error('Error loading board data:', error);
     }
@@ -125,8 +129,12 @@ export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, o
         </SheetHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="subitems">
+              <ListTree className="w-3.5 h-3.5 mr-1.5" />
+              Sub-items
+            </TabsTrigger>
             <TabsTrigger value="updates">
               <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
               Updates
@@ -272,6 +280,37 @@ export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, o
                 placeholder="Add a description..."
               />
             </div>
+          </TabsContent>
+
+          <TabsContent value="subitems" className="mt-4">
+            <SubItemsList
+              item={localItem}
+              subItems={subItems}
+              statusOptions={statusOptions}
+              priorityOptions={priorityOptions}
+              users={users}
+              onAddSubItem={async (title) => {
+                const savedSub = await base44.entities.WorkboardItem.create({
+                  title,
+                  workspace: localItem.workspace,
+                  workboard: localItem.workboard,
+                  parent_item: localItem.id,
+                  group: localItem.group,
+                  item_type: 'sub_item',
+                  status: 'Not Started',
+                  status_color: 'gray',
+                  priority: 'Medium',
+                  priority_color: 'yellow',
+                  progress_percentage: 0,
+                  archived: false,
+                });
+                setSubItems(prev => [...prev, savedSub]);
+              }}
+              onUpdateSubItem={async (subId, updateData) => {
+                await base44.entities.WorkboardItem.update(subId, updateData);
+                setSubItems(prev => prev.map(s => s.id === subId ? { ...s, ...updateData } : s));
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="updates" className="mt-4">

@@ -16,9 +16,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
-import { Columns, Plus, Trash2, Eye, EyeOff, Pencil, ArrowUp, ArrowDown } from 'lucide-react';
-import { SYSTEM_COLUMNS, COLUMN_TYPE_OPTIONS, AVAILABLE_COLUMN_TYPES } from './WorkboardConstants';
+import { Columns, Plus, Trash2, Eye, EyeOff, Pencil, ArrowUp, ArrowDown, Settings } from 'lucide-react';
+import { SYSTEM_COLUMNS, COLUMN_TYPE_OPTIONS, IMPLEMENTED_COLUMN_TYPES } from './WorkboardConstants';
+import { parseSettings } from './CustomCellRenderer';
 
 export default function ColumnManager({
   boardId,
@@ -34,6 +36,33 @@ export default function ColumnManager({
   const [renamingColumn, setRenamingColumn] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [saving, setSaving] = useState(false);
+  const [editingSettings, setEditingSettings] = useState(null);
+  const [settingsText, setSettingsText] = useState('');
+
+  const OPTIONS_TYPES = ['dropdown', 'multi_select', 'tags'];
+
+  const handleEditSettings = (column) => {
+    setEditingSettings(column);
+    const settings = parseSettings(column);
+    setSettingsText((settings.options || []).join('\n'));
+  };
+
+  const handleSaveSettings = async () => {
+    if (!editingSettings) return;
+    const options = settingsText.split('\n').map(s => s.trim()).filter(Boolean);
+    const settings = { ...parseSettings(editingSettings), options };
+    setSaving(true);
+    try {
+      await base44.entities.BoardColumn.update(editingSettings.id, { settings: JSON.stringify(settings) });
+      onColumnsChange(columns.map(c => c.id === editingSettings.id ? { ...c, settings: JSON.stringify(settings) } : c));
+      toast({ title: 'Column options saved', duration: 2000 });
+      setEditingSettings(null);
+    } catch (error) {
+      toast({ title: 'Failed to save options', description: error.message, variant: 'destructive', duration: 5000 });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const toggleSystemColumn = (colId) => {
     const newVis = { ...visibleColumns, [colId]: !visibleColumns[colId] };
@@ -190,6 +219,11 @@ export default function ColumnManager({
                           <Button variant="ghost" size="icon" className="h-5 w-5" onClick={(e) => { e.stopPropagation(); setRenamingColumn(column); setRenameValue(column.name); }}>
                             <Pencil className="w-3 h-3" />
                           </Button>
+                          {OPTIONS_TYPES.includes(column.column_type) && (
+                            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={(e) => { e.stopPropagation(); handleEditSettings(column); }} title="Edit options">
+                              <Settings className="w-3 h-3" />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" className="h-5 w-5" onClick={(e) => { e.stopPropagation(); handleToggleHidden(column); }}>
                             <EyeOff className="w-3 h-3" />
                           </Button>
@@ -251,7 +285,7 @@ export default function ColumnManager({
                         <SelectItem
                           key={t.value}
                           value={t.value}
-                          disabled={!AVAILABLE_COLUMN_TYPES.includes(t.value)}
+                          disabled={!IMPLEMENTED_COLUMN_TYPES.includes(t.value)}
                         >
                           {t.label}
                           {t.comingSoon && <span className="ml-1 text-[10px] text-muted-foreground">(Coming Soon)</span>}
@@ -265,6 +299,30 @@ export default function ColumnManager({
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAddColumn(false)}>Cancel</Button>
               <Button onClick={handleAddColumn} disabled={!newColumn.name.trim() || saving}>{saving ? 'Adding...' : 'Add Column'}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Column Settings Dialog (for dropdown/multi_select/tags options) */}
+      <Dialog open={!!editingSettings} onOpenChange={(open) => { if (!open) setEditingSettings(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configure "{editingSettings?.name}"</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Options (one per line)</Label>
+            <Textarea
+              value={settingsText}
+              onChange={(e) => setSettingsText(e.target.value)}
+              placeholder={'Option 1\nOption 2\nOption 3'}
+              rows={8}
+              className="font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">Enter each option on a new line.</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditingSettings(null)}>Cancel</Button>
+              <Button onClick={handleSaveSettings} disabled={saving}>{saving ? 'Saving...' : 'Save Options'}</Button>
             </div>
           </div>
         </DialogContent>

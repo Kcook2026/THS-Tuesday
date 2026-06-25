@@ -21,6 +21,7 @@ import ItemDetailDrawer from '@/components/workboards/ItemDetailDrawer';
 import GroupTable from '@/components/workboards/GroupTable';
 import KanbanBoard from '@/components/workboards/KanbanBoard';
 import CalendarView from '@/components/workboards/CalendarView';
+import { useItemValues } from '@/hooks/useItemValues';
 import {
   Plus, Search, Settings, Archive, Trash2, Save, X, Tag,
   LayoutList, LayoutGrid, Calendar as CalendarIcon
@@ -50,9 +51,23 @@ export default function WorkboardDetail() {
   const [isCreating, setIsCreating] = useState(false);
   const [showBoardSettings, setShowBoardSettings] = useState(false);
   const [columns, setColumns] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [showItemDetail, setShowItemDetail] = useState(false);
   const [activeView, setActiveView] = useState('list');
+  const { getValue, saveValue } = useItemValues(id, currentWorkspaceId);
+  const [cardFields, setCardFields] = useState(() => {
+    try {
+      const stored = localStorage.getItem(`tuesday_kanban_fields_${id}`);
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return ['owner', 'status', 'priority', 'due_date'];
+  });
+
+  const handleCardFieldsChange = (newFields) => {
+    setCardFields(newFields);
+    localStorage.setItem(`tuesday_kanban_fields_${id}`, JSON.stringify(newFields));
+  };
   const [visibleColumns, setVisibleColumns] = useState(() => {
     try {
       const stored = localStorage.getItem(`tuesday_wb_cols_${id}`);
@@ -69,7 +84,7 @@ export default function WorkboardDetail() {
     setLoading(true);
 
     try {
-      const [b, g, s, p, i, u, me, cols] = await Promise.all([
+      const [b, g, s, p, i, u, me, cols, t] = await Promise.all([
         base44.entities.Workboard.get(id),
         base44.entities.BoardGroup.filter({ workboard: id, archived: false }),
         base44.entities.StatusOption.filter({ workboard: id }),
@@ -78,6 +93,7 @@ export default function WorkboardDetail() {
         base44.entities.User.list(),
         base44.auth.me(),
         base44.entities.BoardColumn.filter({ workboard: id }).catch(() => []),
+        base44.entities.Team.filter({ workspace: currentWorkspaceId }).catch(() => []),
       ]);
 
       setBoard(b);
@@ -88,6 +104,7 @@ export default function WorkboardDetail() {
       setUsers(u);
       setUser(me);
       setColumns(cols);
+      setTeams(t);
     } catch (error) {
       toast({ title: 'Error loading board', description: error.message, variant: 'destructive', duration: 6000 });
     } finally {
@@ -280,10 +297,20 @@ export default function WorkboardDetail() {
     localStorage.setItem(`tuesday_wb_cols_${id}`, JSON.stringify(newVis));
   };
 
-  const filteredItems = items.filter(item => {
-    if (search && !item.title.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  // Enrich items with sub-item counts for Kanban display
+  const subItemCountMap = items.reduce((acc, item) => {
+    if (item.parent_item) {
+      acc[item.parent_item] = (acc[item.parent_item] || 0) + 1;
+    }
+    return acc;
+  }, {});
+
+  const filteredItems = items
+    .filter(item => {
+      if (search && !item.title.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    })
+    .map(item => ({ ...item, _subItemCount: subItemCountMap[item.id] || 0 }));
 
   if (loading) return <LoadingSpinner />;
   if (!board) return <div className="py-16 text-center text-muted-foreground"><h2 className="text-lg font-semibold">Board not found</h2></div>;
@@ -483,7 +510,11 @@ export default function WorkboardDetail() {
                   statusOptions={statusOptions}
                   priorityOptions={priorityOptions}
                   users={users}
+                  teams={teams}
                   visibleColumns={visibleColumns}
+                  columns={columns}
+                  getValue={getValue}
+                  saveValue={saveValue}
                   canEdit={canEdit}
                   canCreate={canCreate}
                   canDelete={canDelete}
@@ -511,7 +542,11 @@ export default function WorkboardDetail() {
                       {visibleColumns?.status !== false && <TableHead className="min-w-[120px]">Status</TableHead>}
                       {visibleColumns?.priority !== false && <TableHead className="min-w-[120px]">Priority</TableHead>}
                       {visibleColumns?.due_date !== false && <TableHead className="min-w-[120px]">Due Date</TableHead>}
-                      {visibleColumns?.progress_percentage !== false && <TableHead className="min-w-[120px]">Progress</TableHead>}
+                      {visibleColumns?.progress_percentage !== false && <TableHead className="min-w-[120px]">Progress</TableHead>
+                      }
+                      {columns.filter(c => !c.hidden).map(column => (
+                        <TableHead key={column.id} style={{ minWidth: column.width || 200 }}>{column.name}</TableHead>
+                      ))}
                       <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -552,6 +587,11 @@ export default function WorkboardDetail() {
             items={filteredItems}
             statusOptions={statusOptions}
             users={users}
+            teams={teams}
+            columns={columns}
+            cardFields={cardFields}
+            onCardFieldsChange={handleCardFieldsChange}
+            getValue={getValue}
             canEdit={canEdit}
             canDelete={canDelete}
             onAddItem={(groupId) => { setNewItemGroup(groupId); setShowNewItem(true); }}
