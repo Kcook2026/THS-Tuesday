@@ -22,6 +22,7 @@ import { useWorkspace } from '@/lib/WorkspaceContext';
 import usePermissions from '@/hooks/usePermissions';
 import MembersDrawer from '@/components/workboards/MembersDrawer';
 import ColumnManager from '@/components/workboards/ColumnManager';
+import ItemDetailDrawer from '@/components/workboards/ItemDetailDrawer';
 import { STATUS_COLORS, PRIORITY_COLORS } from '@/components/workboards/WorkboardConstants';
 import { getUserInitials } from '@/lib/userHelpers';
 
@@ -49,6 +50,8 @@ export default function WorkboardDetail() {
   const [editingCell, setEditingCell] = useState(null);
   const [showBoardSettings, setShowBoardSettings] = useState(false);
   const [columns, setColumns] = useState([]);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [showItemDetail, setShowItemDetail] = useState(false);
 
   const isLoadingRef = useRef(false);
 
@@ -245,6 +248,15 @@ export default function WorkboardDetail() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleItemClick = (item) => {
+    setSelectedItem(item);
+    setShowItemDetail(true);
+  };
+
+  const handleItemUpdate = (updatedItem) => {
+    setItems(prev => prev.map(it => it.id === updatedItem.id ? { ...it, ...updatedItem } : it));
   };
 
   const renderInlineEdit = (item, field) => {
@@ -497,14 +509,19 @@ export default function WorkboardDetail() {
                           <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground text-sm">No items in this group</TableCell></TableRow>
                         ) : (
                           groupItems.map(item => (
-                            <TableRow key={item.id} className="hover:bg-accent/50">
-                              <TableCell className="font-medium">{item.title}</TableCell>
-                              <TableCell>{canEdit ? renderInlineEdit(item, 'owner') : renderCell(item, 'owner')}</TableCell>
-                              <TableCell>{canEdit ? renderInlineEdit(item, 'status') : renderCell(item, 'status')}</TableCell>
-                              <TableCell>{canEdit ? renderInlineEdit(item, 'priority') : renderCell(item, 'priority')}</TableCell>
-                              <TableCell>{canEdit ? renderInlineEdit(item, 'due_date') : renderCell(item, 'due_date')}</TableCell>
-                              <TableCell>{canEdit ? renderInlineEdit(item, 'progress_percentage') : renderCell(item, 'progress_percentage')}</TableCell>
-                              <TableCell>
+                            <TableRow key={item.id} className="hover:bg-accent/50 cursor-pointer" onClick={() => handleItemClick(item)}>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
+                                  {item.title}
+                                </div>
+                              </TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'owner') : renderCell(item, 'owner')}</TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'status') : renderCell(item, 'status')}</TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'priority') : renderCell(item, 'priority')}</TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'due_date') : renderCell(item, 'due_date')}</TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'progress_percentage') : renderCell(item, 'progress_percentage')}</TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>
                                 {canDelete && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}><Trash2 className="w-3.5 h-3.5" /></Button>}
                               </TableCell>
                             </TableRow>
@@ -545,14 +562,19 @@ export default function WorkboardDetail() {
                   </TableRow>
                 ) : (
                   filteredItems.map(item => (
-                    <TableRow key={item.id} className="hover:bg-accent/50">
-                      <TableCell className="font-medium">{item.title}</TableCell>
-                      <TableCell>{canEdit ? renderInlineEdit(item, 'owner') : renderCell(item, 'owner')}</TableCell>
-                      <TableCell>{canEdit ? renderInlineEdit(item, 'status') : renderCell(item, 'status')}</TableCell>
-                      <TableCell>{canEdit ? renderInlineEdit(item, 'priority') : renderCell(item, 'priority')}</TableCell>
-                      <TableCell>{canEdit ? renderInlineEdit(item, 'due_date') : renderCell(item, 'due_date')}</TableCell>
-                      <TableCell>{canEdit ? renderInlineEdit(item, 'progress_percentage') : renderCell(item, 'progress_percentage')}</TableCell>
-                      <TableCell>
+                    <TableRow key={item.id} className="hover:bg-accent/50 cursor-pointer" onClick={() => handleItemClick(item)}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
+                          {item.title}
+                        </div>
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'owner') : renderCell(item, 'owner')}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'status') : renderCell(item, 'status')}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'priority') : renderCell(item, 'priority')}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'due_date') : renderCell(item, 'due_date')}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'progress_percentage') : renderCell(item, 'progress_percentage')}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         {canDelete && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}><Trash2 className="w-3.5 h-3.5" /></Button>}
                       </TableCell>
                     </TableRow>
@@ -562,6 +584,21 @@ export default function WorkboardDetail() {
             </Table>
           </div>
         </div>
+      )}
+
+      {/* Item Detail Drawer */}
+      {selectedItem && (
+        <ItemDetailDrawer
+          item={selectedItem}
+          boardId={id}
+          workspaceId={currentWorkspaceId}
+          isOpen={showItemDetail}
+          onClose={() => {
+            setShowItemDetail(false);
+            setSelectedItem(null);
+          }}
+          onUpdate={handleItemUpdate}
+        />
       )}
     </div>
   );
