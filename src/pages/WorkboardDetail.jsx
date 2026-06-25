@@ -317,11 +317,23 @@ export default function WorkboardDetail() {
       if (!item) return;
       const targetGroupItems = items.filter(i => i.group === targetGroupId && !i.parent_item);
       const newSortOrder = targetGroupItems.length;
+      const subItems = items.filter(i => i.parent_item === itemId);
+
       await base44.entities.WorkboardItem.update(itemId, {
         group: targetGroupId,
         sort_order: newSortOrder,
       });
-      setItems(prev => prev.map(i => i.id === itemId ? { ...i, group: targetGroupId, sort_order: newSortOrder } : i));
+      if (subItems.length > 0) {
+        await Promise.all(
+          subItems.map(s => base44.entities.WorkboardItem.update(s.id, { group: targetGroupId }))
+        );
+      }
+
+      setItems(prev => prev.map(i => {
+        if (i.id === itemId) return { ...i, group: targetGroupId, sort_order: newSortOrder };
+        if (i.parent_item === itemId) return { ...i, group: targetGroupId };
+        return i;
+      }));
       toast({ title: 'Item moved', duration: 2000 });
     } catch (error) {
       toast({ title: 'Failed to move item', description: error.message, variant: 'destructive', duration: 5000 });

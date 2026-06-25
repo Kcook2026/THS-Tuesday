@@ -32,30 +32,24 @@ export default function BoardListDnd({
   const collisionDetection = (args) => {
     const { active, droppableContainers } = args;
     const activeType = active.data.current?.type;
+    const all = Array.from(droppableContainers);
 
-    let filtered = droppableContainers;
+    let filtered = all;
     if (activeType === 'item') {
-      // Items can only be dropped on other items (reorder/cross-group) or group-drop zones (empty groups)
-      filtered = droppableContainers.filter(c => {
+      filtered = all.filter(c => {
         const t = c.data.current?.type;
         return t === 'item' || t === 'group-drop';
       });
     } else if (activeType === 'subitem') {
-      // Sub-items can only be dropped on other sub-items (reorder/cross-parent) or main items (reparent)
-      filtered = droppableContainers.filter(c => {
+      filtered = all.filter(c => {
         const t = c.data.current?.type;
         return t === 'item' || t === 'subitem';
       });
     } else if (activeType === 'group') {
-      // Groups can only be dropped on other groups
-      filtered = droppableContainers.filter(c => c.data.current?.type === 'group');
+      filtered = all.filter(c => c.data.current?.type === 'group');
     }
 
-    if (filtered.length === 0) {
-      filtered = droppableContainers;
-    }
-
-    return closestCorners({ ...args, droppableContainers: filtered });
+    return closestCorners({ ...args, droppableContainers: filtered.length ? filtered : all });
   };
 
   const handleDragEnd = (event) => {

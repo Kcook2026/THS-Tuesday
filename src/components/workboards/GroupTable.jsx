@@ -62,7 +62,9 @@ export default function GroupTable({
 
   const COLOR_OPTIONS = ['gray', 'blue', 'green', 'red', 'yellow', 'orange', 'purple'];
 
-  const mainItems = items.filter(i => !i.parent_item);
+  const mainItems = items
+    .filter(i => !i.parent_item)
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   const subItemsByParent = items.reduce((acc, i) => {
     if (i.parent_item) {
       if (!acc[i.parent_item]) acc[i.parent_item] = [];
@@ -70,6 +72,9 @@ export default function GroupTable({
     }
     return acc;
   }, {});
+  Object.values(subItemsByParent).forEach(subs =>
+    subs.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+  );
 
   const colorClass = GROUP_COLOR_CLASSES[group.color] || 'bg-gray-500';
   const visibleCustomColumns = (columns || []).filter(c => !c.hidden).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
