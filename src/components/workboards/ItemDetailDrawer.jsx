@@ -302,6 +302,7 @@ export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, o
                   priority: 'Medium',
                   priority_color: 'yellow',
                   progress_percentage: 0,
+                  sort_order: subItems.length,
                   archived: false,
                 });
                 setSubItems(prev => [...prev, savedSub]);

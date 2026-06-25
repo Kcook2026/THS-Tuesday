@@ -222,7 +222,7 @@ export default function WorkboardDetail() {
         priority: defaultPriority?.label || 'Medium',
         priority_color: defaultPriority?.color || 'yellow',
         progress_percentage: 0,
-        sort_order: items.length,
+        sort_order: items.filter(i => i.group === selectedGroup.id && !i.parent_item).length,
         created_by: user?.id,
         archived: false,
       };
@@ -246,15 +246,20 @@ export default function WorkboardDetail() {
   const handleDeleteItem = async (item) => {
     const ok = await confirm({
       title: 'Delete Item?',
-      message: `Are you sure you want to delete "${item.title}"? This action cannot be undone.`,
+      message: `Are you sure you want to delete "${item.title}"?${item.parent_item ? '' : ' All sub-items will also be deleted.'} This action cannot be undone.`,
       confirmLabel: 'Delete',
     });
     if (!ok) return;
 
     setSaving(true);
     try {
+      // Delete sub-items first (if this is a main item)
+      const subItems = items.filter(i => i.parent_item === item.id);
+      if (subItems.length > 0) {
+        await Promise.all(subItems.map(s => base44.entities.WorkboardItem.delete(s.id)));
+      }
       await base44.entities.WorkboardItem.delete(item.id);
-      setItems(prev => prev.filter(i => i.id !== item.id));
+      setItems(prev => prev.filter(i => i.id !== item.id && i.parent_item !== item.id));
       toast({ title: 'Item deleted', duration: 2000 });
     } catch (error) {
       toast({ title: 'Failed to delete item', description: error.message, variant: 'destructive', duration: 5000 });

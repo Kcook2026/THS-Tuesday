@@ -148,6 +148,7 @@ export default function GroupTable({
       const parent = items.find(i => i.id === parentId);
       if (!parent) return;
 
+      const existingSubs = items.filter(i => i.parent_item === parentId);
       const savedSub = await base44.entities.WorkboardItem.create({
         title: subItemTitle.trim(),
         workspace: parent.workspace,
@@ -160,6 +161,7 @@ export default function GroupTable({
         priority: 'Medium',
         priority_color: 'yellow',
         progress_percentage: 0,
+        sort_order: existingSubs.length,
         created_by: parent.created_by,
         archived: false,
       });
@@ -207,7 +209,8 @@ export default function GroupTable({
     setSaving(true);
     try {
       await base44.entities.BoardGroup.update(group.id, { archived: true });
-      for (const item of mainItems) {
+      // Archive ALL items in the group (main items AND sub-items)
+      for (const item of items) {
         await base44.entities.WorkboardItem.update(item.id, { archived: true });
       }
       onArchiveGroup?.(group.id);
