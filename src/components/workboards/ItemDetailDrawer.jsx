@@ -27,11 +27,11 @@ import ActivitySection from './ActivitySection';
 import WatchersSection from './WatchersSection';
 import usePermissions from '@/hooks/usePermissions';
 
-export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, onClose, onUpdate }) {
+export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, onClose, onUpdate, initialTab = 'overview' }) {
   const { user, currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
   const permissions = usePermissions();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [editingField, setEditingField] = useState(null);
   const [localItem, setLocalItem] = useState(item);
   const [users, setUsers] = useState([]);
@@ -44,10 +44,10 @@ export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, o
   useEffect(() => {
     if (isOpen && item) {
       setLocalItem(item);
-      setActiveTab('overview');
+      setActiveTab(initialTab || 'overview');
       loadBoardData();
     }
-  }, [isOpen, item]);
+  }, [isOpen, item, initialTab]);
 
   const loadBoardData = async () => {
     try {

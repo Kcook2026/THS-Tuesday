@@ -64,6 +64,7 @@ export default function WorkboardDetail() {
   const [columns, setColumns] = useState([]);
   const [teams, setTeams] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedItemTab, setSelectedItemTab] = useState('overview');
   const [showItemDetail, setShowItemDetail] = useState(false);
   const [activeView, setActiveView] = useState('list');
   const [boardMembers, setBoardMembers] = useState([]);
@@ -111,8 +112,7 @@ export default function WorkboardDetail() {
 
       // Load comment counts for each item (for Updates column)
       const commentCounts = {};
-      const itemsWithComments = i.filter(item => !item.parent_item);
-      for (const item of itemsWithComments) {
+      for (const item of i) {
         try {
           const comments = await base44.entities.Comment.filter({
             record_type: 'WorkboardItem',
@@ -292,7 +292,8 @@ export default function WorkboardDetail() {
   const handleItemClick = (item, tab = 'overview') => {
     setSelectedItem(item);
     setShowItemDetail(true);
-    // Future: could set active tab in drawer
+    // Store active tab preference for this item
+    setSelectedItemTab(tab);
   };
 
   const handleItemUpdateById = (itemId, updateData) => {
@@ -615,21 +616,38 @@ export default function WorkboardDetail() {
 
   // Log activity for item changes
   const logActivity = async (action, beforeValue, afterValue, recordId) => {
+    if (!user) return;
     try {
       await base44.entities.Activity.create({
         workspace: currentWorkspaceId,
         workboard: id,
         record_type: 'WorkboardItem',
         record_id: recordId,
-        user: user?.id,
-        user_name: user?.full_name || user?.email || 'User',
+        user: user.id,
+        user_name: user.full_name || user.email || 'User',
         action,
         before_value: beforeValue || '',
         after_value: afterValue || '',
         created_date: new Date().toISOString(),
-      }).catch(() => {});
+      });
     } catch (err) {
       console.error('Failed to log activity:', err);
+    }
+  };
+
+  // Log activity when status/priority/owner changes
+  const handleItemUpdateWithLogging = async (itemId, updateData, fieldName, actionName) => {
+    const oldItem = items.find(i => i.id === itemId);
+    if (!oldItem) return;
+    
+    const beforeValue = oldItem[fieldName];
+    const afterValue = updateData[fieldName];
+    
+    await base44.entities.WorkboardItem.update(itemId, updateData);
+    setItems(prev => prev.map(i => i.id === itemId ? { ...i, ...updateData } : i));
+    
+    if (beforeValue !== afterValue) {
+      await logActivity(`${fieldName} changed`, beforeValue, afterValue, itemId);
     }
   };
 
@@ -1010,8 +1028,10 @@ export default function WorkboardDetail() {
           onClose={() => {
             setShowItemDetail(false);
             setSelectedItem(null);
+            setSelectedItemTab('overview');
           }}
           onUpdate={(updatedItem) => handleItemUpdateById(updatedItem.id, updatedItem)}
+          initialTab={selectedItemTab}
         />
       )}
 

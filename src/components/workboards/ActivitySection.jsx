@@ -18,6 +18,7 @@ export default function ActivitySection({ item, boardId, workspaceId, users }) {
       const activityList = await base44.entities.Activity.filter({
         record_type: 'WorkboardItem',
         record_id: item.id,
+        workspace: workspaceId,
       }, '-created_date', 50);
       setActivities(activityList || []);
     } catch (error) {
