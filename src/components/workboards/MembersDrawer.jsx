@@ -164,6 +164,23 @@ export default function MembersDrawer({ workboardId, wb }) {
     }
   };
 
+  const handleTransferOwnership = async (memberId) => {
+    const targetMember = members.find(m => m.id === memberId);
+    if (!targetMember) return;
+    if (!confirm(`Transfer ownership to ${targetMember.user_name || targetMember.user_email || 'this user'}?`)) return;
+    try {
+      const currentOwners = members.filter(m => m.role === 'workboard_owner' && m.status === 'active');
+      await Promise.all([
+        ...currentOwners.map(o => base44.entities.WorkboardMember.update(o.id, { role: 'workboard_editor' })),
+        base44.entities.WorkboardMember.update(memberId, { role: 'workboard_owner' }),
+      ]);
+      toast({ title: 'Ownership transferred', duration: 2000 });
+      await loadMembers();
+    } catch (error) {
+      toast({ title: 'Failed to transfer ownership', description: error.message, variant: 'destructive', duration: 5000 });
+    }
+  };
+
   const confirmRemove = (member) => {
     setMemberToDelete(member);
     setShowDeleteConfirm(true);
@@ -171,9 +188,9 @@ export default function MembersDrawer({ workboardId, wb }) {
 
   const handleRemove = async () => {
     if (!memberToDelete) return;
-    const owners = members.filter(m => m.role === 'workboard_owner');
+    const owners = members.filter(m => m.role === 'workboard_owner' && m.status === 'active');
     if (memberToDelete.role === 'workboard_owner' && owners.length <= 1) {
-      toast({ title: 'Cannot remove owner', description: 'The board must have at least one owner', variant: 'destructive', duration: 5000 });
+      toast({ title: 'Cannot remove owner', description: 'The board must have at least one owner. Transfer ownership first.', variant: 'destructive', duration: 5000 });
       setShowDeleteConfirm(false);
       setMemberToDelete(null);
       return;
@@ -316,6 +333,10 @@ export default function MembersDrawer({ workboardId, wb }) {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleChangeRole(member.id, 'workboard_viewer')}>
                               Viewer
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleTransferOwnership(member.id)}>
+                              <Shield className="w-3.5 h-3.5 mr-2" />
+                              Transfer Ownership
                             </DropdownMenuItem>
                             {member.user !== user.id && (
                               <DropdownMenuItem 

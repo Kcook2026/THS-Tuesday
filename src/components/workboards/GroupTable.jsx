@@ -10,13 +10,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from '@/components/ui/use-toast';
 import {
   Plus, MoreHorizontal, ChevronRight, ChevronDown, Trash2,
-  Pencil, ExternalLink, Archive,
+  Pencil, ExternalLink, Archive, ArrowUp, ArrowDown, Palette,
 } from 'lucide-react';
 import { STATUS_COLORS, PRIORITY_COLORS, GROUP_COLOR_CLASSES } from './WorkboardConstants';
 import { getUserInitials } from '@/lib/userHelpers';
 
 export default function GroupTable({
   group,
+  groupIndex,
+  totalGroups,
   items,
   statusOptions,
   priorityOptions,
@@ -31,6 +33,9 @@ export default function GroupTable({
   onAddItem,
   onRenameGroup,
   onArchiveGroup,
+  onDeleteGroup,
+  onGroupColorChange,
+  onGroupReorder,
 }) {
   const { toast } = useToast();
   const [collapsed, setCollapsed] = useState(group.collapsed || false);
@@ -41,6 +46,9 @@ export default function GroupTable({
   const [saving, setSaving] = useState(false);
   const [addingSubItem, setAddingSubItem] = useState(null);
   const [subItemTitle, setSubItemTitle] = useState('');
+  const [showColorPicker, setShowColorPicker] = useState(false);
+
+  const COLOR_OPTIONS = ['gray', 'blue', 'green', 'red', 'yellow', 'orange', 'purple'];
 
   const mainItems = items.filter(i => !i.parent_item);
   const subItemsByParent = items.reduce((acc, i) => {
@@ -160,6 +168,36 @@ export default function GroupTable({
       toast({ title: 'Group archived', duration: 2000 });
     } catch (error) {
       toast({ title: 'Failed to archive group', description: error.message, variant: 'destructive', duration: 5000 });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!confirm(`Permanently delete group "${group.name}" and all its items?`)) return;
+    setSaving(true);
+    try {
+      for (const item of items) {
+        await base44.entities.WorkboardItem.delete(item.id);
+      }
+      await base44.entities.BoardGroup.delete(group.id);
+      onDeleteGroup?.(group.id);
+      toast({ title: 'Group deleted', duration: 2000 });
+    } catch (error) {
+      toast({ title: 'Failed to delete group', description: error.message, variant: 'destructive', duration: 5000 });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleColorChange = async (newColor) => {
+    setSaving(true);
+    try {
+      await base44.entities.BoardGroup.update(group.id, { color: newColor });
+      onGroupColorChange?.(group.id, newColor);
+      setShowColorPicker(false);
+    } catch (error) {
+      toast({ title: 'Failed to change color', description: error.message, variant: 'destructive', duration: 5000 });
     } finally {
       setSaving(false);
     }
@@ -441,17 +479,42 @@ export default function GroupTable({
               <DropdownMenuItem onClick={() => setRenaming(true)}>
                 <Pencil className="w-3.5 h-3.5 mr-2" /> Rename
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowColorPicker(!showColorPicker)}>
+                <Palette className="w-3.5 h-3.5 mr-2" /> Change Color
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleToggleCollapse}>
                 {collapsed ? <ChevronDown className="w-3.5 h-3.5 mr-2" /> : <ChevronRight className="w-3.5 h-3.5 mr-2" />}
                 {collapsed ? 'Expand' : 'Collapse'}
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onGroupReorder?.(group.id, -1)} disabled={groupIndex === 0 || saving}>
+                <ArrowUp className="w-3.5 h-3.5 mr-2" /> Move Up
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onGroupReorder?.(group.id, 1)} disabled={groupIndex === totalGroups - 1 || saving}>
+                <ArrowDown className="w-3.5 h-3.5 mr-2" /> Move Down
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleArchiveGroup} className="text-destructive">
                 <Archive className="w-3.5 h-3.5 mr-2" /> Archive
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDeleteGroup} className="text-destructive">
+                <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
       </div>
+
+      {/* Color Picker */}
+      {showColorPicker && (
+        <div className="flex items-center gap-2 pl-8 py-1">
+          {COLOR_OPTIONS.map(c => (
+            <button
+              key={c}
+              className={`w-5 h-5 rounded-full ${GROUP_COLOR_CLASSES[c]} ${group.color === c ? 'ring-2 ring-offset-2 ring-primary' : ''}`}
+              onClick={() => handleColorChange(c)}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Table */}
       {!collapsed && (

@@ -16,12 +16,13 @@ import { useWorkspace } from '@/lib/WorkspaceContext';
 import usePermissions from '@/hooks/usePermissions';
 import MembersDrawer from '@/components/workboards/MembersDrawer';
 import ColumnManager from '@/components/workboards/ColumnManager';
+import StatusPriorityManager from '@/components/workboards/StatusPriorityManager';
 import ItemDetailDrawer from '@/components/workboards/ItemDetailDrawer';
 import GroupTable from '@/components/workboards/GroupTable';
 import KanbanBoard from '@/components/workboards/KanbanBoard';
 import CalendarView from '@/components/workboards/CalendarView';
 import {
-  Plus, Search, Settings, Archive, Trash2, Save, X,
+  Plus, Search, Settings, Archive, Trash2, Save, X, Tag,
   LayoutList, LayoutGrid, Calendar as CalendarIcon
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -250,6 +251,30 @@ export default function WorkboardDetail() {
     setItems(prev => prev.filter(i => i.group !== groupId));
   };
 
+  const handleDeleteGroup = (groupId) => {
+    setGroups(prev => prev.filter(g => g.id !== groupId));
+    setItems(prev => prev.filter(i => i.group !== groupId));
+  };
+
+  const handleGroupColorChange = (groupId, newColor) => {
+    setGroups(prev => prev.map(g => g.id === groupId ? { ...g, color: newColor } : g));
+  };
+
+  const handleGroupReorder = async (groupId, direction) => {
+    const sorted = [...groups];
+    const index = sorted.findIndex(g => g.id === groupId);
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= sorted.length) return;
+    [sorted[index], sorted[newIndex]] = [sorted[newIndex], sorted[index]];
+    const reordered = sorted.map((g, i) => ({ ...g, sort_order: i }));
+    setGroups(reordered);
+    try {
+      await Promise.all(reordered.map((g, i) => base44.entities.BoardGroup.update(g.id, { sort_order: i })));
+    } catch (error) {
+      toast({ title: 'Failed to persist group order', description: error.message, variant: 'destructive', duration: 5000 });
+    }
+  };
+
   const handleVisibleColumnsChange = (newVis) => {
     setVisibleColumns(newVis);
     localStorage.setItem(`tuesday_wb_cols_${id}`, JSON.stringify(newVis));
@@ -279,6 +304,20 @@ export default function WorkboardDetail() {
         </div>
         <div className="flex gap-2">
           <MembersDrawer workboardId={id} wb={board} />
+          <StatusPriorityManager
+            boardId={id}
+            workspaceId={currentWorkspaceId}
+            statusOptions={statusOptions}
+            priorityOptions={priorityOptions}
+            onStatusOptionsChange={setStatusOptions}
+            onPriorityOptionsChange={setPriorityOptions}
+            trigger={
+              <Button variant="outline" size="sm">
+                <Tag className="w-4 h-4 mr-1.5" />
+                Labels
+              </Button>
+            }
+          />
           <ColumnManager
             boardId={id}
             workspaceId={currentWorkspaceId}
@@ -434,6 +473,8 @@ export default function WorkboardDetail() {
                 <GroupTable
                   key={group.id}
                   group={group}
+                  groupIndex={groups.findIndex(g => g.id === group.id)}
+                  totalGroups={groups.length}
                   items={filteredItems.filter(i => i.group === group.id)}
                   statusOptions={statusOptions}
                   priorityOptions={priorityOptions}
@@ -448,6 +489,9 @@ export default function WorkboardDetail() {
                   onAddItem={(groupId) => { setNewItemGroup(groupId); setShowNewItem(true); }}
                   onRenameGroup={handleRenameGroup}
                   onArchiveGroup={handleArchiveGroup}
+                  onDeleteGroup={handleDeleteGroup}
+                  onGroupColorChange={handleGroupColorChange}
+                  onGroupReorder={handleGroupReorder}
                 />
               ))}
             </div>

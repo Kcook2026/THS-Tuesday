@@ -1,111 +1,247 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useWorkspace } from '@/lib/WorkspaceContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
-import { Send, AtSign } from 'lucide-react';
+import { Send, Trash2, Pencil, AtSign } from 'lucide-react';
 import { getUserInitials } from '@/lib/userHelpers';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-export default function UpdatesSection({ itemId, boardId }) {
-  const { user } = useWorkspace();
+export default function UpdatesSection({ item, boardId, users }) {
   const { toast } = useToast();
-  const [updates, setUpdates] = useState([]);
-  const [newUpdate, setNewUpdate] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newComment, setNewComment] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState('');
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const textareaRef = useRef(null);
 
-  const loadUpdates = async () => {
-    try {
-      // For now, load comments - will implement Comment entity
-      setUpdates([]);
-    } catch (error) {
-      console.error('Error loading updates:', error);
-    }
-  };
+  useEffect(() => {
+    loadComments();
+  }, [item?.id]);
 
-  const handlePostUpdate = async () => {
-    if (!newUpdate.trim()) return;
-    
-    setLoading(true);
+  const loadComments = async () => {
+    if (!item?.id) return;
     try {
-      // Create comment/update
-      toast({ 
-        title: 'Update posted', 
-        description: 'Comment system coming soon',
-        duration: 3000 
-      });
-      setNewUpdate('');
-      loadUpdates();
+      const data = await base44.entities.Comment.filter({
+        record_type: 'WorkboardItem',
+        record_id: item.id,
+      }, '-created_date');
+      setComments(data);
     } catch (error) {
-      toast({ title: 'Failed to post update', description: error.message, variant: 'destructive', duration: 5000 });
+      console.error('Error loading comments:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="space-y-4">
-      <h3 className="font-semibold">Updates</h3>
-      
-      {/* Post Update */}
-      <div className="flex gap-3">
-        <Avatar className="w-8 h-8">
-          <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
-            {getUserInitials(user)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 space-y-2">
-          <Textarea
-            value={newUpdate}
-            onChange={(e) => setNewUpdate(e.target.value)}
-            placeholder="Write an update... use @ to mention teammates"
-            rows={3}
-          />
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="h-8">
-                <AtSign className="w-4 h-4 mr-1" />
-                Mention
-              </Button>
-            </div>
-            <Button onClick={handlePostUpdate} disabled={loading || !newUpdate.trim()} size="sm">
-              <Send className="w-4 h-4 mr-2" />
-              Post
-            </Button>
-          </div>
-        </div>
-      </div>
+  const handleAdd = async () => {
+    if (!newComment.trim() || saving) return;
+    setSaving(true);
+    try {
+      const me = await base44.auth.me();
+      const comment = await base44.entities.Comment.create({
+        body: newComment.trim(),
+        record_type: 'WorkboardItem',
+        record_id: item.id,
+        workspace: item.workspace,
+        user: me.id,
+        user_name: me.full_name || me.email || 'Unassigned',
+        mentions: [],
+      });
+      setComments(prev => [comment, ...prev]);
+      setNewComment('');
+      toast({ title: 'Comment posted', duration: 2000 });
+    } catch (error) {
+      toast({ title: 'Failed to post comment', description: error.message, variant: 'destructive', duration: 5000 });
+    } finally {
+      setSaving(false);
+    }
+  };
 
-      {/* Updates List */}
-      <div className="space-y-3">
-        {updates.length === 0 ? (
-          <div className="text-center text-sm text-muted-foreground py-8">
-            <p>No updates yet</p>
-            <p className="text-xs mt-1">Be the first to post an update</p>
-          </div>
-        ) : (
-          updates.map(update => (
-            <div key={update.id} className="flex gap-3">
-              <Avatar className="w-8 h-8">
-                <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
-                  {getUserInitials(update.user)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">{update.user_name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(update.created_date).toLocaleDateString()}
-                  </span>
+  const handleEdit = async (commentId) => {
+    if (!editText.trim() || saving) return;
+    setSaving(true);
+    try {
+      await base44.entities.Comment.update(commentId, { body: editText.trim() });
+      setComments(prev => prev.map(c => c.id === commentId ? { ...c, body: editText.trim() } : c));
+      setEditingId(null);
+      toast({ title: 'Comment updated', duration: 2000 });
+    } catch (error) {
+      toast({ title: 'Failed to update', description: error.message, variant: 'destructive', duration: 5000 });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (commentId) => {
+    if (!confirm('Delete this comment?')) return;
+    setSaving(true);
+    try {
+      await base44.entities.Comment.delete(commentId);
+      setComments(prev => prev.filter(c => c.id !== commentId));
+      toast({ title: 'Comment deleted', duration: 2000 });
+    } catch (error) {
+      toast({ title: 'Failed to delete', description: error.message, variant: 'destructive', duration: 5000 });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleMentionInsert = (user) => {
+    const cursorPos = textareaRef.current?.selectionStart || newComment.length;
+    const before = newComment.substring(0, cursorPos);
+    const after = newComment.substring(cursorPos);
+    const lastAtIndex = before.lastIndexOf('@');
+    const newBefore = lastAtIndex >= 0 ? before.substring(0, lastAtIndex) : before;
+    const mentionText = `@${user.full_name || user.email || 'User'} `;
+    setNewComment(newBefore + mentionText + after);
+    setShowMentions(false);
+    setMentionQuery('');
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  };
+
+  const handleCommentChange = (e) => {
+    const value = e.target.value;
+    setNewComment(value);
+    const cursorPos = e.target.selectionStart;
+    const before = value.substring(0, cursorPos);
+    const lastAtIndex = before.lastIndexOf('@');
+    if (lastAtIndex >= 0) {
+      const query = before.substring(lastAtIndex + 1);
+      if (!query.includes(' ')) {
+        setShowMentions(true);
+        setMentionQuery(query);
+        return;
+      }
+    }
+    setShowMentions(false);
+  };
+
+  const filteredMentionUsers = (users || []).filter(u => {
+    if (!mentionQuery) return true;
+    const name = (u.full_name || u.email || '').toLowerCase();
+    return name.includes(mentionQuery.toLowerCase());
+  });
+
+  const formatTimestamp = (date) => {
+    const d = new Date(date);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHr < 24) return `${diffHr}h ago`;
+    if (diffDay < 7) return `${diffDay}d ago`;
+    return d.toLocaleDateString('en', { month: 'short', day: 'numeric', year: diffDay > 365 ? 'numeric' : undefined });
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* New Comment */}
+      <div className="relative">
+        <Textarea
+          ref={textareaRef}
+          value={newComment}
+          onChange={handleCommentChange}
+          placeholder="Write an update... (type @ to mention someone)"
+          rows={3}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              handleAdd();
+            }
+          }}
+        />
+        {showMentions && filteredMentionUsers.length > 0 && (
+          <div className="absolute z-10 bottom-full mb-1 left-0 w-64 bg-popover border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            {filteredMentionUsers.slice(0, 5).map(u => (
+              <button
+                key={u.id}
+                className="flex items-center gap-2 w-full px-3 py-2 hover:bg-accent text-left text-sm"
+                onClick={() => handleMentionInsert(u)}
+              >
+                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
+                  {getUserInitials(u)}
                 </div>
-                <p className="text-sm">{update.content}</p>
-              </div>
-            </div>
-          ))
+                <span className="truncate">{u.full_name || u.email || 'Unassigned'}</span>
+              </button>
+            ))}
+          </div>
         )}
       </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">Press Cmd/Ctrl+Enter to post</span>
+        <Button size="sm" onClick={handleAdd} disabled={saving || !newComment.trim()}>
+          <Send className="w-3.5 h-3.5 mr-1.5" />
+          Post
+        </Button>
+      </div>
+
+      {/* Comments List */}
+      {loading ? (
+        <p className="text-center text-sm text-muted-foreground py-4">Loading...</p>
+      ) : comments.length === 0 ? (
+        <div className="text-center py-8">
+          <AtSign className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+          <p className="text-sm text-muted-foreground">No updates yet</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Start the conversation</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {comments.map(comment => (
+            <div key={comment.id} className="flex gap-3 p-3 border rounded-lg">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary shrink-0">
+                {getUserInitials({ full_name: comment.user_name })}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{comment.user_name || 'Unassigned'}</span>
+                  <span className="text-xs text-muted-foreground">{formatTimestamp(comment.created_date)}</span>
+                </div>
+                {editingId === comment.id ? (
+                  <div className="mt-1 space-y-2">
+                    <Textarea
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      rows={2}
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleEdit(comment.id); if (e.key === 'Escape') setEditingId(null); }}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => handleEdit(comment.id)} disabled={saving}>Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{comment.body}</p>
+                )}
+              </div>
+              {editingId !== comment.id && (
+                <div className="flex items-start gap-1">
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setEditingId(comment.id); setEditText(comment.body); }}>
+                    <Pencil className="w-3 h-3" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleDelete(comment.id)}>
+                    <Trash2 className="w-3 h-3 text-destructive" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
