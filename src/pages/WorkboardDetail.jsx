@@ -25,9 +25,10 @@ import { useItemValues } from '@/hooks/useItemValues';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
 import {
   Plus, Search, Settings, Archive, Trash2, Save, X, Tag,
-  LayoutList, LayoutGrid, Calendar as CalendarIcon, Copy, UserPlus, AlertTriangle
+  LayoutList, LayoutGrid, Calendar as CalendarIcon, Copy, UserPlus, AlertTriangle, GripVertical
 } from 'lucide-react';
 import DuplicateBoardDialog from '@/components/workboards/DuplicateBoardDialog';
+import AddGroupDialog from '@/components/workboards/AddGroupDialog';
 import { isOrphanedBoard, safeDeleteBoardData, assignBoardToMe } from '@/lib/boardLifecycle';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -55,6 +56,8 @@ export default function WorkboardDetail() {
   const [newItemGroup, setNewItemGroup] = useState('');
   const [saving, setSaving] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [showAddGroup, setShowAddGroup] = useState(false);
+  const [groupSaving, setGroupSaving] = useState(false);
   const [showBoardSettings, setShowBoardSettings] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [columns, setColumns] = useState([]);
@@ -352,12 +355,201 @@ export default function WorkboardDetail() {
       if (!subItem) return;
       const newParent = items.find(i => i.id === newParentId);
       if (!newParent) return;
+      const existingSubItems = items.filter(i => i.parent_item === newParentId && i.id !== subItemId);
+      const newSortOrder = existingSubItems.length;
       await base44.entities.WorkboardItem.update(subItemId, {
         parent_item: newParentId,
         group: newParent.group,
+        sort_order: newSortOrder,
       });
-      setItems(prev => prev.map(i => i.id === subItemId ? { ...i, parent_item: newParentId, group: newParent.group } : i));
+      setItems(prev => prev.map(i => i.id === subItemId ? { ...i, parent_item: newParentId, group: newParent.group, sort_order: newSortOrder } : i));
       toast({ title: 'Sub-item moved', duration: 2000 });
+    } catch (error) {
+      toast({ title: 'Failed to move sub-item', description: error.message, variant: 'destructive', duration: 5000 });
+    }
+  };
+
+  // === Custom Group Handlers ===
+  const handleCreateGroup = async (name, color) => {
+    setGroupSaving(true);
+    try {
+      const newGroup = await base44.entities.BoardGroup.create({
+        name,
+        color,
+        workspace: currentWorkspaceId,
+        workboard: id,
+        sort_order: groups.length,
+        archived: false,
+        created_by: user?.id,
+      });
+      setGroups(prev => [...prev, newGroup]);
+      toast({ title: 'Group created', duration: 2000 });
+      setShowAddGroup(false);
+    } catch (error) {
+      toast({ title: 'Failed to create group', description: error.message, variant: 'destructive', duration: 5000 });
+    } finally {
+      setGroupSaving(false);
+    }
+  };
+
+  const handleDuplicateGroup = async (groupId) => {
+    const original = groups.find(g => g.id === groupId);
+    if (!original) return;
+    try {
+      const newGroup = await base44.entities.BoardGroup.create({
+        name: `${original.name} (Copy)`,
+        color: original.color,
+        workspace: currentWorkspaceId,
+        workboard: id,
+        sort_order: groups.length,
+        archived: false,
+        created_by: user?.id,
+      });
+      setGroups(prev => [...prev, newGroup]);
+
+      const groupItems = items.filter(i => i.group === groupId && !i.parent_item);
+      for (const item of groupItems) {
+        const newItem = await base44.entities.WorkboardItem.create({
+          title: item.title,
+          workspace: currentWorkspaceId,
+          workboard: id,
+          group: newGroup.id,
+          item_type: item.item_type || 'main_item',
+          owner: item.owner,
+          status: item.status,
+          status_color: item.status_color,
+          priority: item.priority,
+          priority_color: item.priority_color,
+          progress_percentage: item.progress_percentage || 0,
+          sort_order: item.sort_order || 0,
+          tags: item.tags,
+          created_by: user?.id,
+          archived: false,
+        });
+        const subItems = items.filter(i => i.parent_item === item.id);
+        for (const sub of subItems) {
+          await base44.entities.WorkboardItem.create({
+            title: sub.title,
+            workspace: currentWorkspaceId,
+            workboard: id,
+            parent_item: newItem.id,
+            group: newGroup.id,
+            item_type: 'sub_item',
+            owner: sub.owner,
+            status: sub.status,
+            status_color: sub.status_color,
+            priority: sub.priority,
+            priority_color: sub.priority_color,
+            progress_percentage: sub.progress_percentage || 0,
+            sort_order: sub.sort_order || 0,
+            created_by: user?.id,
+            archived: false,
+          });
+        }
+      }
+      toast({ title: 'Group duplicated', duration: 2000 });
+      await load();
+    } catch (error) {
+      toast({ title: 'Failed to duplicate group', description: error.message, variant: 'destructive', duration: 5000 });
+    }
+  };
+
+  // === DnD Handlers ===
+  const handleGroupDragStart = (e, groupId) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'group', id: groupId }));
+  };
+
+  const handleGroupDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleGroupDrop = async (e, targetGroupId) => {
+    e.preventDefault();
+    try {
+      const raw = e.dataTransfer.getData('application/json');
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data.type !== 'group' || data.id === targetGroupId) return;
+      const draggedIndex = groups.findIndex(g => g.id === data.id);
+      const targetIndex = groups.findIndex(g => g.id === targetGroupId);
+      if (draggedIndex === -1 || targetIndex === -1) return;
+      const reordered = [...groups];
+      const [moved] = reordered.splice(draggedIndex, 1);
+      reordered.splice(targetIndex, 0, moved);
+      const updated = reordered.map((g, i) => ({ ...g, sort_order: i }));
+      setGroups(updated);
+      await Promise.all(updated.map((g, i) => base44.entities.BoardGroup.update(g.id, { sort_order: i })));
+      toast({ title: 'Groups reordered', duration: 2000 });
+    } catch (error) {
+      toast({ title: 'Failed to reorder groups', description: error.message, variant: 'destructive', duration: 5000 });
+    }
+  };
+
+  const handleItemDragStart = (e, itemId, sourceGroupId) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'item', id: itemId, sourceGroupId }));
+  };
+
+  const handleItemDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleItemDrop = async (e, targetGroupId) => {
+    e.preventDefault();
+    try {
+      const raw = e.dataTransfer.getData('application/json');
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data.type !== 'item') return;
+      if (data.sourceGroupId === targetGroupId) return;
+      await handleMoveItemToGroup(data.id, targetGroupId);
+    } catch (error) {
+      toast({ title: 'Failed to move item', description: error.message, variant: 'destructive', duration: 5000 });
+    }
+  };
+
+  const handleSubItemDragStart = (e, subItemId, sourceParentId) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'subitem', id: subItemId, sourceParentId }));
+  };
+
+  const handleSubItemDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleSubItemDrop = async (e, targetParentId, targetSubItemId) => {
+    e.preventDefault();
+    try {
+      const raw = e.dataTransfer.getData('application/json');
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data.type !== 'subitem') return;
+
+      if (data.sourceParentId === targetParentId) {
+        if (!targetSubItemId || targetSubItemId === data.id) return;
+        const parentSubItems = items
+          .filter(i => i.parent_item === targetParentId)
+          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+        const fromIndex = parentSubItems.findIndex(i => i.id === data.id);
+        const toIndex = parentSubItems.findIndex(i => i.id === targetSubItemId);
+        if (fromIndex === -1 || toIndex === -1) return;
+        const reordered = [...parentSubItems];
+        const [moved] = reordered.splice(fromIndex, 1);
+        reordered.splice(toIndex, 0, moved);
+        const updatedSortOrders = reordered.map((i, idx) => ({ id: i.id, sort_order: idx }));
+        setItems(prev => prev.map(i => {
+          const u = updatedSortOrders.find(x => x.id === i.id);
+          return u ? { ...i, sort_order: u.sort_order } : i;
+        }));
+        await Promise.all(updatedSortOrders.map(u => base44.entities.WorkboardItem.update(u.id, { sort_order: u.sort_order })));
+        toast({ title: 'Sub-items reordered', duration: 2000 });
+      } else {
+        await handleMoveSubItem(data.id, targetParentId);
+      }
     } catch (error) {
       toast({ title: 'Failed to move sub-item', description: error.message, variant: 'destructive', duration: 5000 });
     }
@@ -428,6 +620,7 @@ export default function WorkboardDetail() {
   const canCreate = permissions.isSystemAdmin || permissions.isExecutive || permissions.isManager || workboardPerms.canCreateItems;
   const canEdit = canCreate;
   const canDelete = workboardPerms.canDeleteItems || permissions.isSystemAdmin;
+  const canManageGroups = permissions.isSystemAdmin || permissions.isExecutive || permissions.workspacePermissions?.canManageBoards || workboardPerms.canManageGroups;
 
   return (
     <div className="space-y-4">
@@ -471,6 +664,7 @@ export default function WorkboardDetail() {
             <Settings className="w-4 h-4 mr-1.5" />
             Settings
           </Button>
+          {canManageGroups && <Button variant="outline" onClick={() => setShowAddGroup(true)}><Plus className="w-4 h-4 mr-1.5" />Add Group</Button>}
           {canCreate && <Button onClick={() => setShowNewItem(true)} disabled={isCreating}><Plus className="w-4 h-4 mr-1.5" />Add Item</Button>}
         </div>
       </div>
@@ -646,10 +840,26 @@ export default function WorkboardDetail() {
                   onMoveItemToGroup={handleMoveItemToGroup}
                   onItemReorder={handleItemReorder}
                   onMoveSubItem={handleMoveSubItem}
+                  onDuplicateGroup={handleDuplicateGroup}
+                  canManageGroups={canManageGroups}
+                  onGroupDragStart={handleGroupDragStart}
+                  onGroupDragOver={handleGroupDragOver}
+                  onGroupDrop={handleGroupDrop}
+                  onItemDragStart={handleItemDragStart}
+                  onItemDragOver={handleItemDragOver}
+                  onItemDrop={handleItemDrop}
+                  onSubItemDragStart={handleSubItemDragStart}
+                  onSubItemDragOver={handleSubItemDragOver}
+                  onSubItemDrop={handleSubItemDrop}
                   allGroups={groups}
                   allItems={items}
                 />
               ))}
+              {canManageGroups && (
+                <Button variant="outline" onClick={() => setShowAddGroup(true)} className="w-full justify-center border-dashed">
+                  <Plus className="w-4 h-4 mr-1.5" /> Add Group
+                </Button>
+              )}
             </div>
           ) : (
             <div className="border rounded-xl overflow-hidden bg-card">
@@ -773,6 +983,13 @@ export default function WorkboardDetail() {
         isOpen={showDuplicate}
         onClose={() => setShowDuplicate(false)}
         onSuccess={() => { window.dispatchEvent(new Event('workboards-changed')); }}
+      />
+
+      <AddGroupDialog
+        open={showAddGroup}
+        onOpenChange={setShowAddGroup}
+        onCreate={handleCreateGroup}
+        saving={groupSaving}
       />
     </div>
   );

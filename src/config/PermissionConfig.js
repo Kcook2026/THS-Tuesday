@@ -245,7 +245,7 @@ export const WORKBOARD_ROLE_PERMISSIONS = {
     canManageSettings: false,
     canManageAccess: false,
     canManageColumns: false,
-    canManageGroups: false,
+    canManageGroups: true,
     canManageStatuses: false,
     canManagePriorities: false,
     canChangeVisibility: false,

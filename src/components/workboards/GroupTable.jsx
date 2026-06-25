@@ -12,7 +12,7 @@ import { useConfirm } from '@/components/shared/ConfirmDialog';
 import {
   Plus, MoreHorizontal, ChevronRight, ChevronDown, Trash2,
   Pencil, ExternalLink, Archive, ArrowUp, ArrowDown, Palette,
-  CornerDownRight, MoveVertical, FolderInput,
+  CornerDownRight, MoveVertical, FolderInput, GripVertical, Copy,
 } from 'lucide-react';
 import { STATUS_COLORS, PRIORITY_COLORS, GROUP_COLOR_CLASSES } from './WorkboardConstants';
 import { getUserInitials } from '@/lib/userHelpers';
@@ -25,11 +25,14 @@ export default function GroupTable({
   group, groupIndex, totalGroups, items,
   statusOptions, priorityOptions, users, teams,
   visibleColumns, columns = [], getValue, saveValue,
-  canEdit, canCreate, canDelete,
+  canEdit, canCreate, canDelete, canManageGroups,
   onItemClick, onItemUpdate, onDeleteItem, onAddItem,
-  onRenameGroup, onArchiveGroup, onDeleteGroup,
+  onRenameGroup, onArchiveGroup, onDeleteGroup, onDuplicateGroup,
   onGroupColorChange, onGroupReorder,
   onMoveItemToGroup, onItemReorder, onMoveSubItem,
+  onGroupDragStart, onGroupDragOver, onGroupDrop,
+  onItemDragStart, onItemDragOver, onItemDrop,
+  onSubItemDragStart, onSubItemDragOver, onSubItemDrop,
   allGroups = [], allItems = [],
 }) {
   const { toast } = useToast();
@@ -362,15 +365,33 @@ export default function GroupTable({
 
     return (
       <React.Fragment key={item.id}>
-        <TableRow className={`hover:bg-accent/50 ${isSubItem ? 'bg-muted/30' : ''}`}>
-          <TableCell className="w-8">
-            {subItems.length > 0 ? (
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => toggleExpand(item.id)}>
-                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              </Button>
-            ) : (
-              <span className={`w-1.5 h-1.5 rounded-full ${isSubItem ? 'bg-blue-400' : 'bg-primary/50'} block mx-auto`} />
-            )}
+        <TableRow
+          className={`hover:bg-accent/50 ${isSubItem ? 'bg-muted/30' : ''}`}
+          onDragOver={canEdit ? onSubItemDragOver : undefined}
+          onDrop={canEdit ? (e) => onSubItemDrop?.(e, isSubItem ? item.parent_item : item.id, isSubItem ? item.id : null) : undefined}
+        >
+          <TableCell className="w-10">
+            <div className="flex items-center gap-0.5">
+              {canEdit && (
+                <span
+                  className="cursor-grab text-muted-foreground hover:text-foreground flex-shrink-0"
+                  draggable
+                  onDragStart={(e) => isSubItem
+                    ? onSubItemDragStart?.(e, item.id, item.parent_item)
+                    : onItemDragStart?.(e, item.id, group.id)
+                  }
+                >
+                  <GripVertical className="w-3.5 h-3.5" />
+                </span>
+              )}
+              {subItems.length > 0 ? (
+                <Button variant="ghost" size="icon" className="h-6 w-6 p-0" onClick={() => toggleExpand(item.id)}>
+                  {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                </Button>
+              ) : (
+                <span className={`w-1.5 h-1.5 rounded-full ${isSubItem ? 'bg-blue-400' : 'bg-primary/50'}`} />
+              )}
+            </div>
           </TableCell>
           <TableCell className={`font-medium ${isSubItem ? 'pl-8' : ''}`}>
             {isSubItem && <CornerDownRight className="w-3 h-3 inline-block mr-1 text-muted-foreground" />}
@@ -522,9 +543,20 @@ export default function GroupTable({
   };
 
   return (
-    <div className="space-y-2">
+    <div
+      className="space-y-2"
+      onDragOver={canManageGroups ? onGroupDragOver : undefined}
+      onDrop={canManageGroups ? (e) => onGroupDrop?.(e, group.id) : undefined}
+    >
       {/* Group Header */}
       <div className="flex items-center gap-2">
+        {canManageGroups && (
+          <GripVertical
+            className="w-4 h-4 text-muted-foreground cursor-grab hover:text-foreground flex-shrink-0"
+            draggable
+            onDragStart={(e) => onGroupDragStart?.(e, group.id)}
+          />
+        )}
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleToggleCollapse} disabled={saving}>
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </Button>
@@ -532,7 +564,7 @@ export default function GroupTable({
         {renaming ? (
           <Input value={groupName} onChange={(e) => setGroupName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleRenameGroup(); if (e.key === 'Escape') { setRenaming(false); setGroupName(group.name); } }} onBlur={handleRenameGroup} className="h-7 w-48" autoFocus />
         ) : (
-          <h3 className="font-semibold text-sm cursor-pointer" onClick={() => canEdit && setRenaming(true)}>{group.name}</h3>
+          <h3 className="font-semibold text-sm cursor-pointer" onClick={() => canManageGroups && setRenaming(true)}>{group.name}</h3>
         )}
         <Badge variant="secondary" className="text-xs">{mainItems.length}</Badge>
         <div className="flex-1" />
@@ -541,7 +573,7 @@ export default function GroupTable({
             <Plus className="w-3.5 h-3.5 mr-1" /> Add Item
           </Button>
         )}
-        {canEdit && (
+        {canManageGroups && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-6 w-6"><MoreHorizontal className="w-4 h-4" /></Button>
@@ -549,12 +581,15 @@ export default function GroupTable({
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setRenaming(true)}><Pencil className="w-3.5 h-3.5 mr-2" /> Rename</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setShowColorPicker(!showColorPicker)}><Palette className="w-3.5 h-3.5 mr-2" /> Change Color</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onDuplicateGroup?.(group.id)}><Copy className="w-3.5 h-3.5 mr-2" /> Duplicate</DropdownMenuItem>
               <DropdownMenuItem onClick={handleToggleCollapse}>
                 {collapsed ? <ChevronDown className="w-3.5 h-3.5 mr-2" /> : <ChevronRight className="w-3.5 h-3.5 mr-2" />}
                 {collapsed ? 'Expand' : 'Collapse'}
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onGroupReorder?.(group.id, -1)} disabled={groupIndex === 0 || saving}><ArrowUp className="w-3.5 h-3.5 mr-2" /> Move Up</DropdownMenuItem>
               <DropdownMenuItem onClick={() => onGroupReorder?.(group.id, 1)} disabled={groupIndex === totalGroups - 1 || saving}><ArrowDown className="w-3.5 h-3.5 mr-2" /> Move Down</DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleArchiveGroup} className="text-destructive"><Archive className="w-3.5 h-3.5 mr-2" /> Archive</DropdownMenuItem>
               <DropdownMenuItem onClick={handleDeleteGroup} className="text-destructive"><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete</DropdownMenuItem>
             </DropdownMenuContent>
@@ -572,12 +607,16 @@ export default function GroupTable({
       )}
 
       {!collapsed && (
-        <div className="border rounded-xl overflow-hidden bg-card">
+        <div
+          className="border rounded-xl overflow-hidden bg-card"
+          onDragOver={canEdit ? onItemDragOver : undefined}
+          onDrop={canEdit ? (e) => onItemDrop?.(e, group.id) : undefined}
+        >
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-8"></TableHead>
+                  <TableHead className="w-10"></TableHead>
                   <TableHead className="min-w-[250px]">Item Name</TableHead>
                   {visibleColumns?.owner !== false && <TableHead className="min-w-[150px]">Owner</TableHead>}
                   {visibleColumns?.status !== false && <TableHead className="min-w-[120px]">Status</TableHead>}
