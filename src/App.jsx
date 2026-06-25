@@ -33,6 +33,7 @@ import Portfolios from '@/pages/Portfolios';
 import PortfolioDetail from '@/pages/PortfolioDetail';
 import Goals from '@/pages/Goals';
 import PermissionDebug from '@/pages/PermissionDebug';
+import WorkboardQA from '@/pages/WorkboardQA';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -92,6 +93,7 @@ const AuthenticatedApp = () => {
           <Route path="/portfolios/:id" element={<PortfolioDetail />} />
           <Route path="/goals" element={<Goals />} />
           <Route path="/permission-debug" element={<PermissionDebug />} />
+          <Route path="/workboard-qa" element={<WorkboardQA />} />
         </Route>
       </Route>
       {/* Backwards compatibility redirect */}

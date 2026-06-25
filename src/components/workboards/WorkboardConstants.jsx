@@ -36,6 +36,9 @@ export const SYSTEM_COLUMNS = [
   { id: 'progress_percentage', name: 'Progress' },
 ];
 
+// Names that are reserved for system columns — custom columns must not use these
+export const SYSTEM_COLUMN_NAMES = SYSTEM_COLUMNS.map(c => c.name.toLowerCase());
+
 // Column types that are fully implemented and editable
 export const IMPLEMENTED_COLUMN_TYPES = [
   'text', 'long_text', 'number', 'currency', 'date',

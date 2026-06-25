@@ -139,16 +139,9 @@ export default function Workboards() {
           });
         }
         
-        // Create default columns
-        const defaultColumns = [
-          { name: 'Item Name', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'text', sort_order: 0, width: 250 },
-          { name: 'Owner', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'person', sort_order: 1, width: 150 },
-          { name: 'Status', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'status', sort_order: 2, width: 120 },
-          { name: 'Priority', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'priority', sort_order: 3, width: 120 },
-          { name: 'Due Date', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'date', sort_order: 4, width: 120 },
-          { name: 'Progress', workspace: currentWorkspaceId, workboard: newBoard.id, column_type: 'progress', sort_order: 5, width: 120 },
-        ];
-        await Promise.all(defaultColumns.map(c => base44.entities.BoardColumn.create(c)));
+        // System columns (Item Name, Owner, Status, Priority, Due Date, Progress)
+        // are built-in and NOT created as BoardColumn records.
+        // Only truly custom columns are created via the Column Manager.
         
         // Create default groups
         const defaultGroups = [

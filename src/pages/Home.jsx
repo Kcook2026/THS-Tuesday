@@ -36,8 +36,16 @@ export default function Home() {
       base44.entities.Team.filter(wsFilter, '-updated_date', 5).catch(() => []),
     ]).then(([items, w, a, p, tm]) => {
       const tasks = items.filter(i => i.item_type === 'task' && i.status !== 'done');
+      // Dedupe and filter stale boards client-side as a safeguard
+      const seenIds = new Set();
+      const cleanBoards = w.filter(b => {
+        if (!b || seenIds.has(b.id)) return false;
+        if (b.archived === true || b.status === 'archived' || b.status === 'template') return false;
+        seenIds.add(b.id);
+        return true;
+      });
       setTasks(tasks);
-      setWorkboards(w);
+      setWorkboards(cleanBoards);
       setActivity(a);
       setProjects(p);
       setTeams(tm);

@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { Columns, Plus, Trash2, Eye, EyeOff, Pencil, ArrowUp, ArrowDown, Settings } from 'lucide-react';
-import { SYSTEM_COLUMNS, COLUMN_TYPE_OPTIONS, IMPLEMENTED_COLUMN_TYPES } from './WorkboardConstants';
+import { SYSTEM_COLUMNS, SYSTEM_COLUMN_NAMES, COLUMN_TYPE_OPTIONS, IMPLEMENTED_COLUMN_TYPES } from './WorkboardConstants';
 import { parseSettings } from './CustomCellRenderer';
 
 export default function ColumnManager({
@@ -71,6 +71,10 @@ export default function ColumnManager({
 
   const handleAddColumn = async () => {
     if (!newColumn.name.trim() || saving) return;
+    if (SYSTEM_COLUMN_NAMES.includes(newColumn.name.trim().toLowerCase())) {
+      toast({ title: 'Reserved name', description: `"${newColumn.name.trim()}" is a system column and cannot be duplicated.`, variant: 'destructive', duration: 5000 });
+      return;
+    }
     setSaving(true);
     try {
       const column = await base44.entities.BoardColumn.create({
@@ -157,8 +161,10 @@ export default function ColumnManager({
   };
 
   const sortedColumns = [...columns].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-  const visibleCustomColumns = sortedColumns.filter(c => !c.hidden);
-  const hiddenCustomColumns = sortedColumns.filter(c => c.hidden);
+  // Filter out any BoardColumn records that duplicate system column names
+  const customColumns = sortedColumns.filter(c => !SYSTEM_COLUMN_NAMES.includes((c.name || '').toLowerCase()));
+  const visibleCustomColumns = customColumns.filter(c => !c.hidden);
+  const hiddenCustomColumns = customColumns.filter(c => c.hidden);
 
   return (
     <>
