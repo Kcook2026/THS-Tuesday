@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/sheet';
 import { Trash2, Plus, LayoutGrid } from 'lucide-react';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { getActiveWorkboards } from '@/lib/workboardHelpers';
 
 const WORKBOARD_ROLE_LABELS = {
   workboard_owner: 'Board Owner',
@@ -23,7 +24,7 @@ const WORKBOARD_ROLE_LABELS = {
  * Shows all active boards, the member's role on each board,
  * and allows adding/removing/changing roles.
  */
-export default function BoardAccessDrawer({ member, workboards = [], isOpen, onClose, onRefresh }) {
+export default function BoardAccessDrawer({ member, workboards = [], workspaceId, isOpen, onClose, onRefresh }) {
   const { toast } = useToast();
   const confirm = useConfirm();
   const [loading, setLoading] = useState(false);
@@ -52,8 +53,8 @@ export default function BoardAccessDrawer({ member, workboards = [], isOpen, onC
     }
   };
 
-  // Only show active, non-archived boards in current workspace
-  const activeBoards = workboards.filter(b => !b.archived && b.status !== 'archived' && b.status !== 'template');
+  // Defensive filter: only active, deduplicated boards in the correct workspace
+  const activeBoards = getActiveWorkboards(workboards, workspaceId || member?.workspace);
 
   const getMembershipForBoard = (boardId) => {
     return boardMemberships.find(wm => wm.workboard === boardId);

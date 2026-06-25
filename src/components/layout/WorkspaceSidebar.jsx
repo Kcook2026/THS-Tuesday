@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { getActiveWorkboards } from '@/lib/workboardHelpers';
 
 const primaryNav = [
   { label: 'Home', icon: Home, path: '/' },
@@ -104,6 +105,25 @@ export default function WorkspaceSidebar({ collapsed, onToggle, mobile, onNaviga
   const [teams, setTeams] = useState([]);
   const isLoadingRef = useRef(false);
 
+  // Reload when boards change (e.g. after stale membership cleanup)
+  useEffect(() => {
+    const handler = () => {
+      if (currentWorkspaceId && !isLoadingRef.current) {
+        isLoadingRef.current = true;
+        (async () => {
+          try {
+            const w = await base44.entities.Workboard.filter({ workspace: currentWorkspaceId, archived: false }, '-updated_date', 20).catch(() => []);
+            setWorkboards(getActiveWorkboards(w, currentWorkspaceId));
+          } finally {
+            isLoadingRef.current = false;
+          }
+        })();
+      }
+    };
+    window.addEventListener('workboards-changed', handler);
+    return () => window.removeEventListener('workboards-changed', handler);
+  }, [currentWorkspaceId]);
+
   useEffect(() => {
     if (!currentWorkspaceId || isLoadingRef.current) return;
     isLoadingRef.current = true;
@@ -114,15 +134,7 @@ export default function WorkspaceSidebar({ collapsed, onToggle, mobile, onNaviga
           base44.entities.Workboard.filter({ workspace: currentWorkspaceId, archived: false }, '-updated_date', 20).catch(() => []),
           base44.entities.Team.filter({ workspace: currentWorkspaceId }, '-updated_date', 10).catch(() => []),
         ]);
-        // Client-side safeguard: filter out archived, deleted, or inaccessible boards + dedupe
-        const seen = new Set();
-        const valid = w.filter(wb => {
-          if (!wb || !wb.id || seen.has(wb.id)) return false;
-          if (wb.archived === true || wb.status === 'archived') return false;
-          if (wb.status === 'template') return false;
-          seen.add(wb.id);
-          return true;
-        });
+        const valid = getActiveWorkboards(w, currentWorkspaceId);
         setWorkboards(valid);
         setTeams(t);
       } catch (error) {
@@ -135,8 +147,8 @@ export default function WorkspaceSidebar({ collapsed, onToggle, mobile, onNaviga
     loadSidebarData();
   }, [currentWorkspaceId]);
 
-  const favorites = workboards.filter(w => w.is_favorite && w.status !== 'archived' && !w.archived);
-  const recent = workboards.filter(w => !w.is_favorite && w.status !== 'archived' && !w.archived).slice(0, 5);
+  const favorites = workboards.filter(w => w.is_favorite);
+  const recent = workboards.filter(w => !w.is_favorite).slice(0, 5);
 
   const isPathActive = (path) => {
     if (path === '/') return location.pathname === '/';

@@ -19,6 +19,7 @@ import { logActivity } from '@/hooks/useActivityLogger';
 import usePermissions from '@/hooks/usePermissions';
 import { useToast } from '@/components/ui/use-toast';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { getActiveWorkboards } from '@/lib/workboardHelpers';
 
 const BOARD_TYPES = {
   project_board: { label: 'Project Board', color: 'bg-violet-500/10 text-violet-700 dark:text-violet-300' },
@@ -55,15 +56,7 @@ export default function Workboards() {
         base44.entities.Team.filter({ workspace: currentWorkspaceId }),
         base44.auth.me()
       ]);
-      // Client-side safeguard: filter out archived/template boards and dedupe
-      const seen = new Set();
-      const validBoards = b.filter(board => {
-        if (!board || seen.has(board.id)) return false;
-        if (board.archived === true || board.status === 'archived') return false;
-        if (board.status === 'template') return false;
-        seen.add(board.id);
-        return true;
-      });
+      const validBoards = getActiveWorkboards(b, currentWorkspaceId);
       // Migrate any legacy client_board records to operations_board
       for (const board of validBoards) {
         if (board.board_type === 'client_board') {

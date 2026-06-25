@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import InviteUserDialog from '@/components/shared/InviteUserDialog';
 import BoardAccessDrawer from '@/components/workboards/BoardAccessDrawer';
+import { getActiveWorkboards } from '@/lib/workboardHelpers';
 
 const ACCOUNT_ROLE_LABELS = {
   system_admin: 'System Admin',
@@ -82,6 +83,7 @@ export default function Members() {
   const [memberWorkboards, setMemberWorkboards] = useState({});
   const [cleaningStale, setCleaningStale] = useState(false);
   const [boardAccessMember, setBoardAccessMember] = useState(null);
+  const [hygiene, setHygiene] = useState({ activeBoards: 0, archivedBoards: 0, stale: 0, duplicates: 0 });
 
   const loadData = async () => {
     if (!currentWorkspaceId) return;
@@ -96,23 +98,37 @@ export default function Members() {
       setUsers(allUsers);
       setInvitations(invs);
       setMembers(mems);
-      setWorkboards(boards);
-      
-      // Build a set of active, non-archived board IDs for filtering stale memberships
-      const activeBoardIds = new Set(
-        boards.filter(b => !b.archived && b.status !== 'archived' && b.status !== 'template').map(b => b.id)
-      );
+      // Store only active, deduplicated boards in state
+      const activeBoards = getActiveWorkboards(boards, currentWorkspaceId);
+      setWorkboards(activeBoards);
+
+      const activeBoardIds = new Set(activeBoards.map(b => b.id));
+      const archivedCount = boards.filter(b => b && b.id && (b.archived === true || b.status === 'archived' || b.status === 'template' || b.status === 'deleted')).length;
       // Load workboard memberships for each member
       const wbMemberships = {};
+      const allWbMembers = [];
       for (const member of mems) {
         const wbMembers = await base44.entities.WorkboardMember.filter({ 
           workspace: currentWorkspaceId, 
           user: member.user 
         }).catch(() => []);
+        allWbMembers.push(...wbMembers);
         // Only count memberships for active, non-archived boards that still exist
         wbMemberships[member.id] = wbMembers.filter(wm => activeBoardIds.has(wm.workboard));
       }
       setMemberWorkboards(wbMemberships);
+
+      // Compute hygiene stats
+      const userIds = new Set(allUsers.map(u => u.id));
+      const staleCount = allWbMembers.filter(wm => !activeBoardIds.has(wm.workboard) || !userIds.has(wm.user)).length;
+      const seenPairs = new Set();
+      let dupCount = 0;
+      const sortedWm = [...allWbMembers].sort((a, b) => (a.created_date || '').localeCompare(b.created_date || ''));
+      for (const wm of sortedWm) {
+        const key = `${wm.user}::${wm.workboard}`;
+        if (seenPairs.has(key)) { dupCount++; } else { seenPairs.add(key); }
+      }
+      setHygiene({ activeBoards: activeBoards.length, archivedBoards: archivedCount, stale: staleCount, duplicates: dupCount });
     } finally {
       setLoading(false);
     }
@@ -266,11 +282,11 @@ export default function Members() {
         base44.entities.User.list().catch(() => []),
       ]);
       const activeBoardIds = new Set(
-        workboards.filter(b => !b.archived && b.status !== 'archived' && b.status !== 'template').map(b => b.id)
+        getActiveWorkboards(workboards, currentWorkspaceId).map(b => b.id)
       );
       const userIds = new Set(allUsers.map(u => u.id));
 
-      // Identify stale: board doesn't exist, archived, or user doesn't exist
+      // Identify stale: board doesn't exist, is archived/template/deleted, or user doesn't exist
       const stale = allWbMembers.filter(wm =>
         !activeBoardIds.has(wm.workboard) || !userIds.has(wm.user)
       );
@@ -300,7 +316,9 @@ export default function Members() {
       }
       logAudit(AUDIT_ACTIONS.RECORD_DELETED, { record_type: 'WorkboardMember', count: uniqueToDelete.length });
       toast({ title: `Removed ${uniqueToDelete.length} stale/duplicate membership${uniqueToDelete.length > 1 ? 's' : ''}`, duration: 4000 });
-      loadData();
+      await loadData();
+      // Trigger a sidebar refresh so Recent boards update
+      window.dispatchEvent(new Event('workboards-changed'));
     } catch (e) {
       toast({ title: 'Failed to clean stale memberships', description: e.message, variant: 'destructive' });
     } finally {
@@ -320,6 +338,27 @@ export default function Members() {
           </Button>
         </div>
       </PageHeader>
+
+      {canManageMembers && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Card><CardContent className="p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Active Boards</p>
+            <p className="text-xl font-bold text-green-600 dark:text-green-400">{hygiene.activeBoards}</p>
+          </CardContent></Card>
+          <Card><CardContent className="p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Archived Boards</p>
+            <p className="text-xl font-bold text-muted-foreground">{hygiene.archivedBoards}</p>
+          </CardContent></Card>
+          <Card><CardContent className="p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Stale Memberships</p>
+            <p className={`text-xl font-bold ${hygiene.stale > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{hygiene.stale}</p>
+          </CardContent></Card>
+          <Card><CardContent className="p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Duplicate Memberships</p>
+            <p className={`text-xl font-bold ${hygiene.duplicates > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{hygiene.duplicates}</p>
+          </CardContent></Card>
+        </div>
+      )}
 
       <InviteUserDialog 
         open={inviteOpen} 
@@ -561,7 +600,8 @@ export default function Members() {
 
       <BoardAccessDrawer
         member={boardAccessMember}
-        workboards={workboards}
+        workboards={getActiveWorkboards(workboards, currentWorkspaceId)}
+        workspaceId={currentWorkspaceId}
         isOpen={!!boardAccessMember}
         onClose={() => setBoardAccessMember(null)}
         onRefresh={loadData}
