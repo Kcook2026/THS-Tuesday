@@ -114,11 +114,9 @@ export default function MembersDrawer({ workboardId, wb }) {
   };
 
   useEffect(() => {
-    if (open) {
-      loadMembers();
-      loadWorkspaceUsers();
-    }
-  }, [open, workboardId, currentWorkspaceId]);
+    loadMembers();
+    loadWorkspaceUsers();
+  }, [workboardId, currentWorkspaceId, open]);
 
   const handleAddMember = async () => {
     if (!selectedUserId || !workboardId) return;
@@ -173,6 +171,13 @@ export default function MembersDrawer({ workboardId, wb }) {
 
   const handleRemove = async () => {
     if (!memberToDelete) return;
+    const owners = members.filter(m => m.role === 'workboard_owner');
+    if (memberToDelete.role === 'workboard_owner' && owners.length <= 1) {
+      toast({ title: 'Cannot remove owner', description: 'The board must have at least one owner', variant: 'destructive', duration: 5000 });
+      setShowDeleteConfirm(false);
+      setMemberToDelete(null);
+      return;
+    }
     try {
       await base44.entities.WorkboardMember.update(memberToDelete.id, { status: 'removed' });
       toast({ title: 'Member removed', duration: 2000 });

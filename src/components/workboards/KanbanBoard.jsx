@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus, MoreHorizontal, Calendar, User } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { STATUS_COLORS, PRIORITY_COLORS } from './WorkboardConstants';
+import { STATUS_COLORS, PRIORITY_COLORS, GROUP_COLOR_CLASSES } from './WorkboardConstants';
 import { getUserInitials } from '@/lib/userHelpers';
 
 export default function KanbanBoard({ groups, items, statusOptions, users, canEdit, canDelete, onEditItem, onDeleteItem, onAddItem, onItemClick }) {
@@ -23,7 +23,7 @@ export default function KanbanBoard({ groups, items, statusOptions, users, canEd
     <div className="flex gap-4 overflow-x-auto pb-4">
       {groups.map(group => {
         const groupItems = items.filter(item => item.group === group.id);
-        const colorClass = group.color ? `bg-${group.color}-500` : 'bg-gray-500';
+        const colorClass = GROUP_COLOR_CLASSES[group.color] || 'bg-gray-500';
         
         return (
           <div key={group.id} className="min-w-[300px] max-w-[300px] flex flex-col">

@@ -1,0 +1,497 @@
+import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useToast } from '@/components/ui/use-toast';
+import {
+  Plus, MoreHorizontal, ChevronRight, ChevronDown, Trash2,
+  Pencil, ExternalLink, Archive,
+} from 'lucide-react';
+import { STATUS_COLORS, PRIORITY_COLORS, GROUP_COLOR_CLASSES } from './WorkboardConstants';
+import { getUserInitials } from '@/lib/userHelpers';
+
+export default function GroupTable({
+  group,
+  items,
+  statusOptions,
+  priorityOptions,
+  users,
+  visibleColumns,
+  canEdit,
+  canCreate,
+  canDelete,
+  onItemClick,
+  onItemUpdate,
+  onDeleteItem,
+  onAddItem,
+  onRenameGroup,
+  onArchiveGroup,
+}) {
+  const { toast } = useToast();
+  const [collapsed, setCollapsed] = useState(group.collapsed || false);
+  const [editingCell, setEditingCell] = useState(null);
+  const [expandedItems, setExpandedItems] = useState({});
+  const [renaming, setRenaming] = useState(false);
+  const [groupName, setGroupName] = useState(group.name);
+  const [saving, setSaving] = useState(false);
+  const [addingSubItem, setAddingSubItem] = useState(null);
+  const [subItemTitle, setSubItemTitle] = useState('');
+
+  const mainItems = items.filter(i => !i.parent_item);
+  const subItemsByParent = items.reduce((acc, i) => {
+    if (i.parent_item) {
+      if (!acc[i.parent_item]) acc[i.parent_item] = [];
+      acc[i.parent_item].push(i);
+    }
+    return acc;
+  }, {});
+
+  const colorClass = GROUP_COLOR_CLASSES[group.color] || 'bg-gray-500';
+
+  const getUserDisplay = (userId) => {
+    if (!userId) return 'Unassigned';
+    const u = users.find(u => u.id === userId);
+    return u?.full_name || u?.email || 'Unassigned';
+  };
+
+  const handleInlineEdit = async (itemId, field, value) => {
+    setSaving(true);
+    try {
+      let updateData = {};
+
+      if (field === 'owner') {
+        updateData.owner = value === 'unassigned' ? null : value;
+      } else if (field === 'status') {
+        const status = statusOptions.find(s => s.label === value);
+        updateData.status = value;
+        if (status) updateData.status_color = status.color;
+      } else if (field === 'priority') {
+        const priority = priorityOptions.find(p => p.label === value);
+        updateData.priority = value;
+        if (priority) updateData.priority_color = priority.color;
+      } else if (field === 'progress_percentage') {
+        updateData.progress_percentage = parseInt(value) || 0;
+      } else if (field === 'due_date') {
+        updateData.due_date = value || null;
+      } else {
+        updateData = { [field]: value };
+      }
+
+      await base44.entities.WorkboardItem.update(itemId, updateData);
+      onItemUpdate?.(itemId, updateData);
+      toast({ title: 'Updated', duration: 2000 });
+    } catch (error) {
+      toast({ title: 'Update failed', description: error.message, variant: 'destructive', duration: 5000 });
+    } finally {
+      setSaving(false);
+      setEditingCell(null);
+    }
+  };
+
+  const handleAddSubItem = async (parentId) => {
+    if (!subItemTitle.trim() || saving) return;
+    setSaving(true);
+    try {
+      const parent = items.find(i => i.id === parentId);
+      if (!parent) return;
+
+      const savedSub = await base44.entities.WorkboardItem.create({
+        title: subItemTitle.trim(),
+        workspace: parent.workspace,
+        workboard: parent.workboard,
+        parent_item: parentId,
+        group: parent.group,
+        item_type: 'sub_item',
+        status: 'Not Started',
+        status_color: 'gray',
+        priority: 'Medium',
+        priority_color: 'yellow',
+        progress_percentage: 0,
+        created_by: parent.created_by,
+        archived: false,
+      });
+
+      onItemUpdate?.(savedSub.id, savedSub);
+      toast({ title: 'Sub-item added', duration: 2000 });
+      setSubItemTitle('');
+      setAddingSubItem(null);
+      setExpandedItems(prev => ({ ...prev, [parentId]: true }));
+    } catch (error) {
+      toast({ title: 'Failed to add sub-item', description: error.message, variant: 'destructive', duration: 5000 });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRenameGroup = async () => {
+    if (!groupName.trim() || groupName === group.name) {
+      setRenaming(false);
+      setGroupName(group.name);
+      return;
+    }
+    setSaving(true);
+    try {
+      await base44.entities.BoardGroup.update(group.id, { name: groupName.trim() });
+      onRenameGroup?.(group.id, groupName.trim());
+      toast({ title: 'Group renamed', duration: 2000 });
+      setRenaming(false);
+    } catch (error) {
+      toast({ title: 'Failed to rename group', description: error.message, variant: 'destructive', duration: 5000 });
+      setGroupName(group.name);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleArchiveGroup = async () => {
+    if (!confirm(`Archive group "${group.name}" and all its items?`)) return;
+    setSaving(true);
+    try {
+      await base44.entities.BoardGroup.update(group.id, { archived: true });
+      for (const item of mainItems) {
+        await base44.entities.WorkboardItem.update(item.id, { archived: true });
+      }
+      onArchiveGroup?.(group.id);
+      toast({ title: 'Group archived', duration: 2000 });
+    } catch (error) {
+      toast({ title: 'Failed to archive group', description: error.message, variant: 'destructive', duration: 5000 });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleCollapse = async () => {
+    const newCollapsed = !collapsed;
+    setCollapsed(newCollapsed);
+    try {
+      await base44.entities.BoardGroup.update(group.id, { collapsed: newCollapsed });
+    } catch {
+      // Non-critical
+    }
+  };
+
+  const toggleExpand = (itemId) => {
+    setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
+  };
+
+  const renderCell = (item, field) => {
+    if (field === 'status') {
+      const colorClass = STATUS_COLORS[item.status_color] || STATUS_COLORS.gray;
+      return <Badge variant="secondary" className={colorClass}>{item.status || 'Not Started'}</Badge>;
+    }
+    if (field === 'priority') {
+      const colorClass = PRIORITY_COLORS[item.priority_color] || PRIORITY_COLORS.gray;
+      return <Badge variant="secondary" className={colorClass}>{item.priority || 'Medium'}</Badge>;
+    }
+    if (field === 'owner') {
+      return (
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
+            {getUserInitials(users.find(u => u.id === item.owner))}
+          </div>
+          <span className="text-sm">{getUserDisplay(item.owner)}</span>
+        </div>
+      );
+    }
+    if (field === 'due_date') {
+      return <span className="text-sm">{item.due_date ? new Date(item.due_date).toLocaleDateString() : '—'}</span>;
+    }
+    if (field === 'progress_percentage') {
+      const percent = item.progress_percentage || 0;
+      return (
+        <div className="flex items-center gap-2">
+          <Progress value={percent} className="h-2 w-20" />
+          <span className="text-xs text-muted-foreground w-8">{percent}%</span>
+        </div>
+      );
+    }
+    return <span className="text-sm">{item[field] || '—'}</span>;
+  };
+
+  const renderInlineEdit = (item, field) => {
+    const isEditing = editingCell?.itemId === item.id && editingCell?.field === field;
+
+    if (isEditing) {
+      if (field === 'status') {
+        return (
+          <Select
+            value={item.status || ''}
+            onValueChange={(value) => handleInlineEdit(item.id, 'status', value)}
+            onOpenChange={(open) => { if (!open) setEditingCell(null); }}
+          >
+            <SelectTrigger className="h-7 w-auto"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {statusOptions.map(s => <SelectItem key={s.id} value={s.label}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        );
+      }
+      if (field === 'priority') {
+        return (
+          <Select
+            value={item.priority || ''}
+            onValueChange={(value) => handleInlineEdit(item.id, 'priority', value)}
+            onOpenChange={(open) => { if (!open) setEditingCell(null); }}
+          >
+            <SelectTrigger className="h-7 w-auto"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {priorityOptions.map(p => <SelectItem key={p.id} value={p.label}>{p.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        );
+      }
+      if (field === 'owner') {
+        return (
+          <Select
+            value={item.owner || 'unassigned'}
+            onValueChange={(value) => handleInlineEdit(item.id, 'owner', value)}
+            onOpenChange={(open) => { if (!open) setEditingCell(null); }}
+          >
+            <SelectTrigger className="h-7 w-auto"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {users.map(u => <SelectItem key={u.id} value={u.id}>{u.full_name || u.email || 'Unassigned'}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        );
+      }
+      if (field === 'due_date') {
+        return (
+          <Input
+            type="date"
+            defaultValue={item.due_date ? item.due_date.split('T')[0] : ''}
+            onBlur={(e) => handleInlineEdit(item.id, 'due_date', e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleInlineEdit(item.id, 'due_date', e.target.value); if (e.key === 'Escape') setEditingCell(null); }}
+            className="h-7 w-auto"
+            autoFocus
+          />
+        );
+      }
+      if (field === 'progress_percentage') {
+        return (
+          <Input
+            type="number"
+            min="0"
+            max="100"
+            defaultValue={item.progress_percentage || 0}
+            onBlur={(e) => handleInlineEdit(item.id, 'progress_percentage', e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleInlineEdit(item.id, 'progress_percentage', e.target.value); if (e.key === 'Escape') setEditingCell(null); }}
+            className="h-7 w-16"
+            autoFocus
+          />
+        );
+      }
+      if (field === 'title') {
+        return (
+          <Input
+            defaultValue={item.title}
+            onBlur={(e) => {
+              if (e.target.value !== item.title) {
+                handleInlineEdit(item.id, 'title', e.target.value);
+              } else {
+                setEditingCell(null);
+              }
+            }}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditingCell(null); }}
+            className="h-7"
+            autoFocus
+          />
+        );
+      }
+    }
+
+    return (
+      <div className="cursor-pointer hover:bg-accent rounded px-2 py-1 -mx-2" onClick={() => setEditingCell({ itemId: item.id, field })}>
+        {renderCell(item, field)}
+      </div>
+    );
+  };
+
+  const renderItemRow = (item, isSubItem = false) => {
+    const subItems = subItemsByParent[item.id] || [];
+    const isExpanded = expandedItems[item.id];
+
+    return (
+      <React.Fragment key={item.id}>
+        <TableRow className={`hover:bg-accent/50 ${isSubItem ? 'bg-muted/30' : ''}`}>
+          <TableCell className="w-8">
+            {subItems.length > 0 ? (
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => toggleExpand(item.id)}>
+                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              </Button>
+            ) : (
+              <span className={`w-1.5 h-1.5 rounded-full ${isSubItem ? 'bg-blue-400' : 'bg-primary/50'} block mx-auto`} />
+            )}
+          </TableCell>
+          <TableCell className={`font-medium ${isSubItem ? 'pl-8' : ''}`}>
+            {canEdit ? renderInlineEdit(item, 'title') : item.title}
+          </TableCell>
+          {visibleColumns?.owner !== false && (
+            <TableCell onClick={(e) => e.stopPropagation()}>
+              {canEdit ? renderInlineEdit(item, 'owner') : renderCell(item, 'owner')}
+            </TableCell>
+          )}
+          {visibleColumns?.status !== false && (
+            <TableCell onClick={(e) => e.stopPropagation()}>
+              {canEdit ? renderInlineEdit(item, 'status') : renderCell(item, 'status')}
+            </TableCell>
+          )}
+          {visibleColumns?.priority !== false && (
+            <TableCell onClick={(e) => e.stopPropagation()}>
+              {canEdit ? renderInlineEdit(item, 'priority') : renderCell(item, 'priority')}
+            </TableCell>
+          )}
+          {visibleColumns?.due_date !== false && (
+            <TableCell onClick={(e) => e.stopPropagation()}>
+              {canEdit ? renderInlineEdit(item, 'due_date') : renderCell(item, 'due_date')}
+            </TableCell>
+          )}
+          {visibleColumns?.progress_percentage !== false && (
+            <TableCell onClick={(e) => e.stopPropagation()}>
+              {canEdit ? renderInlineEdit(item, 'progress_percentage') : renderCell(item, 'progress_percentage')}
+            </TableCell>
+          )}
+          <TableCell onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onItemClick?.(item)} title="Open details">
+                <ExternalLink className="w-3.5 h-3.5" />
+              </Button>
+              {canCreate && !isSubItem && (
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setAddingSubItem(item.id); setSubItemTitle(''); setExpandedItems(prev => ({ ...prev, [item.id]: true })); }} title="Add sub-item">
+                  <Plus className="w-3.5 h-3.5" />
+                </Button>
+              )}
+              {canDelete && (
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDeleteItem?.(item)} title="Delete">
+                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                </Button>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+
+        {addingSubItem === item.id && (
+          <TableRow className="bg-muted/30">
+            <TableCell></TableCell>
+            <TableCell className="pl-8">
+              <Input
+                value={subItemTitle}
+                onChange={(e) => setSubItemTitle(e.target.value)}
+                placeholder="New sub-item title..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddSubItem(item.id);
+                  if (e.key === 'Escape') { setAddingSubItem(null); setSubItemTitle(''); }
+                }}
+                onBlur={() => { if (!subItemTitle.trim()) { setAddingSubItem(null); setSubItemTitle(''); } }}
+                className="h-7"
+                autoFocus
+              />
+            </TableCell>
+            <TableCell colSpan={6}></TableCell>
+          </TableRow>
+        )}
+
+        {isExpanded && subItems.map(sub => renderItemRow(sub, true))}
+      </React.Fragment>
+    );
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Group Header */}
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleToggleCollapse} disabled={saving}>
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </Button>
+        <div className={`w-3 h-3 rounded-full ${colorClass}`} />
+        {renaming ? (
+          <Input
+            value={groupName}
+            onChange={(e) => setGroupName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleRenameGroup(); if (e.key === 'Escape') { setRenaming(false); setGroupName(group.name); } }}
+            onBlur={handleRenameGroup}
+            className="h-7 w-48"
+            autoFocus
+          />
+        ) : (
+          <h3 className="font-semibold text-sm cursor-pointer" onClick={() => canEdit && setRenaming(true)}>
+            {group.name}
+          </h3>
+        )}
+        <Badge variant="secondary" className="text-xs">{mainItems.length}</Badge>
+        <div className="flex-1" />
+        {canCreate && !collapsed && (
+          <Button variant="ghost" size="sm" className="h-7" onClick={() => onAddItem?.(group.id)}>
+            <Plus className="w-3.5 h-3.5 mr-1" /> Add Item
+          </Button>
+        )}
+        {canEdit && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-6 w-6">
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setRenaming(true)}>
+                <Pencil className="w-3.5 h-3.5 mr-2" /> Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleToggleCollapse}>
+                {collapsed ? <ChevronDown className="w-3.5 h-3.5 mr-2" /> : <ChevronRight className="w-3.5 h-3.5 mr-2" />}
+                {collapsed ? 'Expand' : 'Collapse'}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleArchiveGroup} className="text-destructive">
+                <Archive className="w-3.5 h-3.5 mr-2" /> Archive
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+
+      {/* Table */}
+      {!collapsed && (
+        <div className="border rounded-xl overflow-hidden bg-card">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead className="min-w-[250px]">Item Name</TableHead>
+                  {visibleColumns?.owner !== false && <TableHead className="min-w-[150px]">Owner</TableHead>}
+                  {visibleColumns?.status !== false && <TableHead className="min-w-[120px]">Status</TableHead>}
+                  {visibleColumns?.priority !== false && <TableHead className="min-w-[120px]">Priority</TableHead>}
+                  {visibleColumns?.due_date !== false && <TableHead className="min-w-[120px]">Due Date</TableHead>}
+                  {visibleColumns?.progress_percentage !== false && <TableHead className="min-w-[120px]">Progress</TableHead>}
+                  <TableHead className="w-28"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {mainItems.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                      <div className="flex flex-col items-center gap-2">
+                        <p className="text-sm">This group is empty</p>
+                        {canCreate && (
+                          <Button size="sm" variant="outline" onClick={() => onAddItem?.(group.id)}>
+                            <Plus className="w-4 h-4 mr-1.5" /> Add Item
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  mainItems.map(item => renderItemRow(item))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

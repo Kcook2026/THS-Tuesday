@@ -42,7 +42,7 @@ export async function fetchUserDetails(userId) {
 
 export function getUserInitials(userRecord) {
   if (!userRecord) return 'U';
-  const name = userRecord.full_name || userRecord.email || 'User';
+  const name = userRecord.full_name || userRecord.user_name || userRecord.email || userRecord.user_email || 'User';
   const parts = name.split(' ');
   if (parts.length >= 2) {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();

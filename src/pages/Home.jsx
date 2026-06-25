@@ -30,7 +30,7 @@ export default function Home() {
     const wsFilter = { workspace: currentWorkspaceId };
     Promise.all([
       base44.entities.WorkboardItem.filter({ ...wsFilter, assignee: user.id, archived: false }, '-updated_date', 10).catch(() => []),
-      base44.entities.Workboard.filter(wsFilter, '-updated_date', 6).catch(() => []),
+      base44.entities.Workboard.filter({ ...wsFilter, status: 'active' }, '-updated_date', 6).catch(() => []),
       base44.entities.Activity.filter(wsFilter, '-created_date', 6).catch(() => []),
       base44.entities.Project.filter(wsFilter, '-updated_date', 4).catch(() => []),
       base44.entities.Team.filter(wsFilter, '-updated_date', 5).catch(() => []),

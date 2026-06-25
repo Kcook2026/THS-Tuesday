@@ -115,7 +115,7 @@ export default function Workboards() {
             workboard: newBoard.id,
             workboard_name: newBoard.name,
             user: user.id,
-            user_name: user.full_name || user.email || 'Unknown User',
+            user_name: user.full_name || user.email || 'Unassigned',
             user_email: user.email || '',
             role: 'workboard_owner',
             status: 'active',
