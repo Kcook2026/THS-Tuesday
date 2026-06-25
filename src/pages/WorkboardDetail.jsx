@@ -27,7 +27,6 @@ import ColumnManager from '@/components/workboards/ColumnManager';
 import ItemDetailDrawer from '@/components/workboards/ItemDetailDrawer';
 import KanbanBoard from '@/components/workboards/KanbanBoard';
 import CalendarView from '@/components/workboards/CalendarView';
-import UpdatesSection from '@/components/workboards/UpdatesSection';
 import { STATUS_COLORS, PRIORITY_COLORS } from '@/components/workboards/WorkboardConstants';
 import { getUserInitials } from '@/lib/userHelpers';
 
@@ -652,13 +651,6 @@ export default function WorkboardDetail() {
           }}
           onUpdate={handleItemUpdate}
         />
-      )}
-
-      {/* Updates Section (for item detail) */}
-      {selectedItem && showItemDetail && (
-        <div className="hidden">
-          <UpdatesSection itemId={selectedItem.id} boardId={id} />
-        </div>
       )}
     </div>
   );
