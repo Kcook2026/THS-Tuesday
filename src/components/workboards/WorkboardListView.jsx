@@ -23,6 +23,7 @@ export default function WorkboardListView({
   onCreateSubItem,
   onDeleteItem,
   renderInlineEdit,
+  getValue,
 }) {
   const subItemsMap = items.reduce((acc, item) => {
     if (item.parent_item) {
@@ -92,7 +93,8 @@ export default function WorkboardListView({
       const count = (item.files || []).length;
       return <span className="text-sm">{count > 0 ? `${count} file${count > 1 ? 's' : ''}` : '—'}</span>;
     }
-    return <span className="text-sm truncate">{item[col?.field_name] || '—'}</span>;
+    const valueRecord = getValue?.(item.id, col?.id);
+    return <span className="text-sm truncate">{valueRecord?.display_value || valueRecord?.value || '—'}</span>;
   };
 
   const defaultColumns = [

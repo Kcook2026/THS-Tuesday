@@ -107,6 +107,10 @@ export default function Workboards() {
   };
 
   const handleSave = async () => {
+    if (!user?.id) {
+      toast({ title: 'Unable to save board', description: 'User session not found. Please refresh the page.', variant: 'destructive', duration: 6000 });
+      return;
+    }
     setSaving(true);
     try {
       const data = { ...form };
@@ -121,8 +125,9 @@ export default function Workboards() {
         const newBoard = await base44.entities.Workboard.create({ 
           ...data, 
           workspace: currentWorkspaceId, 
-          owner: user?.id,
-          created_by: user?.id,
+          owner: user.id,
+          created_by: user.id,
+          status: 'active',
         });
         
         logActivity(user, 'created workboard', 'Workboard', newBoard.id, form.name);

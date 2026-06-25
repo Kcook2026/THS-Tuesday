@@ -31,6 +31,7 @@ import DuplicateBoardDialog from '@/components/workboards/DuplicateBoardDialog';
 import { isOrphanedBoard, safeDeleteBoardData, assignBoardToMe } from '@/lib/boardLifecycle';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import CustomCellRenderer from '@/components/workboards/CustomCellRenderer';
 
 export default function WorkboardDetail() {
   const { id } = useParams();
@@ -685,11 +686,33 @@ export default function WorkboardDetail() {
                         <TableRow key={item.id} className="hover:bg-accent/50 cursor-pointer" onClick={() => handleItemClick(item)}>
                           <TableCell><span className="w-1.5 h-1.5 rounded-full bg-primary/50 block mx-auto" /></TableCell>
                           <TableCell className="font-medium">{item.title}</TableCell>
-                          <TableCell>—</TableCell>
-                          <TableCell>—</TableCell>
-                          <TableCell>—</TableCell>
-                          <TableCell>—</TableCell>
-                          <TableCell>—</TableCell>
+                          {visibleColumns?.owner !== false && (
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
+                                  {users.find(u => u.id === item.owner)?.full_name?.charAt(0)?.toUpperCase() || '?'}
+                                </div>
+                                <span className="text-sm">{users.find(u => u.id === item.owner)?.full_name || '—'}</span>
+                              </div>
+                            </TableCell>
+                          )}
+                          {visibleColumns?.status !== false && (
+                            <TableCell><Badge variant="secondary" className="text-xs">{item.status || '—'}</Badge></TableCell>
+                          )}
+                          {visibleColumns?.priority !== false && (
+                            <TableCell><Badge variant="secondary" className="text-xs">{item.priority || '—'}</Badge></TableCell>
+                          )}
+                          {visibleColumns?.due_date !== false && (
+                            <TableCell className="text-sm">{item.due_date ? new Date(item.due_date).toLocaleDateString() : '—'}</TableCell>
+                          )}
+                          {visibleColumns?.progress_percentage !== false && (
+                            <TableCell className="text-sm">{item.progress_percentage || 0}%</TableCell>
+                          )}
+                          {columns.filter(c => !c.hidden).map(column => (
+                            <TableCell key={column.id}>
+                              <CustomCellRenderer column={column} valueRecord={getValue(item.id, column.id)} users={users} teams={teams} />
+                            </TableCell>
+                          ))}
                           <TableCell></TableCell>
                         </TableRow>
                       ))

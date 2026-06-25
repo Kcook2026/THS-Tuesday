@@ -25,6 +25,10 @@ export default function DuplicateBoardDialog({ board, workspaceId, userId, isOpe
 
   const handleDuplicate = async () => {
     if (!newName.trim()) return;
+    if (!userId) {
+      toast({ title: 'Unable to duplicate board', description: 'User session not found. Please refresh the page.', variant: 'destructive', duration: 6000 });
+      return;
+    }
     setLoading(true);
     try {
       const newBoard = await base44.entities.Workboard.create({
@@ -33,6 +37,7 @@ export default function DuplicateBoardDialog({ board, workspaceId, userId, isOpe
         workspace: workspaceId,
         owner: userId,
         created_by: userId,
+        status: 'active',
         board_type: board.board_type || 'task_board',
         status: 'active',
         archived: false,
