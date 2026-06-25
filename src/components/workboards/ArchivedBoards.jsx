@@ -9,6 +9,7 @@ import usePermissions from '@/hooks/usePermissions';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import EmptyState from '@/components/shared/EmptyState';
 import { Archive, RotateCcw, Trash2, ArchiveX } from 'lucide-react';
+import { getArchivedWorkboards } from '@/lib/workboardHelpers';
 
 export default function ArchivedBoards({ workspaceId, onRefresh, compact = false }) {
   const { toast } = useToast();
@@ -23,7 +24,7 @@ export default function ArchivedBoards({ workspaceId, onRefresh, compact = false
     setLoading(true);
     try {
       const all = await base44.entities.Workboard.filter({ workspace: workspaceId }).catch(() => []);
-      const archived = all.filter(b => b && b.id && (b.archived === true || b.status === 'archived'));
+      const archived = getArchivedWorkboards(all, workspaceId);
       setBoards(archived);
     } catch (e) {
       console.error('ArchivedBoards load error:', e);
@@ -87,9 +88,11 @@ export default function ArchivedBoards({ workspaceId, onRefresh, compact = false
       for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
       for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
       for (const m of members) await base44.entities.WorkboardMember.delete(m.id);
+      const me = await base44.auth.me().catch(() => null);
       await base44.entities.Workboard.update(board.id, {
         status: 'deleted',
         deleted_date: new Date().toISOString(),
+        deleted_by: me?.id,
       });
       toast({ title: 'Board permanently deleted', duration: 3000 });
       await load();

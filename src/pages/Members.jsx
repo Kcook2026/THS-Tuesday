@@ -23,7 +23,7 @@ import {
 import InviteUserDialog from '@/components/shared/InviteUserDialog';
 import BoardAccessDrawer from '@/components/workboards/BoardAccessDrawer';
 import ArchivedBoards from '@/components/workboards/ArchivedBoards';
-import { getActiveWorkboards } from '@/lib/workboardHelpers';
+import { getActiveWorkboards, getArchivedWorkboards } from '@/lib/workboardHelpers';
 
 const ACCOUNT_ROLE_LABELS = {
   system_admin: 'System Admin',
@@ -107,7 +107,7 @@ export default function Members() {
       setAllBoards(boards.filter(b => b && b.id));
 
       const activeBoardIds = new Set(activeBoards.map(b => b.id));
-      const archivedCount = boards.filter(b => b && b.id && (b.archived === true || b.status === 'archived' || b.status === 'template' || b.status === 'deleted')).length;
+      const archivedCount = getArchivedWorkboards(boards, currentWorkspaceId).length;
       // Load workboard memberships for each member
       const wbMemberships = {};
       const allWbMembers = [];
@@ -118,7 +118,7 @@ export default function Members() {
         }).catch(() => []);
         allWbMembers.push(...wbMembers);
         // Only count memberships for active, non-archived boards that still exist
-        wbMemberships[member.id] = wbMembers.filter(wm => activeBoardIds.has(wm.workboard));
+        wbMemberships[member.id] = wbMembers.filter(wm => activeBoardIds.has(wm.workboard) && wm.status !== 'removed');
       }
       setMemberWorkboards(wbMemberships);
 
@@ -271,11 +271,11 @@ export default function Members() {
     } catch (e) { toast({ title: 'Failed to reactivate', variant: 'destructive' }); }
   };
 
-  const handleNormalizeLifecycle = async () => {
+  const handleRepairBoardData = async () => {
     const ok = await confirm({
-      title: 'Normalize Board Lifecycle?',
-      description: 'This will: mark hidden/old boards as archived, remove duplicate WorkboardMember records, remove memberships for deleted boards, and recalculate board counts.',
-      confirmLabel: 'Normalize',
+      title: 'Repair Board Data?',
+      description: 'Repairs old board records, fixes archive/delete flags, removes stale memberships, and refreshes board counts.',
+      confirmLabel: 'Repair',
       variant: 'warning',
     });
     if (!ok) return;
@@ -284,18 +284,26 @@ export default function Members() {
       // 1. Fetch all boards for workspace
       const boards = await base44.entities.Workboard.filter({ workspace: currentWorkspaceId }).catch(() => []);
 
-      // 2. Mark boards as archived if they have archived=true but status !== 'archived'
+      // 2. Repair board lifecycle flags
       let normalizedCount = 0;
       for (const b of boards) {
-        if (b.archived === true && b.status !== 'archived') {
-          await base44.entities.Workboard.update(b.id, {
-            status: 'archived',
-            archived_date: b.archived_date || new Date().toISOString(),
-          });
-          normalizedCount++;
+        const updates = {};
+        // set status=deleted for records with deleted_date
+        if (b.deleted_date && b.status !== 'deleted') {
+          updates.status = 'deleted';
         }
+        // set archived=true for status archived
         if (b.status === 'archived' && b.archived !== true) {
-          await base44.entities.Workboard.update(b.id, { archived: true });
+          updates.archived = true;
+          if (!b.archived_date) updates.archived_date = new Date().toISOString();
+        }
+        // set status=archived for archived=true (unless already deleted)
+        if (b.archived === true && b.status !== 'archived' && b.status !== 'deleted') {
+          updates.status = 'archived';
+          if (!b.archived_date) updates.archived_date = new Date().toISOString();
+        }
+        if (Object.keys(updates).length > 0) {
+          await base44.entities.Workboard.update(b.id, updates);
           normalizedCount++;
         }
       }
@@ -342,14 +350,14 @@ export default function Members() {
       });
 
       toast({
-        title: 'Board lifecycle normalized',
-        description: `${normalizedCount} board(s) normalized, ${uniqueToDelete.length} membership(s) removed`,
+        title: 'Board data repaired',
+        description: `${normalizedCount} board(s) repaired, ${uniqueToDelete.length} membership(s) removed`,
         duration: 4000,
       });
       await loadData();
       window.dispatchEvent(new Event('workboards-changed'));
     } catch (e) {
-      toast({ title: 'Failed to normalize board lifecycle', description: e.message, variant: 'destructive' });
+      toast({ title: 'Failed to repair board data', description: e.message, variant: 'destructive' });
     } finally {
       setNormalizing(false);
     }
@@ -418,8 +426,8 @@ export default function Members() {
     <div className="space-y-6">
       <PageHeader title="Members" subtitle="Manage members, roles, and access">
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleNormalizeLifecycle} disabled={normalizing}>
-            <Brush className="w-4 h-4 mr-2" /> {normalizing ? 'Normalizing...' : 'Normalize Board Lifecycle'}
+          <Button variant="outline" size="sm" onClick={handleRepairBoardData} disabled={normalizing} title="Repairs old board records, fixes archive/delete flags, removes stale memberships, and refreshes board counts.">
+            <Brush className="w-4 h-4 mr-2" /> {normalizing ? 'Repairing...' : 'Repair Board Data'}
           </Button>
           <Button variant="outline" size="sm" onClick={handleCleanStaleMemberships} disabled={cleaningStale}>
             <Brush className="w-4 h-4 mr-2" /> {cleaningStale ? 'Cleaning...' : 'Clean Stale Memberships'}

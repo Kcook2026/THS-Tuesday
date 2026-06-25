@@ -36,6 +36,8 @@ const boardTypeIcons = {
   task_board: LayoutGrid,
   process_board: Workflow,
   operations_board: Settings,
+  planning_board: Target,
+  team_board: Users,
 };
 
 function NavItem({ item, isActive, collapsed, onClick }) {
@@ -112,7 +114,7 @@ export default function WorkspaceSidebar({ collapsed, onToggle, mobile, onNaviga
         isLoadingRef.current = true;
         (async () => {
           try {
-            const w = await base44.entities.Workboard.filter({ workspace: currentWorkspaceId, archived: false }, '-updated_date', 20).catch(() => []);
+            const w = await base44.entities.Workboard.filter({ workspace: currentWorkspaceId }, '-updated_date', 20).catch(() => []);
             setWorkboards(getActiveWorkboards(w, currentWorkspaceId));
           } finally {
             isLoadingRef.current = false;
@@ -131,7 +133,7 @@ export default function WorkspaceSidebar({ collapsed, onToggle, mobile, onNaviga
     const loadSidebarData = async () => {
       try {
         const [w, t] = await Promise.all([
-          base44.entities.Workboard.filter({ workspace: currentWorkspaceId, archived: false }, '-updated_date', 20).catch(() => []),
+          base44.entities.Workboard.filter({ workspace: currentWorkspaceId }, '-updated_date', 20).catch(() => []),
           base44.entities.Team.filter({ workspace: currentWorkspaceId }, '-updated_date', 10).catch(() => []),
         ]);
         const valid = getActiveWorkboards(w, currentWorkspaceId);

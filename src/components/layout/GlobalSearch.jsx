@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Hash, FolderKanban, CheckSquare, LayoutGrid, FileText } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
+import { getActiveWorkboards } from '@/lib/workboardHelpers';
 import {
   Dialog, DialogContent,
 } from '@/components/ui/dialog';
@@ -45,7 +46,7 @@ export default function GlobalSearch({ open, onOpenChange }) {
       try {
         const wsFilter = { workspace: currentWorkspaceId };
         const [boards, projects, tasks] = await Promise.all([
-          base44.entities.Workboard.filter(wsFilter, '-updated_date', 5).catch(() => []),
+          base44.entities.Workboard.filter(wsFilter, '-updated_date', 10).catch(() => []),
           base44.entities.Project.filter(wsFilter, '-updated_date', 5).catch(() => []),
           base44.entities.Task.filter(wsFilter, '-updated_date', 5).catch(() => []),
         ]);
@@ -53,8 +54,9 @@ export default function GlobalSearch({ open, onOpenChange }) {
         if (cancelled) return;
 
         const q = query.toLowerCase();
+        const activeBoards = getActiveWorkboards(boards, currentWorkspaceId);
         const filtered = [
-          ...boards.filter(b => b.name?.toLowerCase().includes(q)).map(b => ({
+          ...activeBoards.filter(b => b.name?.toLowerCase().includes(q)).map(b => ({
             type: 'Workboard', label: b.name, path: `/workboards/${b.id}`, icon: LayoutGrid,
           })),
           ...projects.filter(p => p.project_name?.toLowerCase().includes(q)).map(p => ({

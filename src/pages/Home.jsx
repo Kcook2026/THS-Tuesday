@@ -11,6 +11,7 @@ import {
   ArrowRight, Star, Workflow, Target,
 } from 'lucide-react';
 import WorkspaceFormDialog from '@/components/shared/WorkspaceFormDialog';
+import { getActiveWorkboards } from '@/lib/workboardHelpers';
 
 export default function Home() {
   const { user, currentWorkspace, currentWorkspaceId, loading: wsLoading } = useWorkspace();
@@ -30,22 +31,15 @@ export default function Home() {
     const wsFilter = { workspace: currentWorkspaceId };
     Promise.all([
       base44.entities.WorkboardItem.filter({ ...wsFilter, assignee: user.id, archived: false }, '-updated_date', 10).catch(() => []),
-      base44.entities.Workboard.filter({ ...wsFilter, status: 'active', archived: false }, '-updated_date', 6).catch(() => []),
+      base44.entities.Workboard.filter(wsFilter, '-updated_date', 10).catch(() => []),
       base44.entities.Activity.filter(wsFilter, '-created_date', 6).catch(() => []),
       base44.entities.Project.filter(wsFilter, '-updated_date', 4).catch(() => []),
       base44.entities.Team.filter(wsFilter, '-updated_date', 5).catch(() => []),
     ]).then(([items, w, a, p, tm]) => {
       const tasks = items.filter(i => i.item_type === 'task' && i.status !== 'done');
-      // Dedupe and filter stale boards client-side as a safeguard
-      const seenIds = new Set();
-      const cleanBoards = w.filter(b => {
-        if (!b || seenIds.has(b.id)) return false;
-        if (b.archived === true || b.status === 'archived' || b.status === 'template') return false;
-        seenIds.add(b.id);
-        return true;
-      });
+      const activeBoards = getActiveWorkboards(w, currentWorkspaceId);
       setTasks(tasks);
-      setWorkboards(cleanBoards);
+      setWorkboards(activeBoards);
       setActivity(a);
       setProjects(p);
       setTeams(tm);
@@ -321,6 +315,8 @@ function BoardTypeIcon({ type }) {
     task_board: LayoutGrid,
     process_board: Workflow,
     operations_board: Target,
+    planning_board: Target,
+    team_board: Users,
   };
   const Icon = icons[type] || LayoutGrid;
   return <Icon className="w-4 h-4 text-muted-foreground" />;

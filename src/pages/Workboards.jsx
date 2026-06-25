@@ -19,7 +19,7 @@ import { logActivity } from '@/hooks/useActivityLogger';
 import usePermissions from '@/hooks/usePermissions';
 import { useToast } from '@/components/ui/use-toast';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
-import { getActiveWorkboards } from '@/lib/workboardHelpers';
+import { getActiveWorkboards, getArchivedWorkboards } from '@/lib/workboardHelpers';
 import ArchivedBoards from '@/components/workboards/ArchivedBoards';
 import DuplicateBoardDialog from '@/components/workboards/DuplicateBoardDialog';
 
@@ -28,6 +28,8 @@ const BOARD_TYPES = {
   task_board: { label: 'Task Board', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-300' },
   process_board: { label: 'SOP Board', color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
   operations_board: { label: 'Operations Board', color: 'bg-orange-500/10 text-orange-700 dark:text-orange-300' },
+  planning_board: { label: 'Planning Board', color: 'bg-teal-500/10 text-teal-700 dark:text-teal-300' },
+  team_board: { label: 'Team Board', color: 'bg-pink-500/10 text-pink-700 dark:text-pink-300' },
 };
 
 export default function Workboards() {
@@ -42,6 +44,7 @@ export default function Workboards() {
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [archivedCount, setArchivedCount] = useState(0);
   const [duplicateTarget, setDuplicateTarget] = useState(null);
   const isLoadingRef = useRef(false);
   const { can } = usePermissions();
@@ -55,7 +58,7 @@ export default function Workboards() {
     setLoading(true);
     try {
       const [b, p, t, me] = await Promise.all([
-        base44.entities.Workboard.filter({ workspace: currentWorkspaceId, archived: false }),
+        base44.entities.Workboard.filter({ workspace: currentWorkspaceId }),
         base44.entities.Project.filter({ workspace: currentWorkspaceId }),
         base44.entities.Team.filter({ workspace: currentWorkspaceId }),
         base44.auth.me()
@@ -69,6 +72,7 @@ export default function Workboards() {
         }
       }
       setBoards(validBoards);
+      setArchivedCount(getArchivedWorkboards(b, currentWorkspaceId).length);
       setProjects(p);
       setTeams(t);
       setUser(me);
@@ -255,10 +259,10 @@ export default function Workboards() {
 
   return (
     <div>
-      <PageHeader title="Workboards" subtitle={`${boards.length} boards`}>
+      <PageHeader title="Workboards" subtitle={`${boards.length} active board${boards.length !== 1 ? 's' : ''}`}>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowArchived(s => !s)}>
-            <ArchiveX className="w-4 h-4 mr-1.5" /> {showArchived ? 'Hide Archived' : 'Archived'}
+            <ArchiveX className="w-4 h-4 mr-1.5" /> {showArchived ? 'Hide Archived' : `Archived (${archivedCount})`}
           </Button>
           {can('canManageBoards') && <Button onClick={() => openForm(null)}><Plus className="w-4 h-4 mr-1.5" /> New Workboard</Button>}
         </div>

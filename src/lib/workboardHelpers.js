@@ -1,52 +1,94 @@
 /**
- * Returns only archived workboards for a workspace (deduplicated).
+ * Single source of truth for Workboard lifecycle classification.
+ *
+ * Lifecycle states (mutually exclusive when used via the list helpers):
+ *   active    – status === 'active' AND archived !== true
+ *   archived  – status === 'archived' OR archived === true  (but NOT deleted)
+ *   deleted   – status === 'deleted' OR deleted_date exists
+ *   template  – status === 'template'
  */
-export function getArchivedWorkboards(workboards, currentWorkspaceId) {
+
+// ── Single-board predicates ──────────────────────────────────────────────
+
+export function isActiveBoard(board, workspaceId) {
+  if (!board || !board.id) return false;
+  if (workspaceId && board.workspace !== workspaceId) return false;
+  return board.status === 'active' && board.archived !== true;
+}
+
+export function isArchivedBoard(board, workspaceId) {
+  if (!board || !board.id) return false;
+  if (workspaceId && board.workspace !== workspaceId) return false;
+  // Deleted boards are not archived
+  if (board.status === 'deleted' || board.deleted_date) return false;
+  return board.status === 'archived' || board.archived === true;
+}
+
+export function isDeletedBoard(board, workspaceId) {
+  if (!board || !board.id) return false;
+  if (workspaceId && board.workspace !== workspaceId) return false;
+  return board.status === 'deleted' || !!board.deleted_date;
+}
+
+export function isTemplateBoard(board, workspaceId) {
+  if (!board || !board.id) return false;
+  if (workspaceId && board.workspace !== workspaceId) return false;
+  return board.status === 'template';
+}
+
+/**
+ * Returns a normalized copy of a board record with lifecycle flags
+ * reconciled (used by the "Repair Board Data" admin action).
+ */
+export function normalizeBoard(board) {
+  if (!board) return null;
+  const status = board.status || 'active';
+  const archived = board.archived === true;
+  const hasDeletedDate = !!board.deleted_date;
+
+  if (status === 'deleted' || hasDeletedDate) {
+    return { ...board, status: 'deleted', archived: true };
+  }
+  if (status === 'archived' || archived) {
+    return { ...board, status: 'archived', archived: true };
+  }
+  if (status === 'template') {
+    return { ...board, status: 'template', archived: false };
+  }
+  return { ...board, status: 'active', archived: false };
+}
+
+// ── List helpers (de-duplicated) ─────────────────────────────────────────
+
+export function getActiveWorkboards(workboards, currentWorkspaceId, userAccess) {
   if (!Array.isArray(workboards)) return [];
   const seen = new Set();
   return workboards.filter((wb) => {
-    if (!wb || !wb.id) return false;
+    if (!isActiveBoard(wb, currentWorkspaceId)) return false;
     if (seen.has(wb.id)) return false;
-    if (currentWorkspaceId && wb.workspace !== currentWorkspaceId) return false;
-    const isArchived = wb.archived === true || wb.status === 'archived';
-    if (!isArchived) return false;
+    if (typeof userAccess === 'function' && !userAccess(wb)) return false;
     seen.add(wb.id);
     return true;
   });
 }
 
-/**
- * Returns only active, accessible, de-duplicated workboards for a workspace.
- *
- * A workboard is "active" only if:
- *   - it exists (non-null) and has an id
- *   - workspace matches currentWorkspaceId (when provided)
- *   - archived is not true
- *   - status is not "archived", "template", or "deleted"
- *   - id is unique (first occurrence wins)
- *
- * @param {Array} workboards - raw workboard records
- * @param {string} [currentWorkspaceId] - filter to this workspace; pass undefined/null to skip
- * @param {Function} [userAccess] - optional fn(wb) => boolean; defaults to true
- * @returns {Array}
- */
-export function getActiveWorkboards(workboards, currentWorkspaceId, userAccess) {
+export function getArchivedWorkboards(workboards, currentWorkspaceId) {
   if (!Array.isArray(workboards)) return [];
-
   const seen = new Set();
-
   return workboards.filter((wb) => {
-    if (!wb || !wb.id) return false;
+    if (!isArchivedBoard(wb, currentWorkspaceId)) return false;
     if (seen.has(wb.id)) return false;
+    seen.add(wb.id);
+    return true;
+  });
+}
 
-    if (currentWorkspaceId && wb.workspace !== currentWorkspaceId) return false;
-
-    if (wb.archived === true) return false;
-    const st = wb.status;
-    if (st === 'archived' || st === 'template' || st === 'deleted') return false;
-
-    if (typeof userAccess === 'function' && !userAccess(wb)) return false;
-
+export function getDeletedWorkboards(workboards, currentWorkspaceId) {
+  if (!Array.isArray(workboards)) return [];
+  const seen = new Set();
+  return workboards.filter((wb) => {
+    if (!isDeletedBoard(wb, currentWorkspaceId)) return false;
+    if (seen.has(wb.id)) return false;
     seen.add(wb.id);
     return true;
   });

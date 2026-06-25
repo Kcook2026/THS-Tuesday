@@ -32,7 +32,9 @@
         "project_board",
         "task_board",
         "process_board",
-        "operations_board"
+        "operations_board",
+        "planning_board",
+        "team_board"
       ],
       "default": "task_board"
     },
@@ -123,9 +125,17 @@
         "relationType": "User"
       },
       "description": "Users explicitly assigned to this workboard (for restricted visibility)"
+    },
+    "created_by": {
+      "type": "string",
+      "title": "Created By",
+      "relationType": "User"
     }
   },
   "required": [
-    "name"
+    "workspace",
+    "name",
+    "owner",
+    "status"
   ]
 }
