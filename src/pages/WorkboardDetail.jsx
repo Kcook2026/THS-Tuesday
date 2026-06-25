@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,7 @@ import CustomCellRenderer from '@/components/workboards/CustomCellRenderer';
 
 export default function WorkboardDetail() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const { currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
   const confirm = useConfirm();
@@ -68,6 +69,22 @@ export default function WorkboardDetail() {
   const [showItemDetail, setShowItemDetail] = useState(false);
   const [activeView, setActiveView] = useState('list');
   const [boardMembers, setBoardMembers] = useState([]);
+
+  // Handle URL query params for opening items
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const itemId = params.get('item');
+    const tab = params.get('tab') || 'overview';
+    
+    if (itemId && items.length > 0) {
+      const item = items.find(i => i.id === itemId);
+      if (item) {
+        setSelectedItem(item);
+        setSelectedItemTab(tab);
+        setShowItemDetail(true);
+      }
+    }
+  }, [items]);
   const { getValue, saveValue } = useItemValues(id, currentWorkspaceId);
   const [cardFields, setCardFields] = useState(() => {
     try {
@@ -149,6 +166,21 @@ export default function WorkboardDetail() {
   }, [id, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Handle URL query params to open item drawer
+  useEffect(() => {
+    const itemId = searchParams.get('item');
+    const tab = searchParams.get('tab') || 'overview';
+    
+    if (itemId && items.length > 0) {
+      const item = items.find(i => i.id === itemId);
+      if (item) {
+        setSelectedItem(item);
+        setSelectedItemTab(tab);
+        setShowItemDetail(true);
+      }
+    }
+  }, [searchParams, items]);
 
   useEffect(() => {
     if (!id) return;

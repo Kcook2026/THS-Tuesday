@@ -20,8 +20,9 @@ export default function WatchersSection({ item, boardId, workspaceId, users, cur
   }, [item?.id]);
 
   const loadUser = async () => {
-    if (currentUserId) {
-      setCurrentUser({ id: currentUserId });
+    if (currentUserId && users && users.length > 0) {
+      const fullUser = users.find(u => u.id === currentUserId);
+      setCurrentUser(fullUser || { id: currentUserId });
     } else {
       const me = await base44.auth.me().catch(() => null);
       setCurrentUser(me);
@@ -81,7 +82,7 @@ export default function WatchersSection({ item, boardId, workspaceId, users, cur
               record_type: 'WorkboardItem',
               record_id: item.id,
               user: currentUser.id,
-              user_name: currentUser.full_name || 'User',
+              user_name: currentUser.full_name || currentUser.email || 'User',
               action: 'watcher removed',
               before_value: currentUser.full_name || 'User',
               after_value: '',
@@ -90,9 +91,25 @@ export default function WatchersSection({ item, boardId, workspaceId, users, cur
           } catch (err) {
             console.error('Failed to log activity:', err);
           }
+        } else if (watcher && !watcher.id) {
+          // Watcher exists but no ID - refetch to get proper ID
+          const watcherList = await base44.entities.ItemWatcher.filter({
+            item: item.id,
+            user: currentUser.id,
+          });
+          if (watcherList && watcherList.length > 0) {
+            await base44.entities.ItemWatcher.delete(watcherList[0].id);
+            setWatchers(prev => prev.filter(w => w.user !== currentUser.id));
+            toast({ title: 'Stopped watching', duration: 2000 });
+          } else {
+            setWatchers(prev => prev.filter(w => w.user !== currentUser.id));
+            setIsWatching(false);
+            toast({ title: 'Not watching', description: 'You were not watching this item', duration: 3000 });
+          }
         } else {
-          toast({ title: 'Not watching', description: 'You are not currently watching this item', variant: 'destructive', duration: 4000 });
-          return;
+          setWatchers(prev => prev.filter(w => w.user !== currentUser.id));
+          setIsWatching(false);
+          toast({ title: 'Not watching', description: 'You are not currently watching this item', duration: 3000 });
         }
       } else {
         // Add watcher
@@ -116,7 +133,7 @@ export default function WatchersSection({ item, boardId, workspaceId, users, cur
             record_type: 'WorkboardItem',
             record_id: item.id,
             user: me.id,
-            user_name: me.full_name || 'User',
+            user_name: me.full_name || me.email || 'User',
             action: 'watcher added',
             before_value: '',
             after_value: me.full_name || 'User',

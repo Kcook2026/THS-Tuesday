@@ -17,6 +17,17 @@ const ROUTE_MAP = {
   Process: '/processes',
 };
 
+const getNotificationRoute = (n) => {
+  if (n.record_type === 'WorkboardItem' && n.workboard && n.record_id) {
+    const tab = n.type === 'mention' ? 'updates' : 'activity';
+    return `/workboards/${n.workboard}?item=${n.record_id}&tab=${tab}`;
+  }
+  if (n.record_type && ROUTE_MAP[n.record_type]) {
+    return ROUTE_MAP[n.record_type];
+  }
+  return null;
+};
+
 export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +47,8 @@ export default function Notifications() {
       await base44.entities.Notification.update(n.id, { read_status: true });
       load();
     }
-    if (n.record_type && ROUTE_MAP[n.record_type]) navigate(ROUTE_MAP[n.record_type]);
+    const route = getNotificationRoute(n);
+    if (route) navigate(route);
   };
 
   const markAllRead = async () => {

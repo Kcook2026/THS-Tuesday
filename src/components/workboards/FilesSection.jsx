@@ -139,8 +139,12 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
 
   const handlePreview = async (file) => {
     try {
-      // Use file_uri if available (for private files), otherwise use file_url
-      const fileUri = file.file_uri || file.file_url;
+      // Always use file_uri for signed URL creation
+      const fileUri = file.file_uri;
+      if (!fileUri) {
+        toast({ title: 'Preview unavailable', description: 'Legacy file - use download instead', variant: 'destructive', duration: 4000 });
+        return;
+      }
       const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({
         file_uri: fileUri,
         expires_in: 3600,
@@ -154,7 +158,12 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
 
   const handleDownload = async (file) => {
     try {
+      // Prefer file_uri, fallback to file_url for legacy files
       const fileUri = file.file_uri || file.file_url;
+      if (!fileUri) {
+        toast({ title: 'Download failed', description: 'No file URL available', variant: 'destructive', duration: 4000 });
+        return;
+      }
       const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({
         file_uri: fileUri,
         expires_in: 3600,

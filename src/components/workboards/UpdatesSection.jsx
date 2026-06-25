@@ -36,12 +36,20 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
   }, [item?.id]);
 
   const loadUser = async () => {
+    let me;
     if (currentUserId) {
-      setCurrentUser({ id: currentUserId });
+      me = { id: currentUserId };
+      // Resolve full user object from users array
+      const matchedUser = users?.find(u => u.id === currentUserId);
+      if (matchedUser) {
+        me = { ...me, ...matchedUser };
+      } else {
+        me = await base44.auth.me().catch(() => me);
+      }
     } else {
-      const me = await base44.auth.me().catch(() => null);
-      setCurrentUser(me);
+      me = await base44.auth.me().catch(() => null);
     }
+    setCurrentUser(me);
   };
 
   const loadComments = async () => {
@@ -99,25 +107,7 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
           record_type: 'WorkboardItem',
           record_id: item.id,
           user: me.id,
-          user_name: meName,
-          action: 'comment added',
-          before_value: '',
-          after_value: text.trim().substring(0, 50),
-          created_date: new Date().toISOString(),
-        });
-      } catch (err) {
-        console.error('Failed to log activity:', err);
-      }
-
-      // Log activity
-      try {
-        await base44.entities.Activity.create({
-          workspace: item.workspace || workspaceId,
-          workboard: item.workboard || boardId,
-          record_type: 'WorkboardItem',
-          record_id: item.id,
-          user: me.id,
-          user_name: meName,
+          user_name: me.full_name || me.email || 'User',
           action: 'comment added',
           before_value: '',
           after_value: text.trim().substring(0, 50),
@@ -134,13 +124,14 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
             try {
               await base44.entities.Notification.create({
                 workspace: item.workspace || workspaceId,
+                workboard: item.workboard || boardId,
                 user: mentionedUserId,
                 type: 'mention',
                 title: 'You were mentioned',
                 message: `${meName} mentioned you in a comment on "${item.title}"`,
                 record_type: 'WorkboardItem',
                 record_id: item.id,
-                status: 'unread',
+                read_status: false,
                 created_date: new Date().toISOString(),
               });
             } catch (err) {
@@ -197,25 +188,7 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
           record_type: 'WorkboardItem',
           record_id: item.id,
           user: currentUser?.id,
-          user_name: currentUser?.full_name || 'User',
-          action: 'comment edited',
-          before_value: comments.find(c => c.id === commentId)?.body?.substring(0, 50) || '',
-          after_value: editText.trim().substring(0, 50),
-          created_date: new Date().toISOString(),
-        });
-      } catch (err) {
-        console.error('Failed to log activity:', err);
-      }
-
-      // Log activity
-      try {
-        await base44.entities.Activity.create({
-          workspace: item.workspace || workspaceId,
-          workboard: item.workboard || boardId,
-          record_type: 'WorkboardItem',
-          record_id: item.id,
-          user: currentUser?.id,
-          user_name: currentUser?.full_name || 'User',
+          user_name: currentUser?.full_name || currentUser?.email || 'User',
           action: 'comment edited',
           before_value: oldComment?.body?.substring(0, 50) || '',
           after_value: editText.trim().substring(0, 50),
@@ -257,25 +230,7 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
           record_type: 'WorkboardItem',
           record_id: item.id,
           user: currentUser?.id,
-          user_name: currentUser?.full_name || 'User',
-          action: 'comment deleted',
-          before_value: comments.find(c => c.id === commentId)?.body?.substring(0, 50) || '',
-          after_value: '[Deleted]',
-          created_date: new Date().toISOString(),
-        });
-      } catch (err) {
-        console.error('Failed to log activity:', err);
-      }
-
-      // Log activity
-      try {
-        await base44.entities.Activity.create({
-          workspace: item.workspace || workspaceId,
-          workboard: item.workboard || boardId,
-          record_type: 'WorkboardItem',
-          record_id: item.id,
-          user: currentUser?.id,
-          user_name: currentUser?.full_name || 'User',
+          user_name: currentUser?.full_name || currentUser?.email || 'User',
           action: 'comment deleted',
           before_value: oldComment?.body?.substring(0, 50) || '',
           after_value: '[Deleted]',
@@ -350,11 +305,14 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
   };
 
   const getAuthorName = (comment) => {
-    // Priority: user_name > lookup from users > user_email > fallback
-    if (comment.user_name) return comment.user_name;
+    // Priority: resolve from users > user_name > user_email > fallback
+    // Never show "User" or "Unassigned" for authored comments
+    if (comment.user) {
+      const user = users?.find(u => u.id === comment.user);
+      if (user) return user.full_name || user.email || comment.user_email || 'User';
+    }
+    if (comment.user_name && comment.user_name !== 'User') return comment.user_name;
     if (comment.user_email) return comment.user_email.split('@')[0];
-    const user = users?.find(u => u.id === comment.user);
-    if (user) return user.full_name || user.email || 'User';
     return 'User';
   };
 

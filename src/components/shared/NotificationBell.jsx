@@ -44,20 +44,25 @@ export default function NotificationBell() {
     };
   }, []);
 
+  const unread = notifications.filter(n => !n.read_status).length;
+
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const unread = notifications.filter(n => !n.read_status).length;
-
   const markRead = async (n) => {
     if (!n.read_status) {
       await base44.entities.Notification.update(n.id, { read_status: true });
       load();
     }
-    if (n.record_type && ROUTE_MAP[n.record_type]) {
+    
+    // Route to the correct page
+    if (n.record_type === 'WorkboardItem' && n.workboard && n.record_id) {
+      navigate(`/workboards/${n.workboard}?item=${n.record_id}&tab=updates`);
+      setOpen(false);
+    } else if (n.record_type && ROUTE_MAP[n.record_type]) {
       navigate(ROUTE_MAP[n.record_type]);
       setOpen(false);
     }
@@ -74,11 +79,11 @@ export default function NotificationBell() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => { setOpen(o => !o); if (!open) load(); }}
-        className="relative p-2 rounded-lg hover:bg-muted transition-colors"
+        className={`relative p-2 rounded-lg transition-colors ${unread > 0 ? 'bg-primary/10 hover:bg-primary/20' : 'hover:bg-muted'}`}
       >
-        <Bell className="w-4.5 h-4.5 text-foreground/70" />
+        <Bell className={`w-4.5 h-4.5 ${unread > 0 ? 'text-primary' : 'text-foreground/70'}`} />
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center animate-pulse">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
