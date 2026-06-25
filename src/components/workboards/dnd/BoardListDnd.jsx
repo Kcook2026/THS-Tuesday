@@ -27,6 +27,37 @@ export default function BoardListDnd({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  // Custom collision detection: filter droppable targets based on what's being dragged.
+  // This prevents large group containers from capturing the `over` target when dragging items.
+  const collisionDetection = (args) => {
+    const { active, droppableContainers } = args;
+    const activeType = active.data.current?.type;
+
+    let filtered = droppableContainers;
+    if (activeType === 'item') {
+      // Items can only be dropped on other items (reorder/cross-group) or group-drop zones (empty groups)
+      filtered = droppableContainers.filter(c => {
+        const t = c.data.current?.type;
+        return t === 'item' || t === 'group-drop';
+      });
+    } else if (activeType === 'subitem') {
+      // Sub-items can only be dropped on other sub-items (reorder/cross-parent) or main items (reparent)
+      filtered = droppableContainers.filter(c => {
+        const t = c.data.current?.type;
+        return t === 'item' || t === 'subitem';
+      });
+    } else if (activeType === 'group') {
+      // Groups can only be dropped on other groups
+      filtered = droppableContainers.filter(c => c.data.current?.type === 'group');
+    }
+
+    if (filtered.length === 0) {
+      filtered = droppableContainers;
+    }
+
+    return closestCorners({ ...args, droppableContainers: filtered });
+  };
+
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (!over) return;
@@ -53,7 +84,7 @@ export default function BoardListDnd({
         } else {
           onMoveItemToGroup?.(activeData.itemId, overData.groupId);
         }
-      } else if (overData.type === 'group-drop') {
+      } else if (overData.type === 'group-drop' || overData.type === 'group') {
         onMoveItemToGroup?.(activeData.itemId, overData.groupId);
       }
       return;
@@ -79,7 +110,7 @@ export default function BoardListDnd({
   };
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragEnd={handleDragEnd}>
       <SortableContext items={groups.map(g => `group:${g.id}`)} strategy={verticalListSortingStrategy}>
         {children}
       </SortableContext>
