@@ -18,6 +18,11 @@ import { STATUS_COLORS, PRIORITY_COLORS, GROUP_COLOR_CLASSES } from './Workboard
 import { getUserInitials } from '@/lib/userHelpers';
 import CustomCellRenderer from './CustomCellRenderer';
 import CustomCellEditor from './CustomCellEditor';
+import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useDroppable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
+import DragHandle from './dnd/DragHandle';
+import SortableRowWrapper from './dnd/SortableRowWrapper';
 
 const SYSTEM_FIELDS = ['title', 'owner', 'status', 'priority', 'progress_percentage', 'due_date', 'assignee', 'description', 'start_date', 'tags'];
 
@@ -30,9 +35,6 @@ export default function GroupTable({
   onRenameGroup, onArchiveGroup, onDeleteGroup, onDuplicateGroup,
   onGroupColorChange, onGroupReorder,
   onMoveItemToGroup, onItemReorder, onMoveSubItem,
-  onGroupDragStart, onGroupDragOver, onGroupDrop,
-  onItemDragStart, onItemDragOver, onItemDrop,
-  onSubItemDragStart, onSubItemDragOver, onSubItemDrop,
   allGroups = [], allItems = [],
 }) {
   const { toast } = useToast();
@@ -46,6 +48,17 @@ export default function GroupTable({
   const [addingSubItem, setAddingSubItem] = useState(null);
   const [subItemTitle, setSubItemTitle] = useState('');
   const [showColorPicker, setShowColorPicker] = useState(false);
+
+  const groupSortable = useSortable({
+    id: `group:${group.id}`,
+    data: { type: 'group', groupId: group.id },
+    disabled: !canManageGroups,
+  });
+  const { setNodeRef: setDropRef, isOver: isDropOver } = useDroppable({
+    id: `group-drop:${group.id}`,
+    data: { type: 'group-drop', groupId: group.id },
+    disabled: !canEdit,
+  });
 
   const COLOR_OPTIONS = ['gray', 'blue', 'green', 'red', 'yellow', 'orange', 'purple'];
 
@@ -362,37 +375,34 @@ export default function GroupTable({
   const renderItemRow = (item, isSubItem = false) => {
     const subItems = subItemsByParent[item.id] || [];
     const isExpanded = expandedItems[item.id];
+    const sortableId = isSubItem ? `subitem:${item.id}` : `item:${item.id}`;
+    const sortableData = isSubItem
+      ? { type: 'subitem', itemId: item.id, parentId: item.parent_item, groupId: group.id }
+      : { type: 'item', itemId: item.id, groupId: group.id };
 
     return (
-      <React.Fragment key={item.id}>
-        <TableRow
-          className={`hover:bg-accent/50 ${isSubItem ? 'bg-muted/30' : ''}`}
-          onDragOver={canEdit ? onSubItemDragOver : undefined}
-          onDrop={canEdit ? (e) => onSubItemDrop?.(e, isSubItem ? item.parent_item : item.id, isSubItem ? item.id : null) : undefined}
-        >
-          <TableCell className="w-10">
-            <div className="flex items-center gap-0.5">
-              {canEdit && (
-                <span
-                  className="cursor-grab text-muted-foreground hover:text-foreground flex-shrink-0"
-                  draggable
-                  onDragStart={(e) => isSubItem
-                    ? onSubItemDragStart?.(e, item.id, item.parent_item)
-                    : onItemDragStart?.(e, item.id, group.id)
-                  }
-                >
-                  <GripVertical className="w-3.5 h-3.5" />
-                </span>
-              )}
-              {subItems.length > 0 ? (
-                <Button variant="ghost" size="icon" className="h-6 w-6 p-0" onClick={() => toggleExpand(item.id)}>
-                  {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                </Button>
-              ) : (
-                <span className={`w-1.5 h-1.5 rounded-full ${isSubItem ? 'bg-blue-400' : 'bg-primary/50'}`} />
-              )}
-            </div>
-          </TableCell>
+      <SortableRowWrapper key={item.id} id={sortableId} data={sortableData} disabled={!canEdit}>
+        {({ setNodeRef, setActivatorNodeRef, listeners, attributes, transform, transition, isDragging }) => (
+        <React.Fragment>
+          <TableRow
+            ref={setNodeRef}
+            style={{ transform, transition, opacity: isDragging ? 0.5 : 1 }}
+            className={`hover:bg-accent/50 ${isSubItem ? 'bg-muted/30' : ''}`}
+          >
+            <TableCell className="w-10">
+              <div className="flex items-center gap-0.5">
+                {canEdit && (
+                  <DragHandle setActivatorNodeRef={setActivatorNodeRef} listeners={listeners} attributes={attributes} className="flex-shrink-0" />
+                )}
+                {subItems.length > 0 ? (
+                  <Button variant="ghost" size="icon" className="h-6 w-6 p-0" onClick={() => toggleExpand(item.id)}>
+                    {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </Button>
+                ) : (
+                  <span className={`w-1.5 h-1.5 rounded-full ${isSubItem ? 'bg-blue-400' : 'bg-primary/50'}`} />
+                )}
+              </div>
+            </TableCell>
           <TableCell className={`font-medium ${isSubItem ? 'pl-8' : ''}`}>
             {isSubItem && <CornerDownRight className="w-3 h-3 inline-block mr-1 text-muted-foreground" />}
             {canEdit ? renderInlineEdit(item, 'title') : item.title}
@@ -537,24 +547,35 @@ export default function GroupTable({
           </TableRow>
         )}
 
-        {isExpanded && subItems.map(sub => renderItemRow(sub, true))}
-      </React.Fragment>
+        {isExpanded && subItems.length > 0 && (
+          <SortableContext items={subItems.map(s => `subitem:${s.id}`)} strategy={verticalListSortingStrategy}>
+            {subItems.map(sub => renderItemRow(sub, true))}
+          </SortableContext>
+        )}
+        </React.Fragment>
+        )}
+      </SortableRowWrapper>
     );
   };
 
   return (
     <div
+      ref={groupSortable.setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(groupSortable.transform),
+        transition: groupSortable.transition,
+        opacity: groupSortable.isDragging ? 0.5 : 1,
+      }}
       className="space-y-2"
-      onDragOver={canManageGroups ? onGroupDragOver : undefined}
-      onDrop={canManageGroups ? (e) => onGroupDrop?.(e, group.id) : undefined}
     >
       {/* Group Header */}
       <div className="flex items-center gap-2">
         {canManageGroups && (
-          <GripVertical
-            className="w-4 h-4 text-muted-foreground cursor-grab hover:text-foreground flex-shrink-0"
-            draggable
-            onDragStart={(e) => onGroupDragStart?.(e, group.id)}
+          <DragHandle
+            setActivatorNodeRef={groupSortable.setActivatorNodeRef}
+            listeners={groupSortable.listeners}
+            attributes={groupSortable.attributes}
+            className="flex-shrink-0"
           />
         )}
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleToggleCollapse} disabled={saving}>
@@ -608,9 +629,8 @@ export default function GroupTable({
 
       {!collapsed && (
         <div
-          className="border rounded-xl overflow-hidden bg-card"
-          onDragOver={canEdit ? onItemDragOver : undefined}
-          onDrop={canEdit ? (e) => onItemDrop?.(e, group.id) : undefined}
+          ref={setDropRef}
+          className={`border rounded-xl overflow-hidden bg-card transition-shadow ${isDropOver ? 'ring-2 ring-primary/40' : ''}`}
         >
           <div className="overflow-x-auto">
             <Table>
@@ -640,7 +660,9 @@ export default function GroupTable({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  mainItems.map(item => renderItemRow(item))
+                  <SortableContext items={mainItems.map(i => `item:${i.id}`)} strategy={verticalListSortingStrategy}>
+                    {mainItems.map(item => renderItemRow(item))}
+                  </SortableContext>
                 )}
               </TableBody>
             </Table>

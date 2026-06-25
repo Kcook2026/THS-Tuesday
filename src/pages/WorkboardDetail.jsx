@@ -25,10 +25,11 @@ import { useItemValues } from '@/hooks/useItemValues';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
 import {
   Plus, Search, Settings, Archive, Trash2, Save, X, Tag,
-  LayoutList, LayoutGrid, Calendar as CalendarIcon, Copy, UserPlus, AlertTriangle, GripVertical
+  LayoutList, LayoutGrid, Calendar as CalendarIcon, Copy, UserPlus, AlertTriangle
 } from 'lucide-react';
 import DuplicateBoardDialog from '@/components/workboards/DuplicateBoardDialog';
 import AddGroupDialog from '@/components/workboards/AddGroupDialog';
+import BoardListDnd from '@/components/workboards/dnd/BoardListDnd';
 import { isOrphanedBoard, safeDeleteBoardData, assignBoardToMe } from '@/lib/boardLifecycle';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -454,104 +455,81 @@ export default function WorkboardDetail() {
     }
   };
 
-  // === DnD Handlers ===
-  const handleGroupDragStart = (e, groupId) => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'group', id: groupId }));
-  };
-
-  const handleGroupDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleGroupDrop = async (e, targetGroupId) => {
-    e.preventDefault();
+  // === @dnd-kit Handlers ===
+  const handleReorderGroups = async (fromId, toId) => {
+    const prevGroups = [...groups];
+    const sorted = [...groups];
+    const fromIndex = sorted.findIndex(g => g.id === fromId);
+    const toIndex = sorted.findIndex(g => g.id === toId);
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+    const [moved] = sorted.splice(fromIndex, 1);
+    sorted.splice(toIndex, 0, moved);
+    const reordered = sorted.map((g, i) => ({ ...g, sort_order: i }));
+    setGroups(reordered);
     try {
-      const raw = e.dataTransfer.getData('application/json');
-      if (!raw) return;
-      const data = JSON.parse(raw);
-      if (data.type !== 'group' || data.id === targetGroupId) return;
-      const draggedIndex = groups.findIndex(g => g.id === data.id);
-      const targetIndex = groups.findIndex(g => g.id === targetGroupId);
-      if (draggedIndex === -1 || targetIndex === -1) return;
-      const reordered = [...groups];
-      const [moved] = reordered.splice(draggedIndex, 1);
-      reordered.splice(targetIndex, 0, moved);
-      const updated = reordered.map((g, i) => ({ ...g, sort_order: i }));
-      setGroups(updated);
-      await Promise.all(updated.map((g, i) => base44.entities.BoardGroup.update(g.id, { sort_order: i })));
-      toast({ title: 'Groups reordered', duration: 2000 });
+      await Promise.all(reordered.map((g, i) => base44.entities.BoardGroup.update(g.id, { sort_order: i })));
     } catch (error) {
+      setGroups(prevGroups);
       toast({ title: 'Failed to reorder groups', description: error.message, variant: 'destructive', duration: 5000 });
     }
   };
 
-  const handleItemDragStart = (e, itemId, sourceGroupId) => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'item', id: itemId, sourceGroupId }));
-  };
-
-  const handleItemDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleItemDrop = async (e, targetGroupId) => {
-    e.preventDefault();
+  const handleReorderItems = async (fromItemId, toItemId, groupId) => {
+    const prevItems = [...items];
+    const groupItems = items
+      .filter(i => i.group === groupId && !i.parent_item)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const fromIndex = groupItems.findIndex(i => i.id === fromItemId);
+    const toIndex = groupItems.findIndex(i => i.id === toItemId);
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+    const [moved] = groupItems.splice(fromIndex, 1);
+    groupItems.splice(toIndex, 0, moved);
+    const reordered = groupItems.map((i, idx) => ({ ...i, sort_order: idx }));
+    setItems(prev => prev.map(i => {
+      const r = reordered.find(x => x.id === i.id);
+      return r ? { ...i, sort_order: r.sort_order } : i;
+    }));
     try {
-      const raw = e.dataTransfer.getData('application/json');
-      if (!raw) return;
-      const data = JSON.parse(raw);
-      if (data.type !== 'item') return;
-      if (data.sourceGroupId === targetGroupId) return;
-      await handleMoveItemToGroup(data.id, targetGroupId);
+      await Promise.all(reordered.map((i, idx) => base44.entities.WorkboardItem.update(i.id, { sort_order: idx })));
     } catch (error) {
-      toast({ title: 'Failed to move item', description: error.message, variant: 'destructive', duration: 5000 });
+      setItems(prevItems);
+      toast({ title: 'Failed to persist item order', description: error.message, variant: 'destructive', duration: 5000 });
     }
   };
 
-  const handleSubItemDragStart = (e, subItemId, sourceParentId) => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'subitem', id: subItemId, sourceParentId }));
-  };
-
-  const handleSubItemDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleSubItemDrop = async (e, targetParentId, targetSubItemId) => {
-    e.preventDefault();
+  const handleReorderSubItems = async (fromSubItemId, toSubItemId, parentId) => {
+    const prevItems = [...items];
+    const subItemsList = items
+      .filter(i => i.parent_item === parentId)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const fromIndex = subItemsList.findIndex(i => i.id === fromSubItemId);
+    const toIndex = subItemsList.findIndex(i => i.id === toSubItemId);
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+    const [moved] = subItemsList.splice(fromIndex, 1);
+    subItemsList.splice(toIndex, 0, moved);
+    const reordered = subItemsList.map((i, idx) => ({ ...i, sort_order: idx }));
+    setItems(prev => prev.map(i => {
+      const r = reordered.find(x => x.id === i.id);
+      return r ? { ...i, sort_order: r.sort_order } : i;
+    }));
     try {
-      const raw = e.dataTransfer.getData('application/json');
-      if (!raw) return;
-      const data = JSON.parse(raw);
-      if (data.type !== 'subitem') return;
-
-      if (data.sourceParentId === targetParentId) {
-        if (!targetSubItemId || targetSubItemId === data.id) return;
-        const parentSubItems = items
-          .filter(i => i.parent_item === targetParentId)
-          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-        const fromIndex = parentSubItems.findIndex(i => i.id === data.id);
-        const toIndex = parentSubItems.findIndex(i => i.id === targetSubItemId);
-        if (fromIndex === -1 || toIndex === -1) return;
-        const reordered = [...parentSubItems];
-        const [moved] = reordered.splice(fromIndex, 1);
-        reordered.splice(toIndex, 0, moved);
-        const updatedSortOrders = reordered.map((i, idx) => ({ id: i.id, sort_order: idx }));
-        setItems(prev => prev.map(i => {
-          const u = updatedSortOrders.find(x => x.id === i.id);
-          return u ? { ...i, sort_order: u.sort_order } : i;
-        }));
-        await Promise.all(updatedSortOrders.map(u => base44.entities.WorkboardItem.update(u.id, { sort_order: u.sort_order })));
-        toast({ title: 'Sub-items reordered', duration: 2000 });
-      } else {
-        await handleMoveSubItem(data.id, targetParentId);
-      }
+      await Promise.all(reordered.map((i, idx) => base44.entities.WorkboardItem.update(i.id, { sort_order: idx })));
     } catch (error) {
-      toast({ title: 'Failed to move sub-item', description: error.message, variant: 'destructive', duration: 5000 });
+      setItems(prevItems);
+      toast({ title: 'Failed to persist sub-item order', description: error.message, variant: 'destructive', duration: 5000 });
+    }
+  };
+
+  const handleMoveItemToStatus = async (itemId, statusLabel, statusColor) => {
+    const prevItem = items.find(i => i.id === itemId);
+    try {
+      await base44.entities.WorkboardItem.update(itemId, {
+        status: statusLabel,
+        status_color: statusColor,
+      });
+      setItems(prev => prev.map(i => i.id === itemId ? { ...i, status: statusLabel, status_color: statusColor } : i));
+    } catch (error) {
+      toast({ title: 'Failed to update item', description: error.message, variant: 'destructive', duration: 5000 });
     }
   };
 
@@ -809,6 +787,14 @@ export default function WorkboardDetail() {
 
         <TabsContent value="list" className="mt-0">
           {groups.length > 0 ? (
+            <BoardListDnd
+              groups={groups}
+              onReorderGroups={handleReorderGroups}
+              onMoveItemToGroup={handleMoveItemToGroup}
+              onReorderItems={handleReorderItems}
+              onMoveSubItem={handleMoveSubItem}
+              onReorderSubItems={handleReorderSubItems}
+            >
             <div className="space-y-6">
               {groups.map(group => (
                 <GroupTable
@@ -842,15 +828,6 @@ export default function WorkboardDetail() {
                   onMoveSubItem={handleMoveSubItem}
                   onDuplicateGroup={handleDuplicateGroup}
                   canManageGroups={canManageGroups}
-                  onGroupDragStart={handleGroupDragStart}
-                  onGroupDragOver={handleGroupDragOver}
-                  onGroupDrop={handleGroupDrop}
-                  onItemDragStart={handleItemDragStart}
-                  onItemDragOver={handleItemDragOver}
-                  onItemDrop={handleItemDrop}
-                  onSubItemDragStart={handleSubItemDragStart}
-                  onSubItemDragOver={handleSubItemDragOver}
-                  onSubItemDrop={handleSubItemDrop}
                   allGroups={groups}
                   allItems={items}
                 />
@@ -861,6 +838,7 @@ export default function WorkboardDetail() {
                 </Button>
               )}
             </div>
+            </BoardListDnd>
           ) : (
             <div className="border rounded-xl overflow-hidden bg-card">
               <div className="overflow-x-auto">
@@ -950,6 +928,8 @@ export default function WorkboardDetail() {
             onAddItem={(groupId) => { setNewItemGroup(groupId); setShowNewItem(true); }}
             onItemClick={handleItemClick}
             onDeleteItem={handleDeleteItem}
+            onMoveItemToGroup={handleMoveItemToGroup}
+            onMoveItemToStatus={handleMoveItemToStatus}
           />
         </TabsContent>
 
