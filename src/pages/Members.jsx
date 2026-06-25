@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import InviteUserDialog from '@/components/shared/InviteUserDialog';
 import BoardAccessDrawer from '@/components/workboards/BoardAccessDrawer';
+import ArchivedBoards from '@/components/workboards/ArchivedBoards';
 import { getActiveWorkboards } from '@/lib/workboardHelpers';
 
 const ACCOUNT_ROLE_LABELS = {
@@ -82,7 +83,9 @@ export default function Members() {
   const [selectedMember, setSelectedMember] = useState(null);
   const [memberWorkboards, setMemberWorkboards] = useState({});
   const [cleaningStale, setCleaningStale] = useState(false);
+  const [normalizing, setNormalizing] = useState(false);
   const [boardAccessMember, setBoardAccessMember] = useState(null);
+  const [allBoards, setAllBoards] = useState([]);
   const [hygiene, setHygiene] = useState({ activeBoards: 0, archivedBoards: 0, stale: 0, duplicates: 0 });
 
   const loadData = async () => {
@@ -101,6 +104,7 @@ export default function Members() {
       // Store only active, deduplicated boards in state
       const activeBoards = getActiveWorkboards(boards, currentWorkspaceId);
       setWorkboards(activeBoards);
+      setAllBoards(boards.filter(b => b && b.id));
 
       const activeBoardIds = new Set(activeBoards.map(b => b.id));
       const archivedCount = boards.filter(b => b && b.id && (b.archived === true || b.status === 'archived' || b.status === 'template' || b.status === 'deleted')).length;
@@ -267,6 +271,90 @@ export default function Members() {
     } catch (e) { toast({ title: 'Failed to reactivate', variant: 'destructive' }); }
   };
 
+  const handleNormalizeLifecycle = async () => {
+    const ok = await confirm({
+      title: 'Normalize Board Lifecycle?',
+      description: 'This will: mark hidden/old boards as archived, remove duplicate WorkboardMember records, remove memberships for deleted boards, and recalculate board counts.',
+      confirmLabel: 'Normalize',
+      variant: 'warning',
+    });
+    if (!ok) return;
+    setNormalizing(true);
+    try {
+      // 1. Fetch all boards for workspace
+      const boards = await base44.entities.Workboard.filter({ workspace: currentWorkspaceId }).catch(() => []);
+
+      // 2. Mark boards as archived if they have archived=true but status !== 'archived'
+      let normalizedCount = 0;
+      for (const b of boards) {
+        if (b.archived === true && b.status !== 'archived') {
+          await base44.entities.Workboard.update(b.id, {
+            status: 'archived',
+            archived_date: b.archived_date || new Date().toISOString(),
+          });
+          normalizedCount++;
+        }
+        if (b.status === 'archived' && b.archived !== true) {
+          await base44.entities.Workboard.update(b.id, { archived: true });
+          normalizedCount++;
+        }
+      }
+
+      // 3. Fetch all workboard members
+      const [allWbMembers, allUsers] = await Promise.all([
+        base44.entities.WorkboardMember.filter({ workspace: currentWorkspaceId }),
+        base44.entities.User.list().catch(() => []),
+      ]);
+
+      const activeBoardIds = new Set(
+        getActiveWorkboards(boards, currentWorkspaceId).map(b => b.id)
+      );
+      const userIds = new Set(allUsers.map(u => u.id));
+
+      // 4. Remove memberships for deleted/archived boards or non-existent users
+      const stale = allWbMembers.filter(wm =>
+        !activeBoardIds.has(wm.workboard) || !userIds.has(wm.user)
+      );
+
+      // 5. Remove duplicate memberships (same user + same board)
+      const seenPairs = new Set();
+      const duplicates = [];
+      const sorted = [...allWbMembers].sort((a, b) => (a.created_date || '').localeCompare(b.created_date || ''));
+      for (const wm of sorted) {
+        const key = `${wm.user}::${wm.workboard}`;
+        if (seenPairs.has(key)) {
+          duplicates.push(wm);
+        } else {
+          seenPairs.add(key);
+        }
+      }
+
+      const toDelete = [...stale, ...duplicates];
+      const uniqueToDelete = [...new Map(toDelete.map(wm => [wm.id, wm])).values()];
+
+      for (const wm of uniqueToDelete) {
+        await base44.entities.WorkboardMember.delete(wm.id);
+      }
+
+      logAudit(AUDIT_ACTIONS.RECORD_UPDATED, {
+        record_type: 'Workboard',
+        after_value: { boardsNormalized: normalizedCount, membershipsRemoved: uniqueToDelete.length },
+      });
+
+      toast({
+        title: 'Board lifecycle normalized',
+        description: `${normalizedCount} board(s) normalized, ${uniqueToDelete.length} membership(s) removed`,
+        duration: 4000,
+      });
+      await loadData();
+      window.dispatchEvent(new Event('workboards-changed'));
+    } catch (e) {
+      toast({ title: 'Failed to normalize board lifecycle', description: e.message, variant: 'destructive' });
+    } finally {
+      setNormalizing(false);
+    }
+  };
+
   const handleCleanStaleMemberships = async () => {
     const ok = await confirm({
       title: 'Clean stale memberships?',
@@ -330,6 +418,9 @@ export default function Members() {
     <div className="space-y-6">
       <PageHeader title="Members" subtitle="Manage members, roles, and access">
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleNormalizeLifecycle} disabled={normalizing}>
+            <Brush className="w-4 h-4 mr-2" /> {normalizing ? 'Normalizing...' : 'Normalize Board Lifecycle'}
+          </Button>
           <Button variant="outline" size="sm" onClick={handleCleanStaleMemberships} disabled={cleaningStale}>
             <Brush className="w-4 h-4 mr-2" /> {cleaningStale ? 'Cleaning...' : 'Clean Stale Memberships'}
           </Button>
@@ -372,6 +463,7 @@ export default function Members() {
           <TabsTrigger value="members">Workspace Members ({members.length})</TabsTrigger>
           <TabsTrigger value="invitations">Invitations ({invitations.filter(i => i.status === 'pending').length})</TabsTrigger>
           <TabsTrigger value="users">All Users ({users.length})</TabsTrigger>
+          <TabsTrigger value="archived">Archived Boards</TabsTrigger>
           <TabsTrigger value="roles">Roles & Permissions</TabsTrigger>
         </TabsList>
 
@@ -541,6 +633,11 @@ export default function Members() {
           </CardContent></Card>
         </TabsContent>
 
+        {/* Archived Boards */}
+        <TabsContent value="archived">
+          <ArchivedBoards workspaceId={currentWorkspaceId} onRefresh={loadData} />
+        </TabsContent>
+
         {/* Roles & Permissions */}
         <TabsContent value="roles">
           <div className="space-y-6">
@@ -600,7 +697,7 @@ export default function Members() {
 
       <BoardAccessDrawer
         member={boardAccessMember}
-        workboards={getActiveWorkboards(workboards, currentWorkspaceId)}
+        workboards={allBoards}
         workspaceId={currentWorkspaceId}
         isOpen={!!boardAccessMember}
         onClose={() => setBoardAccessMember(null)}

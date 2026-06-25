@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, LayoutGrid, ArrowRight } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, LayoutGrid, ArrowRight, Archive, Copy, ArchiveX } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -20,6 +20,8 @@ import usePermissions from '@/hooks/usePermissions';
 import { useToast } from '@/components/ui/use-toast';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
 import { getActiveWorkboards } from '@/lib/workboardHelpers';
+import ArchivedBoards from '@/components/workboards/ArchivedBoards';
+import DuplicateBoardDialog from '@/components/workboards/DuplicateBoardDialog';
 
 const BOARD_TYPES = {
   project_board: { label: 'Project Board', color: 'bg-violet-500/10 text-violet-700 dark:text-violet-300' },
@@ -39,6 +41,8 @@ export default function Workboards() {
   const [form, setForm] = useState({ name: '', description: '', board_type: 'task_board', linked_project: '', team: '', color: 'violet' });
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [duplicateTarget, setDuplicateTarget] = useState(null);
   const isLoadingRef = useRef(false);
   const { can } = usePermissions();
   const { currentWorkspaceId } = useWorkspace();
@@ -177,11 +181,34 @@ export default function Workboards() {
     }
   };
 
-  const handleDelete = async (b) => {
+  const handleArchive = async (b) => {
     const ok = await confirm({
-      title: 'Delete Board?',
-      message: `Are you sure you want to delete "${b.name}"? This will permanently delete all items, groups, columns, values, and members in this board.`,
-      confirmLabel: 'Delete',
+      title: 'Archive Board?',
+      message: `Archive "${b.name}"? It will be hidden from active lists but can be restored later.`,
+      confirmLabel: 'Archive',
+    });
+    if (!ok) return;
+    try {
+      await base44.entities.Workboard.update(b.id, {
+        status: 'archived',
+        archived: true,
+        archived_date: new Date().toISOString(),
+        archived_by: user?.id,
+      });
+      logActivity(user, 'archived workboard', 'Workboard', b.id, b.name);
+      toast({ title: 'Board archived', duration: 3000 });
+      setBoards(prev => prev.filter(board => board.id !== b.id));
+      window.dispatchEvent(new Event('workboards-changed'));
+    } catch (error) {
+      toast({ title: 'Error archiving workboard', description: error.message, variant: 'destructive', duration: 6000 });
+    }
+  };
+
+  const handlePermanentDelete = async (b) => {
+    const ok = await confirm({
+      title: 'Permanently Delete Board?',
+      message: `This will permanently delete "${b.name}" and ALL related items, groups, columns, statuses, priorities, and memberships. This cannot be undone.`,
+      confirmLabel: 'Delete Permanently',
       requireText: b.name,
     });
     if (!ok) return;
@@ -196,7 +223,7 @@ export default function Workboards() {
         base44.entities.BoardColumn.filter({ workboard: b.id }),
         base44.entities.WorkboardItemValue.filter({ workboard: b.id }),
       ]);
-      
+
       for (const iv of itemValues) await base44.entities.WorkboardItemValue.delete(iv.id);
       for (const item of items) await base44.entities.WorkboardItem.delete(item.id);
       for (const g of groups) await base44.entities.BoardGroup.delete(g.id);
@@ -204,11 +231,16 @@ export default function Workboards() {
       for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
       for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
       for (const m of members) await base44.entities.WorkboardMember.delete(m.id);
-      
-      await base44.entities.Workboard.delete(b.id);
+
+      await base44.entities.Workboard.update(b.id, {
+        status: 'deleted',
+        deleted_date: new Date().toISOString(),
+        deleted_by: user?.id,
+      });
       logActivity(user, 'deleted workboard', 'Workboard', b.id, b.name);
-      toast({ title: 'Workboard deleted', duration: 3000 });
+      toast({ title: 'Workboard permanently deleted', duration: 3000 });
       setBoards(prev => prev.filter(board => board.id !== b.id));
+      window.dispatchEvent(new Event('workboards-changed'));
     } catch (error) {
       console.error('Delete error:', error);
       toast({ title: 'Error deleting workboard', description: error.message, variant: 'destructive', duration: 6000 });
@@ -224,7 +256,12 @@ export default function Workboards() {
   return (
     <div>
       <PageHeader title="Workboards" subtitle={`${boards.length} boards`}>
-        {can('canManageBoards') && <Button onClick={() => openForm(null)}><Plus className="w-4 h-4 mr-1.5" /> New Workboard</Button>}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowArchived(s => !s)}>
+            <ArchiveX className="w-4 h-4 mr-1.5" /> {showArchived ? 'Hide Archived' : 'Archived'}
+          </Button>
+          {can('canManageBoards') && <Button onClick={() => openForm(null)}><Plus className="w-4 h-4 mr-1.5" /> New Workboard</Button>}
+        </div>
       </PageHeader>
 
       <div className="mb-6">
@@ -259,7 +296,9 @@ export default function Workboards() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         {can('canManageBoards') && <DropdownMenuItem onClick={() => openForm(b)}><Pencil className="w-3.5 h-3.5 mr-2" /> Edit</DropdownMenuItem>}
-                        {can('canManageBoards') && <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(b)}><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete</DropdownMenuItem>}
+                        {can('canManageBoards') && <DropdownMenuItem onClick={() => setDuplicateTarget(b)}><Copy className="w-3.5 h-3.5 mr-2" /> Duplicate</DropdownMenuItem>}
+                        {can('canManageBoards') && <DropdownMenuItem onClick={() => handleArchive(b)}><Archive className="w-3.5 h-3.5 mr-2" /> Archive</DropdownMenuItem>}
+                        {can('canManageBoards') && <DropdownMenuItem className="text-destructive" onClick={() => handlePermanentDelete(b)}><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete Permanently</DropdownMenuItem>}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -313,6 +352,22 @@ export default function Workboards() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {showArchived && (
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold mb-3">Archived Boards</h2>
+          <ArchivedBoards workspaceId={currentWorkspaceId} onRefresh={load} />
+        </div>
+      )}
+
+      <DuplicateBoardDialog
+        board={duplicateTarget}
+        workspaceId={currentWorkspaceId}
+        userId={user?.id}
+        isOpen={!!duplicateTarget}
+        onClose={() => setDuplicateTarget(null)}
+        onSuccess={() => { load(); window.dispatchEvent(new Event('workboards-changed')); }}
+      />
     </div>
   );
 }

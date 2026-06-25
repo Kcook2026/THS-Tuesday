@@ -25,8 +25,9 @@ import { useItemValues } from '@/hooks/useItemValues';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
 import {
   Plus, Search, Settings, Archive, Trash2, Save, X, Tag,
-  LayoutList, LayoutGrid, Calendar as CalendarIcon
+  LayoutList, LayoutGrid, Calendar as CalendarIcon, Copy
 } from 'lucide-react';
+import DuplicateBoardDialog from '@/components/workboards/DuplicateBoardDialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export default function WorkboardDetail() {
@@ -52,6 +53,7 @@ export default function WorkboardDetail() {
   const [saving, setSaving] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [showBoardSettings, setShowBoardSettings] = useState(false);
+  const [showDuplicate, setShowDuplicate] = useState(false);
   const [columns, setColumns] = useState([]);
   const [teams, setTeams] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -299,6 +301,84 @@ export default function WorkboardDetail() {
     }
   };
 
+  const handleMoveItemToGroup = async (itemId, targetGroupId) => {
+    try {
+      const item = items.find(i => i.id === itemId);
+      if (!item) return;
+      const targetGroupItems = items.filter(i => i.group === targetGroupId && !i.parent_item);
+      const newSortOrder = targetGroupItems.length;
+      await base44.entities.WorkboardItem.update(itemId, {
+        group: targetGroupId,
+        sort_order: newSortOrder,
+      });
+      setItems(prev => prev.map(i => i.id === itemId ? { ...i, group: targetGroupId, sort_order: newSortOrder } : i));
+      toast({ title: 'Item moved', duration: 2000 });
+    } catch (error) {
+      toast({ title: 'Failed to move item', description: error.message, variant: 'destructive', duration: 5000 });
+    }
+  };
+
+  const handleItemReorder = async (itemId, direction) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    const groupItems = items
+      .filter(i => i.group === item.group && !i.parent_item)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const index = groupItems.findIndex(i => i.id === itemId);
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= groupItems.length) return;
+    [groupItems[index], groupItems[newIndex]] = [groupItems[newIndex], groupItems[index]];
+    const reordered = groupItems.map((g, i) => ({ ...g, sort_order: i }));
+    setItems(prev => prev.map(i => {
+      const r = reordered.find(x => x.id === i.id);
+      return r ? { ...i, sort_order: r.sort_order } : i;
+    }));
+    try {
+      await Promise.all(reordered.map((g, i) => base44.entities.WorkboardItem.update(g.id, { sort_order: i })));
+    } catch (error) {
+      toast({ title: 'Failed to persist item order', description: error.message, variant: 'destructive', duration: 5000 });
+    }
+  };
+
+  const handleMoveSubItem = async (subItemId, newParentId) => {
+    try {
+      const subItem = items.find(i => i.id === subItemId);
+      if (!subItem) return;
+      const newParent = items.find(i => i.id === newParentId);
+      if (!newParent) return;
+      await base44.entities.WorkboardItem.update(subItemId, {
+        parent_item: newParentId,
+        group: newParent.group,
+      });
+      setItems(prev => prev.map(i => i.id === subItemId ? { ...i, parent_item: newParentId, group: newParent.group } : i));
+      toast({ title: 'Sub-item moved', duration: 2000 });
+    } catch (error) {
+      toast({ title: 'Failed to move sub-item', description: error.message, variant: 'destructive', duration: 5000 });
+    }
+  };
+
+  const handleArchiveBoard = async () => {
+    const ok = await confirm({
+      title: 'Archive Board?',
+      message: `Archive "${board.name}"? It will be hidden from active lists but can be restored later from the Archived Boards section.`,
+      confirmLabel: 'Archive',
+    });
+    if (!ok) return;
+    try {
+      await base44.entities.Workboard.update(id, {
+        status: 'archived',
+        archived: true,
+        archived_date: new Date().toISOString(),
+        archived_by: user?.id,
+      });
+      toast({ title: 'Board archived', duration: 2000 });
+      window.dispatchEvent(new Event('workboards-changed'));
+      window.location.href = '/workboards';
+    } catch (error) {
+      toast({ title: 'Failed to archive board', description: error.message, variant: 'destructive', duration: 6000 });
+    }
+  };
+
   const handleVisibleColumnsChange = (newVis) => {
     setVisibleColumns(newVis);
     localStorage.setItem(`tuesday_wb_cols_${id}`, JSON.stringify(newVis));
@@ -413,33 +493,26 @@ export default function WorkboardDetail() {
             </div>
             <div className="pt-4 border-t">
               <div className="space-y-2">
-                <Button variant="outline" className="w-full justify-start" onClick={async () => {
-                  const ok = await confirm({
-                    title: 'Archive Board?',
-                    message: `Are you sure you want to archive "${board.name}"? You can restore it later if needed.`,
-                    confirmLabel: 'Archive',
-                    variant: 'default',
-                  });
-                  if (!ok) return;
-                  await base44.entities.Workboard.update(id, { status: 'archived', archived: true });
-                  toast({ title: 'Board archived', duration: 2000 });
-                  window.location.href = '/workboards';
-                }}>
+                <Button variant="outline" className="w-full justify-start" onClick={() => setShowDuplicate(true)}>
+                  <Copy className="w-4 h-4 mr-2" />
+                  Duplicate Board
+                </Button>
+                <Button variant="outline" className="w-full justify-start" onClick={handleArchiveBoard}>
                   <Archive className="w-4 h-4 mr-2" />
                   Archive Board
                 </Button>
-                {canDelete && (
+                {permissions.isSystemAdmin && (
                   <Button variant="destructive" className="w-full justify-start" onClick={async () => {
                     const ok = await confirm({
-                      title: 'Delete Board?',
-                      message: `Are you sure you want to delete "${board.name}"? This will permanently delete all items, groups, columns, values, and members.`,
-                      confirmLabel: 'Delete',
+                      title: 'Permanently Delete Board?',
+                      message: `This will permanently delete "${board.name}" and ALL related data. This cannot be undone.`,
+                      confirmLabel: 'Delete Permanently',
                       requireText: board.name,
                     });
                     if (!ok) return;
                     setSaving(true);
                     try {
-                      const [itemsData, groupsData, statuses, priorities, members, colsData, itemValues] = await Promise.all([
+                      const [itemsData, groupsData, statuses, priorities, membersData, colsData, itemValues] = await Promise.all([
                         base44.entities.WorkboardItem.filter({ workboard: id }),
                         base44.entities.BoardGroup.filter({ workboard: id }),
                         base44.entities.StatusOption.filter({ workboard: id }),
@@ -454,9 +527,14 @@ export default function WorkboardDetail() {
                       for (const c of colsData) await base44.entities.BoardColumn.delete(c.id);
                       for (const s of statuses) await base44.entities.StatusOption.delete(s.id);
                       for (const p of priorities) await base44.entities.PriorityOption.delete(p.id);
-                      for (const m of members) await base44.entities.WorkboardMember.delete(m.id);
-                      await base44.entities.Workboard.delete(id);
-                      toast({ title: 'Board deleted', duration: 2000 });
+                      for (const m of membersData) await base44.entities.WorkboardMember.delete(m.id);
+                      await base44.entities.Workboard.update(id, {
+                        status: 'deleted',
+                        deleted_date: new Date().toISOString(),
+                        deleted_by: user?.id,
+                      });
+                      toast({ title: 'Board permanently deleted', duration: 2000 });
+                      window.dispatchEvent(new Event('workboards-changed'));
                       window.location.href = '/workboards';
                     } catch (error) {
                       toast({ title: 'Failed to delete board', description: error.message, variant: 'destructive', duration: 5000 });
@@ -465,7 +543,7 @@ export default function WorkboardDetail() {
                     }
                   }} disabled={saving}>
                     <Trash2 className="w-4 h-4 mr-2" />
-                    Delete Board
+                    Delete Board Permanently
                   </Button>
                 )}
               </div>
@@ -547,6 +625,11 @@ export default function WorkboardDetail() {
                   onDeleteGroup={handleDeleteGroup}
                   onGroupColorChange={handleGroupColorChange}
                   onGroupReorder={handleGroupReorder}
+                  onMoveItemToGroup={handleMoveItemToGroup}
+                  onItemReorder={handleItemReorder}
+                  onMoveSubItem={handleMoveSubItem}
+                  allGroups={groups}
+                  allItems={items}
                 />
               ))}
             </div>
@@ -642,6 +725,15 @@ export default function WorkboardDetail() {
           onUpdate={(updatedItem) => handleItemUpdateById(updatedItem.id, updatedItem)}
         />
       )}
+
+      <DuplicateBoardDialog
+        board={board}
+        workspaceId={currentWorkspaceId}
+        userId={user?.id}
+        isOpen={showDuplicate}
+        onClose={() => setShowDuplicate(false)}
+        onSuccess={() => { window.dispatchEvent(new Event('workboards-changed')); }}
+      />
     </div>
   );
 }

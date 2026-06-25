@@ -42,6 +42,7 @@
       "enum": [
         "active",
         "archived",
+        "deleted",
         "template"
       ],
       "default": "active"
@@ -50,6 +51,26 @@
       "type": "boolean",
       "title": "Archived",
       "default": false
+    },
+    "archived_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Archived Date"
+    },
+    "archived_by": {
+      "type": "string",
+      "title": "Archived By",
+      "relationType": "User"
+    },
+    "deleted_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Deleted Date"
+    },
+    "deleted_by": {
+      "type": "string",
+      "title": "Deleted By",
+      "relationType": "User"
     },
     "default_view": {
       "type": "string",

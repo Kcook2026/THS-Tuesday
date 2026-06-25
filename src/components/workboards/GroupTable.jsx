@@ -6,13 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
 import {
   Plus, MoreHorizontal, ChevronRight, ChevronDown, Trash2,
   Pencil, ExternalLink, Archive, ArrowUp, ArrowDown, Palette,
-  CornerDownRight,
+  CornerDownRight, MoveVertical, FolderInput,
 } from 'lucide-react';
 import { STATUS_COLORS, PRIORITY_COLORS, GROUP_COLOR_CLASSES } from './WorkboardConstants';
 import { getUserInitials } from '@/lib/userHelpers';
@@ -29,6 +29,8 @@ export default function GroupTable({
   onItemClick, onItemUpdate, onDeleteItem, onAddItem,
   onRenameGroup, onArchiveGroup, onDeleteGroup,
   onGroupColorChange, onGroupReorder,
+  onMoveItemToGroup, onItemReorder, onMoveSubItem,
+  allGroups = [], allItems = [],
 }) {
   const { toast } = useToast();
   const confirm = useConfirm();
@@ -414,6 +416,62 @@ export default function GroupTable({
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setAddingSubItem(item.id); setSubItemTitle(''); setExpandedItems(prev => ({ ...prev, [item.id]: true })); }} title="Add sub-item">
                   <Plus className="w-3.5 h-3.5" />
                 </Button>
+              )}
+              {canEdit && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Move item">
+                      <MoveVertical className="w-3.5 h-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    {!isSubItem ? (
+                      <>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <FolderInput className="w-3.5 h-3.5 mr-2" /> Move to group
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {allGroups.filter(g => g.id !== group.id).map(g => (
+                              <DropdownMenuItem key={g.id} onClick={() => onMoveItemToGroup?.(item.id, g.id)}>
+                                <div className={`w-2 h-2 rounded-full ${GROUP_COLOR_CLASSES[g.color] || 'bg-gray-500'} mr-2`} />
+                                {g.name}
+                              </DropdownMenuItem>
+                            ))}
+                            {allGroups.filter(g => g.id !== group.id).length === 0 && (
+                              <div className="px-2 py-1.5 text-xs text-muted-foreground">No other groups</div>
+                            )}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => onItemReorder?.(item.id, -1)} disabled={mainItems.indexOf(item) === 0}>
+                          <ArrowUp className="w-3.5 h-3.5 mr-2" /> Move Up
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onItemReorder?.(item.id, 1)} disabled={mainItems.indexOf(item) === mainItems.length - 1}>
+                          <ArrowDown className="w-3.5 h-3.5 mr-2" /> Move Down
+                        </DropdownMenuItem>
+                      </>
+                    ) : (
+                      <>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <FolderInput className="w-3.5 h-3.5 mr-2" /> Move to parent
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {allItems.filter(i => !i.parent_item && i.id !== item.parent_item).map(p => (
+                              <DropdownMenuItem key={p.id} onClick={() => onMoveSubItem?.(item.id, p.id)}>
+                                {p.title}
+                              </DropdownMenuItem>
+                            ))}
+                            {allItems.filter(i => !i.parent_item && i.id !== item.parent_item).length === 0 && (
+                              <div className="px-2 py-1.5 text-xs text-muted-foreground">No other parents</div>
+                            )}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
               {canDelete && (
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDeleteItem?.(item)} title="Delete">

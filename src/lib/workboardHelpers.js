@@ -1,4 +1,21 @@
 /**
+ * Returns only archived workboards for a workspace (deduplicated).
+ */
+export function getArchivedWorkboards(workboards, currentWorkspaceId) {
+  if (!Array.isArray(workboards)) return [];
+  const seen = new Set();
+  return workboards.filter((wb) => {
+    if (!wb || !wb.id) return false;
+    if (seen.has(wb.id)) return false;
+    if (currentWorkspaceId && wb.workspace !== currentWorkspaceId) return false;
+    const isArchived = wb.archived === true || wb.status === 'archived';
+    if (!isArchived) return false;
+    seen.add(wb.id);
+    return true;
+  });
+}
+
+/**
  * Returns only active, accessible, de-duplicated workboards for a workspace.
  *
  * A workboard is "active" only if:

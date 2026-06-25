@@ -17,7 +17,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Building2, Briefcase, Users, FolderKanban, Wrench, Check, Trash2, Archive } from 'lucide-react';
+import { Plus, Building2, Briefcase, Users, FolderKanban, Wrench, Check, Trash2, Archive, ArchiveX } from 'lucide-react';
+import ArchivedBoards from '@/components/workboards/ArchivedBoards';
 
 const TYPE_ICONS = {
   company_workspace: Building2,
@@ -306,6 +307,16 @@ export default function WorkspaceSettings() {
               </Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Archived Boards */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><ArchiveX className="w-4 h-4" /> Archived Boards</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ArchivedBoards workspaceId={currentWorkspaceId} />
         </CardContent>
       </Card>
 

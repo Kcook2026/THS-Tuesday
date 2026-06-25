@@ -7,9 +7,9 @@ import { useToast } from '@/components/ui/use-toast';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
-import { Trash2, Plus, LayoutGrid } from 'lucide-react';
+import { Trash2, Plus, LayoutGrid, Archive } from 'lucide-react';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
-import { getActiveWorkboards } from '@/lib/workboardHelpers';
+import { getActiveWorkboards, getArchivedWorkboards } from '@/lib/workboardHelpers';
 
 const WORKBOARD_ROLE_LABELS = {
   workboard_owner: 'Board Owner',
@@ -55,6 +55,7 @@ export default function BoardAccessDrawer({ member, workboards = [], workspaceId
 
   // Defensive filter: only active, deduplicated boards in the correct workspace
   const activeBoards = getActiveWorkboards(workboards, workspaceId || member?.workspace);
+  const archivedBoards = getArchivedWorkboards(workboards, workspaceId || member?.workspace);
 
   const getMembershipForBoard = (boardId) => {
     return boardMemberships.find(wm => wm.workboard === boardId);
@@ -62,6 +63,20 @@ export default function BoardAccessDrawer({ member, workboards = [], workspaceId
 
   const boardsWithAccess = activeBoards.filter(b => getMembershipForBoard(b.id));
   const boardsWithoutAccess = activeBoards.filter(b => !getMembershipForBoard(b.id));
+  const archivedWithAccess = archivedBoards.filter(b => getMembershipForBoard(b.id));
+
+  // Disambiguate same-name boards: if duplicate names exist, append owner or created_date
+  const nameCounts = {};
+  [...activeBoards, ...archivedBoards].forEach(b => {
+    nameCounts[b.name] = (nameCounts[b.name] || 0) + 1;
+  });
+  const getBoardDisplayName = (b) => {
+    if (nameCounts[b.name] > 1) {
+      const dateStr = b.created_date ? new Date(b.created_date).toLocaleDateString() : '';
+      return `${b.name}${dateStr ? ` (${dateStr})` : ''}`;
+    }
+    return b.name;
+  };
 
   const handleChangeRole = async (membershipId, newRole) => {
     try {
@@ -174,15 +189,15 @@ export default function BoardAccessDrawer({ member, workboards = [], workspaceId
               )}
             </div>
 
-            {/* Add access to more boards */}
+            {/* Add access to more active boards */}
             {boardsWithoutAccess.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold mb-3">Add to More Boards</h3>
+                <h3 className="text-sm font-semibold mb-3">Add to More Active Boards</h3>
                 <div className="space-y-2">
                   {boardsWithoutAccess.map(board => (
                     <div key={board.id} className="flex items-center gap-2 p-2 border border-dashed rounded-lg">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{board.name}</p>
+                        <p className="text-sm truncate">{getBoardDisplayName(board)}</p>
                       </div>
                       <Select
                         value={addingBoard === board.id ? addingRole : 'workboard_contributor'}
@@ -205,6 +220,38 @@ export default function BoardAccessDrawer({ member, workboards = [], workspaceId
                       </Button>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Archived boards (read-only view of membership) */}
+            {archivedWithAccess.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Archive className="w-4 h-4 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold">Archived Boards ({archivedWithAccess.length})</h3>
+                </div>
+                <div className="space-y-2">
+                  {archivedWithAccess.map(board => {
+                    const membership = getMembershipForBoard(board.id);
+                    return (
+                      <div key={board.id} className="flex items-center gap-2 p-2 border rounded-lg bg-muted/30">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate text-muted-foreground">{getBoardDisplayName(board)}</p>
+                          <Badge variant="outline" className="text-[10px] mt-0.5">Archived</Badge>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => handleRemoveAccess(membership)}
+                          title="Remove access"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
