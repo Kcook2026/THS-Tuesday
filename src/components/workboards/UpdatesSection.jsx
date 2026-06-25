@@ -82,6 +82,7 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
         parent_comment: parentId,
         mentions,
         edited: false,
+        created_date: new Date().toISOString(),
       });
 
       setComments(prev => [comment, ...prev]);
@@ -90,19 +91,61 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
       setReplyingTo(null);
       toast({ title: 'Comment posted', duration: 2000 });
 
+      // Log activity
+      try {
+        await base44.entities.Activity.create({
+          workspace: item.workspace || workspaceId,
+          workboard: item.workboard || boardId,
+          record_type: 'WorkboardItem',
+          record_id: item.id,
+          user: me.id,
+          user_name: meName,
+          action: 'comment added',
+          before_value: '',
+          after_value: text.trim().substring(0, 50),
+          created_date: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('Failed to log activity:', err);
+      }
+
+      // Log activity
+      try {
+        await base44.entities.Activity.create({
+          workspace: item.workspace || workspaceId,
+          workboard: item.workboard || boardId,
+          record_type: 'WorkboardItem',
+          record_id: item.id,
+          user: me.id,
+          user_name: meName,
+          action: 'comment added',
+          before_value: '',
+          after_value: text.trim().substring(0, 50),
+          created_date: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('Failed to log activity:', err);
+      }
+
       // Create notifications for mentioned users (do NOT auto-add as watchers)
       if (mentions.length > 0) {
         for (const mentionedUserId of mentions) {
           if (mentionedUserId !== me.id) {
-            await base44.functions.invoke('createNotification', {
-              type: 'mention',
-              userId: mentionedUserId,
-              title: 'You were mentioned',
-              message: `${meName} mentioned you in a comment`,
-              record_type: 'WorkboardItem',
-              record_id: item.id,
-              workspace: item.workspace || workspaceId,
-            }).catch(() => {});
+            try {
+              await base44.entities.Notification.create({
+                workspace: item.workspace || workspaceId,
+                user: mentionedUserId,
+                type: 'mention',
+                title: 'You were mentioned',
+                message: `${meName} mentioned you in a comment on "${item.title}"`,
+                record_type: 'WorkboardItem',
+                record_id: item.id,
+                status: 'unread',
+                created_date: new Date().toISOString(),
+              });
+            } catch (err) {
+              console.error('Failed to create notification:', err);
+            }
           }
         }
       }
@@ -136,13 +179,51 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
     if (!editText.trim() || saving) return;
     setSaving(true);
     try {
+      const oldComment = comments.find(c => c.id === commentId);
       await base44.entities.Comment.update(commentId, { 
         body: editText.trim(),
         edited: true,
+        edited_date: new Date().toISOString(),
       });
-      setComments(prev => prev.map(c => c.id === commentId ? { ...c, body: editText.trim(), edited: true } : c));
+      setComments(prev => prev.map(c => c.id === commentId ? { ...c, body: editText.trim(), edited: true, edited_date: new Date().toISOString() } : c));
       setEditingId(null);
       toast({ title: 'Comment updated', duration: 2000 });
+
+      // Log activity
+      try {
+        await base44.entities.Activity.create({
+          workspace: item.workspace || workspaceId,
+          workboard: item.workboard || boardId,
+          record_type: 'WorkboardItem',
+          record_id: item.id,
+          user: currentUser?.id,
+          user_name: currentUser?.full_name || 'User',
+          action: 'comment edited',
+          before_value: comments.find(c => c.id === commentId)?.body?.substring(0, 50) || '',
+          after_value: editText.trim().substring(0, 50),
+          created_date: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('Failed to log activity:', err);
+      }
+
+      // Log activity
+      try {
+        await base44.entities.Activity.create({
+          workspace: item.workspace || workspaceId,
+          workboard: item.workboard || boardId,
+          record_type: 'WorkboardItem',
+          record_id: item.id,
+          user: currentUser?.id,
+          user_name: currentUser?.full_name || 'User',
+          action: 'comment edited',
+          before_value: oldComment?.body?.substring(0, 50) || '',
+          after_value: editText.trim().substring(0, 50),
+          created_date: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('Failed to log activity:', err);
+      }
     } catch (error) {
       toast({ title: 'Failed to update', description: error.message, variant: 'destructive', duration: 5000 });
     } finally {
@@ -159,12 +240,50 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
     if (!ok) return;
     setSaving(true);
     try {
+      const oldComment = comments.find(c => c.id === commentId);
       await base44.entities.Comment.update(commentId, { 
         deleted: true,
         body: '[Deleted]',
+        deleted_date: new Date().toISOString(),
       });
-      setComments(prev => prev.map(c => c.id === commentId ? { ...c, deleted: true, body: '[Deleted]' } : c));
+      setComments(prev => prev.map(c => c.id === commentId ? { ...c, deleted: true, body: '[Deleted]', deleted_date: new Date().toISOString() } : c));
       toast({ title: 'Comment deleted', duration: 2000 });
+
+      // Log activity
+      try {
+        await base44.entities.Activity.create({
+          workspace: item.workspace || workspaceId,
+          workboard: item.workboard || boardId,
+          record_type: 'WorkboardItem',
+          record_id: item.id,
+          user: currentUser?.id,
+          user_name: currentUser?.full_name || 'User',
+          action: 'comment deleted',
+          before_value: comments.find(c => c.id === commentId)?.body?.substring(0, 50) || '',
+          after_value: '[Deleted]',
+          created_date: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('Failed to log activity:', err);
+      }
+
+      // Log activity
+      try {
+        await base44.entities.Activity.create({
+          workspace: item.workspace || workspaceId,
+          workboard: item.workboard || boardId,
+          record_type: 'WorkboardItem',
+          record_id: item.id,
+          user: currentUser?.id,
+          user_name: currentUser?.full_name || 'User',
+          action: 'comment deleted',
+          before_value: oldComment?.body?.substring(0, 50) || '',
+          after_value: '[Deleted]',
+          created_date: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('Failed to log activity:', err);
+      }
     } catch (error) {
       toast({ title: 'Failed to delete', description: error.message, variant: 'destructive', duration: 5000 });
     } finally {

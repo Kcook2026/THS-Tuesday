@@ -30,7 +30,18 @@ export default function NotificationBell() {
   useEffect(() => {
     load();
     const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
+    
+    // Subscribe to real-time notification changes
+    const unsubscribe = base44.entities.Notification.subscribe((event) => {
+      if (event.type === 'create') {
+        load();
+      }
+    });
+    
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {

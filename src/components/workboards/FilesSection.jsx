@@ -51,10 +51,16 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
     try {
       const me = currentUser || await base44.auth.me();
       
-      // Upload file
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      // Upload file - returns file_uri for private storage
+      const { file_uri } = await base44.integrations.Core.UploadFile({ file });
       
-      // Create attachment record
+      // Create signed URL for display/download
+      const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({
+        file_uri,
+        expires_in: 86400,
+      });
+      
+      // Create attachment record - store both file_uri (for preview) and file_url (for display)
       const attachment = await base44.entities.Attachment.create({
         workspace: item.workspace || workspaceId,
         workboard: item.workboard || boardId,
@@ -63,12 +69,31 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
         file_name: file.name,
         file_type: file.type,
         file_size: file.size,
-        file_url,
+        file_url: signed_url,
+        file_uri,
         category: 'item_attachment',
       });
 
       setFiles(prev => [attachment, ...prev]);
       toast({ title: 'File uploaded', description: file.name, duration: 3000 });
+
+      // Log activity
+      try {
+        await base44.entities.Activity.create({
+          workspace: item.workspace || workspaceId,
+          workboard: item.workboard || boardId,
+          record_type: 'WorkboardItem',
+          record_id: item.id,
+          user: me.id,
+          user_name: me.full_name || me.email || 'User',
+          action: 'file uploaded',
+          before_value: '',
+          after_value: file.name,
+          created_date: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('Failed to log activity:', err);
+      }
     } catch (error) {
       toast({ title: 'Upload failed', description: error.message, variant: 'destructive', duration: 5000 });
     } finally {
@@ -89,6 +114,24 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
       await base44.entities.Attachment.delete(fileId);
       setFiles(prev => prev.filter(f => f.id !== fileId));
       toast({ title: 'File deleted', duration: 2000 });
+
+      // Log activity
+      try {
+        await base44.entities.Activity.create({
+          workspace: item.workspace || workspaceId,
+          workboard: item.workboard || boardId,
+          record_type: 'WorkboardItem',
+          record_id: item.id,
+          user: currentUser?.id,
+          user_name: currentUser?.full_name || 'User',
+          action: 'file deleted',
+          before_value: fileName,
+          after_value: '',
+          created_date: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('Failed to log activity:', err);
+      }
     } catch (error) {
       toast({ title: 'Delete failed', description: error.message, variant: 'destructive', duration: 5000 });
     }
@@ -96,8 +139,10 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
 
   const handlePreview = async (file) => {
     try {
+      // Use file_uri if available (for private files), otherwise use file_url
+      const fileUri = file.file_uri || file.file_url;
       const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({
-        file_uri: file.file_url,
+        file_uri: fileUri,
         expires_in: 3600,
       });
       setPreviewFile(file);
@@ -107,16 +152,17 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
     }
   };
 
-  const handleDownload = async (fileUrl, fileName) => {
+  const handleDownload = async (file) => {
     try {
+      const fileUri = file.file_uri || file.file_url;
       const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({
-        file_uri: fileUrl,
+        file_uri: fileUri,
         expires_in: 3600,
       });
       
       const link = document.createElement('a');
       link.href = signed_url;
-      link.download = fileName;
+      link.download = file.file_name;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -223,7 +269,7 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => handleDownload(file.file_url, file.file_name)}
+                      onClick={() => handleDownload(file)}
                       title="Download"
                     >
                       <Download className="w-4 h-4" />
@@ -262,7 +308,7 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => { setPreviewFile(null); setPreviewUrl(null); }}>Close</Button>
-            <Button onClick={() => handleDownload(previewFile.file_url, previewFile.file_name)}>
+            <Button onClick={() => handleDownload(previewFile)}>
               <Download className="w-4 h-4 mr-2" /> Download
             </Button>
           </div>

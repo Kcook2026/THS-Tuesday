@@ -66,17 +66,38 @@ export default function WatchersSection({ item, boardId, workspaceId, users, cur
     
     try {
       if (isWatching) {
-        // Remove watcher
+        // Remove watcher - ensure we have a valid ID
         const watcher = watchers.find(w => w.user === currentUser.id);
-        if (watcher) {
+        if (watcher && watcher.id) {
           await base44.entities.ItemWatcher.delete(watcher.id);
           setWatchers(prev => prev.filter(w => w.id !== watcher.id));
           toast({ title: 'Stopped watching', duration: 2000 });
+
+          // Log activity
+          try {
+            await base44.entities.Activity.create({
+              workspace: item.workspace || workspaceId,
+              workboard: item.workboard || boardId,
+              record_type: 'WorkboardItem',
+              record_id: item.id,
+              user: currentUser.id,
+              user_name: currentUser.full_name || 'User',
+              action: 'watcher removed',
+              before_value: currentUser.full_name || 'User',
+              after_value: '',
+              created_date: new Date().toISOString(),
+            });
+          } catch (err) {
+            console.error('Failed to log activity:', err);
+          }
+        } else {
+          toast({ title: 'Not watching', description: 'You are not currently watching this item', variant: 'destructive', duration: 4000 });
+          return;
         }
       } else {
         // Add watcher
         const me = currentUser;
-        await base44.entities.ItemWatcher.create({
+        const newWatcher = await base44.entities.ItemWatcher.create({
           workspace: item.workspace || workspaceId,
           workboard: item.workboard || boardId,
           item: item.id,
@@ -84,18 +105,26 @@ export default function WatchersSection({ item, boardId, workspaceId, users, cur
           added_by: me.id,
         });
         
-        const newWatcher = {
-          workspace: item.workspace || workspaceId,
-          workboard: item.workboard || boardId,
-          item: item.id,
-          user: me.id,
-          user_name: me.full_name || me.email,
-          added_by: me.id,
-          created_date: new Date().toISOString(),
-        };
-        
         setWatchers(prev => [newWatcher, ...prev]);
         toast({ title: 'Now watching', duration: 2000 });
+
+        // Log activity
+        try {
+          await base44.entities.Activity.create({
+            workspace: item.workspace || workspaceId,
+            workboard: item.workboard || boardId,
+            record_type: 'WorkboardItem',
+            record_id: item.id,
+            user: me.id,
+            user_name: me.full_name || 'User',
+            action: 'watcher added',
+            before_value: '',
+            after_value: me.full_name || 'User',
+            created_date: new Date().toISOString(),
+          });
+        } catch (err) {
+          console.error('Failed to log activity:', err);
+        }
       }
       
       setIsWatching(!isWatching);

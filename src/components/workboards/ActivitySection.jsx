@@ -19,7 +19,7 @@ export default function ActivitySection({ item, boardId, workspaceId, users }) {
         record_type: 'WorkboardItem',
         record_id: item.id,
         workspace: workspaceId,
-      }, '-created_date', 50);
+      }, '-created_date', 100);
       setActivities(activityList || []);
     } catch (error) {
       console.error('Error loading activities:', error);
