@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
-import { Send, Trash2, Pencil, AtSign } from 'lucide-react';
+import { Send, Trash2, Pencil, AtSign, Reply } from 'lucide-react';
 import { getUserInitials } from '@/lib/userHelpers';
 import {
   DropdownMenu,
@@ -13,8 +12,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import UserAvatar from '@/components/shared/UserAvatar';
 
-export default function UpdatesSection({ item, boardId, users }) {
+export default function UpdatesSection({ item, boardId, workspaceId, users, currentUserId }) {
   const { toast } = useToast();
   const confirm = useConfirm();
   const [comments, setComments] = useState([]);
@@ -25,20 +26,34 @@ export default function UpdatesSection({ item, boardId, users }) {
   const [editText, setEditText] = useState('');
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
+  const [replyingTo, setReplyingTo] = useState(null);
   const textareaRef = useRef(null);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
+    loadUser();
     loadComments();
   }, [item?.id]);
 
+  const loadUser = async () => {
+    if (currentUserId) {
+      setCurrentUser({ id: currentUserId });
+    } else {
+      const me = await base44.auth.me().catch(() => null);
+      setCurrentUser(me);
+    }
+  };
+
   const loadComments = async () => {
     if (!item?.id) return;
+    setLoading(true);
     try {
       const data = await base44.entities.Comment.filter({
         record_type: 'WorkboardItem',
         record_id: item.id,
+        deleted: false,
       }, '-created_date');
-      setComments(data);
+      setComments(data || []);
     } catch (error) {
       console.error('Error loading comments:', error);
     } finally {
@@ -46,23 +61,36 @@ export default function UpdatesSection({ item, boardId, users }) {
     }
   };
 
-  const handleAdd = async () => {
-    if (!newComment.trim() || saving) return;
+  const handleAdd = async (parentId = null) => {
+    const text = replyingTo ? editText : newComment;
+    if (!text.trim() || saving) return;
     setSaving(true);
     try {
-      const me = await base44.auth.me();
+      const me = currentUser || await base44.auth.me();
+      const mentions = extractMentions(text);
+      
       const comment = await base44.entities.Comment.create({
-        body: newComment.trim(),
+        body: text.trim(),
         record_type: 'WorkboardItem',
         record_id: item.id,
-        workspace: item.workspace,
+        workspace: item.workspace || workspaceId,
         user: me.id,
         user_name: me.full_name || me.email || 'Unassigned',
-        mentions: [],
+        parent_comment: parentId,
+        mentions,
+        edited: false,
       });
+
       setComments(prev => [comment, ...prev]);
       setNewComment('');
+      setEditText('');
+      setReplyingTo(null);
       toast({ title: 'Comment posted', duration: 2000 });
+
+      // Add mentioned users as watchers
+      if (mentions.length > 0) {
+        await addWatchers(mentions);
+      }
     } catch (error) {
       toast({ title: 'Failed to post comment', description: error.message, variant: 'destructive', duration: 5000 });
     } finally {
@@ -70,12 +98,55 @@ export default function UpdatesSection({ item, boardId, users }) {
     }
   };
 
+  const extractMentions = (text) => {
+    const mentions = [];
+    const mentionRegex = /@([^@\s]+)/g;
+    let match;
+    while ((match = mentionRegex.exec(text)) !== null) {
+      const mentionedName = match[1];
+      const user = users?.find(u => 
+        (u.full_name || u.email || '').toLowerCase().includes(mentionedName.toLowerCase())
+      );
+      if (user) {
+        mentions.push(user.id);
+      }
+    }
+    return [...new Set(mentions)];
+  };
+
+  const addWatchers = async (userIds) => {
+    if (!item?.id || !workspaceId) return;
+    try {
+      for (const userId of userIds) {
+        const existing = await base44.entities.ItemWatcher.filter({
+          item: item.id,
+          user: userId,
+        }).catch(() => []);
+        
+        if (existing.length === 0) {
+          await base44.entities.ItemWatcher.create({
+            workspace: workspaceId,
+            workboard: item.workboard || boardId,
+            item: item.id,
+            user: userId,
+            added_by: currentUser?.id || (await base44.auth.me()).id,
+          }).catch(() => {});
+        }
+      }
+    } catch (error) {
+      console.error('Failed to add watchers:', error);
+    }
+  };
+
   const handleEdit = async (commentId) => {
     if (!editText.trim() || saving) return;
     setSaving(true);
     try {
-      await base44.entities.Comment.update(commentId, { body: editText.trim() });
-      setComments(prev => prev.map(c => c.id === commentId ? { ...c, body: editText.trim() } : c));
+      await base44.entities.Comment.update(commentId, { 
+        body: editText.trim(),
+        edited: true,
+      });
+      setComments(prev => prev.map(c => c.id === commentId ? { ...c, body: editText.trim(), edited: true } : c));
       setEditingId(null);
       toast({ title: 'Comment updated', duration: 2000 });
     } catch (error) {
@@ -94,8 +165,11 @@ export default function UpdatesSection({ item, boardId, users }) {
     if (!ok) return;
     setSaving(true);
     try {
-      await base44.entities.Comment.delete(commentId);
-      setComments(prev => prev.filter(c => c.id !== commentId));
+      await base44.entities.Comment.update(commentId, { 
+        deleted: true,
+        body: '[Deleted]',
+      });
+      setComments(prev => prev.map(c => c.id === commentId ? { ...c, deleted: true, body: '[Deleted]' } : c));
       toast({ title: 'Comment deleted', duration: 2000 });
     } catch (error) {
       toast({ title: 'Failed to delete', description: error.message, variant: 'destructive', duration: 5000 });
@@ -105,7 +179,10 @@ export default function UpdatesSection({ item, boardId, users }) {
   };
 
   const handleMentionInsert = (user) => {
-    const cursorPos = textareaRef.current?.selectionStart || newComment.length;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    const cursorPos = textarea.selectionStart || newComment.length;
     const before = newComment.substring(0, cursorPos);
     const after = newComment.substring(cursorPos);
     const lastAtIndex = before.lastIndexOf('@');
@@ -114,7 +191,7 @@ export default function UpdatesSection({ item, boardId, users }) {
     setNewComment(newBefore + mentionText + after);
     setShowMentions(false);
     setMentionQuery('');
-    setTimeout(() => textareaRef.current?.focus(), 0);
+    setTimeout(() => textarea.focus(), 0);
   };
 
   const handleCommentChange = (e) => {
@@ -125,7 +202,7 @@ export default function UpdatesSection({ item, boardId, users }) {
     const lastAtIndex = before.lastIndexOf('@');
     if (lastAtIndex >= 0) {
       const query = before.substring(lastAtIndex + 1);
-      if (!query.includes(' ')) {
+      if (!query.includes(' ') && query.length > 0) {
         setShowMentions(true);
         setMentionQuery(query);
         return;
@@ -154,10 +231,119 @@ export default function UpdatesSection({ item, boardId, users }) {
     return d.toLocaleDateString('en', { month: 'short', day: 'numeric', year: diffDay > 365 ? 'numeric' : undefined });
   };
 
+  const canDeleteComment = (comment) => {
+    if (!currentUser) return false;
+    // System Admin or Workboard Owner can delete any
+    // Comment author can delete their own
+    return comment.user === currentUser.id;
+  };
+
+  const renderComment = (comment, isReply = false) => {
+    const isEditing = editingId === comment.id;
+    const replies = comments.filter(c => c.parent_comment === comment.id && !c.deleted);
+
+    return (
+      <div key={comment.id} className={`space-y-2 ${isReply ? 'ml-8 pl-4 border-l-2 border-muted' : ''}`}>
+        <div className={`flex gap-3 ${comment.deleted ? 'opacity-50' : ''}`}>
+          <UserAvatar userId={comment.user} users={users} size="md" />
+          <div className="flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{comment.user_name || 'User'}</span>
+                <span className="text-xs text-muted-foreground">{formatTimestamp(comment.created_date)}</span>
+                {comment.edited && <span className="text-xs text-muted-foreground">(edited)</span>}
+              </div>
+              {!comment.deleted && canDeleteComment(comment) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => { setEditingId(comment.id); setEditText(comment.body); }}>
+                      <Pencil className="w-3.5 h-3.5 mr-2" /> Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleDelete(comment.id)} className="text-destructive">
+                      <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+            
+            {isEditing ? (
+              <div className="mt-2 space-y-2">
+                <Textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  rows={3}
+                  className="text-sm"
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => handleEdit(comment.id)} disabled={saving}>Save</Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm mt-1 whitespace-pre-wrap">{comment.body}</p>
+            )}
+
+            {!comment.deleted && !isReply && (
+              <div className="flex items-center gap-2 mt-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-xs"
+                  onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+                >
+                  <Reply className="w-3.5 h-3.5 mr-1" />
+                  Reply
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Reply input */}
+        {replyingTo === comment.id && (
+          <div className="ml-12 mt-2 space-y-2">
+            <Textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              placeholder={`Reply to ${comment.user_name}...`}
+              rows={2}
+              className="text-sm"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleAdd(comment.id);
+                }
+              }}
+            />
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => handleAdd(comment.id)} disabled={saving || !editText.trim()}>
+                <Send className="w-3.5 h-3.5 mr-1.5" /> Reply
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setReplyingTo(null)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
+        {/* Nested replies */}
+        {replies.length > 0 && (
+          <div className="space-y-2 mt-2">
+            {replies.map(reply => renderComment(reply, true))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* New Comment */}
-      <div className="relative">
+      <div className="relative space-y-2">
         <Textarea
           ref={textareaRef}
           value={newComment}
@@ -179,21 +365,23 @@ export default function UpdatesSection({ item, boardId, users }) {
                 className="flex items-center gap-2 w-full px-3 py-2 hover:bg-accent text-left text-sm"
                 onClick={() => handleMentionInsert(u)}
               >
-                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
-                  {getUserInitials(u)}
-                </div>
+                <Avatar className="w-6 h-6">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                    {getUserInitials(u)}
+                  </AvatarFallback>
+                </Avatar>
                 <span className="truncate">{u.full_name || u.email || 'Unassigned'}</span>
               </button>
             ))}
           </div>
         )}
-      </div>
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">Press Cmd/Ctrl+Enter to post</span>
-        <Button size="sm" onClick={handleAdd} disabled={saving || !newComment.trim()}>
-          <Send className="w-3.5 h-3.5 mr-1.5" />
-          Post
-        </Button>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Press Cmd/Ctrl+Enter to post</span>
+          <Button size="sm" onClick={() => handleAdd()} disabled={saving || !newComment.trim()}>
+            <Send className="w-3.5 h-3.5 mr-1.5" />
+            Post
+          </Button>
+        </div>
       </div>
 
       {/* Comments List */}
@@ -203,50 +391,11 @@ export default function UpdatesSection({ item, boardId, users }) {
         <div className="text-center py-8">
           <AtSign className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
           <p className="text-sm text-muted-foreground">No updates yet</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">Start the conversation</p>
+          <p className="text-xs text-muted-foreground">Be the first to add an update</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {comments.map(comment => (
-            <div key={comment.id} className="flex gap-3 p-3 border rounded-lg">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary shrink-0">
-                {getUserInitials({ full_name: comment.user_name })}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{comment.user_name || 'Unassigned'}</span>
-                  <span className="text-xs text-muted-foreground">{formatTimestamp(comment.created_date)}</span>
-                </div>
-                {editingId === comment.id ? (
-                  <div className="mt-1 space-y-2">
-                    <Textarea
-                      value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
-                      rows={2}
-                      autoFocus
-                      onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleEdit(comment.id); if (e.key === 'Escape') setEditingId(null); }}
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handleEdit(comment.id)} disabled={saving}>Save</Button>
-                      <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{comment.body}</p>
-                )}
-              </div>
-              {editingId !== comment.id && (
-                <div className="flex items-start gap-1">
-                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setEditingId(comment.id); setEditText(comment.body); }}>
-                    <Pencil className="w-3 h-3" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleDelete(comment.id)}>
-                    <Trash2 className="w-3 h-3 text-destructive" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
+        <div className="space-y-4 max-h-[400px] overflow-y-auto">
+          {comments.filter(c => !c.parent_comment && !c.deleted).map(comment => renderComment(comment))}
         </div>
       )}
     </div>

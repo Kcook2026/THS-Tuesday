@@ -16,17 +16,21 @@ import {
 } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
-import { Calendar, CheckCircle, MessageSquare, Paperclip, ListTree } from 'lucide-react';
+import { Calendar, CheckCircle, MessageSquare, Paperclip, ListTree, Activity, Users } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { STATUS_COLORS, PRIORITY_COLORS, GROUP_COLOR_CLASSES } from './WorkboardConstants';
 import { getUserInitials } from '@/lib/userHelpers';
 import UpdatesSection from './UpdatesSection';
 import FilesSection from './FilesSection';
 import SubItemsList from './SubItemsList';
+import ActivitySection from './ActivitySection';
+import WatchersSection from './WatchersSection';
+import usePermissions from '@/hooks/usePermissions';
 
 export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, onClose, onUpdate }) {
   const { user, currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
+  const permissions = usePermissions();
   const [activeTab, setActiveTab] = useState('overview');
   const [editingField, setEditingField] = useState(null);
   const [localItem, setLocalItem] = useState(item);
@@ -118,6 +122,8 @@ export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, o
 
   if (!item) return null;
 
+  const canEdit = permissions.can('canManageBoards') || permissions.isSystemAdmin;
+
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent className="w-[500px] sm:w-[600px] overflow-y-auto">
@@ -129,19 +135,19 @@ export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, o
         </SheetHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="subitems">
-              <ListTree className="w-3.5 h-3.5 mr-1.5" />
-              Sub-items
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="overview" title="Overview">Overview</TabsTrigger>
+            <TabsTrigger value="updates" title="Updates">
+              <MessageSquare className="w-3.5 h-3.5" />
             </TabsTrigger>
-            <TabsTrigger value="updates">
-              <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
-              Updates
+            <TabsTrigger value="files" title="Files">
+              <Paperclip className="w-3.5 h-3.5" />
             </TabsTrigger>
-            <TabsTrigger value="files">
-              <Paperclip className="w-3.5 h-3.5 mr-1.5" />
-              Files
+            <TabsTrigger value="activity" title="Activity">
+              <Activity className="w-3.5 h-3.5" />
+            </TabsTrigger>
+            <TabsTrigger value="watchers" title="Watchers">
+              <Users className="w-3.5 h-3.5" />
             </TabsTrigger>
           </TabsList>
 
@@ -282,44 +288,32 @@ export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, o
             </div>
           </TabsContent>
 
-          <TabsContent value="subitems" className="mt-4">
-            <SubItemsList
-              item={localItem}
-              subItems={subItems}
-              statusOptions={statusOptions}
-              priorityOptions={priorityOptions}
+          <TabsContent value="updates" className="mt-4">
+            <UpdatesSection 
+              item={localItem} 
+              boardId={boardId} 
+              workspaceId={workspaceId}
               users={users}
-              onAddSubItem={async (title) => {
-                const savedSub = await base44.entities.WorkboardItem.create({
-                  title,
-                  workspace: localItem.workspace,
-                  workboard: localItem.workboard,
-                  parent_item: localItem.id,
-                  group: localItem.group,
-                  item_type: 'sub_item',
-                  status: 'Not Started',
-                  status_color: 'gray',
-                  priority: 'Medium',
-                  priority_color: 'yellow',
-                  progress_percentage: 0,
-                  sort_order: subItems.length,
-                  archived: false,
-                });
-                setSubItems(prev => [...prev, savedSub]);
-              }}
-              onUpdateSubItem={async (subId, updateData) => {
-                await base44.entities.WorkboardItem.update(subId, updateData);
-                setSubItems(prev => prev.map(s => s.id === subId ? { ...s, ...updateData } : s));
-              }}
+              currentUserId={user?.id}
             />
           </TabsContent>
 
-          <TabsContent value="updates" className="mt-4">
-            <UpdatesSection item={localItem} boardId={boardId} users={users} />
+          <TabsContent value="files" className="mt-4">
+            <FilesSection item={localItem} canEdit={canEdit} />
           </TabsContent>
 
-          <TabsContent value="files" className="mt-4">
-            <FilesSection item={localItem} canEdit={true} />
+          <TabsContent value="activity" className="mt-4">
+            <ActivitySection item={localItem} workspaceId={workspaceId} users={users} />
+          </TabsContent>
+
+          <TabsContent value="watchers" className="mt-4">
+            <WatchersSection 
+              item={localItem} 
+              boardId={boardId} 
+              workspaceId={workspaceId}
+              users={users}
+              currentUserId={user?.id}
+            />
           </TabsContent>
         </Tabs>
       </SheetContent>

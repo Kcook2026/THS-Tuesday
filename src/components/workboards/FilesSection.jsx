@@ -1,147 +1,222 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
-import { Paperclip, Download, Trash2, FileText, Image as ImageIcon, File } from 'lucide-react';
+import { Upload, File, Trash2, Download, Image as ImageIcon, FileText, Archive } from 'lucide-react';
+import { getUserInitials } from '@/lib/userHelpers';
 
-export default function FilesSection({ item, canEdit }) {
+export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
   const { toast } = useToast();
   const confirm = useConfirm();
   const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const fileInputRef = useRef(null);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    setFiles(item?.files || []);
-  }, [item?.id, item?.files]);
+    loadUser();
+    loadFiles();
+  }, [item?.id]);
+
+  const loadUser = async () => {
+    const me = await base44.auth.me().catch(() => null);
+    setCurrentUser(me);
+  };
+
+  const loadFiles = async () => {
+    if (!item?.id) return;
+    setLoading(true);
+    try {
+      const attachments = await base44.entities.Attachment.filter({
+        item: item.id,
+      }, '-created_date');
+      setFiles(attachments || []);
+    } catch (error) {
+      console.error('Error loading files:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleUpload = async (e) => {
-    const selectedFiles = Array.from(e.target.files || []);
-    if (selectedFiles.length === 0) return;
+    const file = e.target.files?.[0];
+    if (!file || !item?.id) return;
 
     setUploading(true);
     try {
-      const uploadedUrls = [];
-      for (const file of selectedFiles) {
-        const { file_url } = await base44.integrations.Core.UploadFile({ file });
-        uploadedUrls.push(file_url);
-      }
+      const me = currentUser || await base44.auth.me();
+      
+      // Upload file
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      
+      // Create attachment record
+      const attachment = await base44.entities.Attachment.create({
+        workspace: item.workspace || workspaceId,
+        workboard: item.workboard || boardId,
+        item: item.id,
+        uploaded_by: me.id,
+        file_name: file.name,
+        file_type: file.type,
+        file_size: file.size,
+        file_url,
+        category: 'item_attachment',
+      });
 
-      const updatedFiles = [...files, ...uploadedUrls];
-      await base44.entities.WorkboardItem.update(item.id, { files: updatedFiles });
-      setFiles(updatedFiles);
-      toast({ title: `${uploadedUrls.length} file${uploadedUrls.length > 1 ? 's' : ''} uploaded`, duration: 2000 });
+      setFiles(prev => [attachment, ...prev]);
+      toast({ title: 'File uploaded', description: file.name, duration: 3000 });
     } catch (error) {
       toast({ title: 'Upload failed', description: error.message, variant: 'destructive', duration: 5000 });
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      e.target.value = '';
     }
   };
 
-  const handleDownload = (fileUrl) => {
-    const fileName = fileUrl.split('/').pop()?.split('?')[0] || 'file';
-    const a = document.createElement('a');
-    a.href = fileUrl;
-    a.download = fileName;
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
-
-  const handleRemove = async (fileUrl) => {
+  const handleDelete = async (fileId, fileName) => {
     const ok = await confirm({
-      title: 'Remove File?',
-      description: 'Are you sure you want to remove this file?',
-      confirmLabel: 'Remove',
+      title: 'Delete File?',
+      description: `Are you sure you want to delete "${fileName}"?`,
+      confirmLabel: 'Delete',
     });
     if (!ok) return;
-    setSaving(true);
+
     try {
-      const updatedFiles = files.filter(f => f !== fileUrl);
-      await base44.entities.WorkboardItem.update(item.id, { files: updatedFiles });
-      setFiles(updatedFiles);
-      toast({ title: 'File removed', duration: 2000 });
+      await base44.entities.Attachment.delete(fileId);
+      setFiles(prev => prev.filter(f => f.id !== fileId));
+      toast({ title: 'File deleted', duration: 2000 });
     } catch (error) {
-      toast({ title: 'Failed to remove file', description: error.message, variant: 'destructive', duration: 5000 });
-    } finally {
-      setSaving(false);
+      toast({ title: 'Delete failed', description: error.message, variant: 'destructive', duration: 5000 });
     }
   };
 
-  const getFileIcon = (url) => {
-    const ext = url.split('.').pop()?.toLowerCase().split('?')[0] || '';
-    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) return ImageIcon;
-    if (['pdf', 'doc', 'docx', 'txt', 'md'].includes(ext)) return FileText;
-    return File;
+  const handleDownload = async (fileUrl, fileName) => {
+    try {
+      const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({
+        file_uri: fileUrl,
+        expires_in: 3600,
+      });
+      
+      const link = document.createElement('a');
+      link.href = signed_url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      toast({ title: 'Download failed', description: error.message, variant: 'destructive', duration: 5000 });
+    }
   };
 
-  const getFileName = (url) => {
-    const decoded = decodeURIComponent(url.split('/').pop()?.split('?')[0] || 'file');
-    return decoded.length > 40 ? decoded.substring(0, 37) + '...' : decoded;
+  const getFileIcon = (fileType) => {
+    if (fileType?.startsWith('image/')) return <ImageIcon className="w-8 h-8 text-blue-500" />;
+    if (fileType?.includes('pdf')) return <FileText className="w-8 h-8 text-red-500" />;
+    if (fileType?.includes('zip') || fileType?.includes('rar')) return <Archive className="w-8 h-8 text-yellow-500" />;
+    return <File className="w-8 h-8 text-gray-500" />;
   };
 
-  const isImage = (url) => {
-    const ext = url.split('.').pop()?.toLowerCase().split('?')[0] || '';
-    return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext);
+  const formatFileSize = (bytes) => {
+    if (!bytes) return 'Unknown size';
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
+  };
+
+  const formatTimestamp = (date) => {
+    return new Date(date).toLocaleDateString('en', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const canDeleteFile = (file) => {
+    if (!canEdit) return false;
+    if (!currentUser) return false;
+    return file.uploaded_by === currentUser.id;
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* Upload */}
       {canEdit && (
         <div className="flex items-center gap-2">
           <input
-            ref={fileInputRef}
             type="file"
-            multiple
-            onChange={handleUpload}
+            id="file-upload"
             className="hidden"
+            onChange={handleUpload}
+            disabled={uploading}
           />
-          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-            <Paperclip className="w-3.5 h-3.5 mr-1.5" />
-            {uploading ? 'Uploading...' : 'Upload Files'}
-          </Button>
+          <label htmlFor="file-upload">
+            <Button asChild disabled={uploading}>
+              <span>
+                <Upload className="w-4 h-4 mr-2" />
+                {uploading ? 'Uploading...' : 'Upload File'}
+              </span>
+            </Button>
+          </label>
+          <span className="text-xs text-muted-foreground">
+            Attach files to this item
+          </span>
         </div>
       )}
 
-      {files.length === 0 ? (
-        <div className="text-center py-8">
-          <Paperclip className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+      {/* Files List */}
+      {loading ? (
+        <p className="text-center text-sm text-muted-foreground py-4">Loading...</p>
+      ) : files.length === 0 ? (
+        <div className="text-center py-8 border border-dashed rounded-lg">
+          <File className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
           <p className="text-sm text-muted-foreground">No files attached</p>
-          {canEdit && <p className="text-xs text-muted-foreground/60 mt-1">Upload files to attach them to this item</p>}
+          {canEdit && <p className="text-xs text-muted-foreground mt-1">Upload a file to get started</p>}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {files.map((fileUrl, idx) => {
-            const Icon = getFileIcon(fileUrl);
-            return (
-              <div key={idx} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors">
-                {isImage(fileUrl) ? (
-                  <img src={fileUrl} alt={getFileName(fileUrl)} className="w-10 h-10 rounded object-cover shrink-0" />
-                ) : (
-                  <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center shrink-0">
-                    <Icon className="w-5 h-5 text-primary" />
+        <div className="grid grid-cols-1 gap-3">
+          {files.map(file => (
+            <Card key={file.id}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    {getFileIcon(file.file_type)}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{file.file_name}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                        <span>{formatFileSize(file.file_size)}</span>
+                        <span>•</span>
+                        <span>Uploaded {formatTimestamp(file.created_date)}</span>
+                      </div>
+                    </div>
                   </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{getFileName(fileUrl)}</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleDownload(fileUrl)} title="Download">
-                    <Download className="w-3.5 h-3.5" />
-                  </Button>
-                  {canEdit && (
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleRemove(fileUrl)} disabled={saving} title="Remove">
-                      <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleDownload(file.file_url, file.file_name)}
+                      title="Download"
+                    >
+                      <Download className="w-4 h-4" />
                     </Button>
-                  )}
+                    {canDeleteFile(file) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive"
+                        onClick={() => handleDelete(file.id, file.file_name)}
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </div>

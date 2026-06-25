@@ -1,0 +1,42 @@
+{
+  "name": "ItemWatcher",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "workboard": {
+      "type": "string",
+      "title": "Workboard",
+      "relationType": "Workboard"
+    },
+    "item": {
+      "type": "string",
+      "title": "Item",
+      "relationType": "WorkboardItem"
+    },
+    "user": {
+      "type": "string",
+      "title": "User",
+      "relationType": "User"
+    },
+    "added_by": {
+      "type": "string",
+      "title": "Added By",
+      "relationType": "User"
+    },
+    "created_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created Date"
+    }
+  },
+  "required": [
+    "workspace",
+    "workboard",
+    "item",
+    "user"
+  ]
+}

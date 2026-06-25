@@ -1,0 +1,68 @@
+{
+  "name": "Attachment",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "workboard": {
+      "type": "string",
+      "title": "Workboard",
+      "relationType": "Workboard"
+    },
+    "item": {
+      "type": "string",
+      "title": "Item",
+      "relationType": "WorkboardItem"
+    },
+    "uploaded_by": {
+      "type": "string",
+      "title": "Uploaded By",
+      "relationType": "User"
+    },
+    "file_name": {
+      "type": "string",
+      "title": "File Name"
+    },
+    "file_type": {
+      "type": "string",
+      "title": "File Type"
+    },
+    "file_size": {
+      "type": "number",
+      "title": "File Size"
+    },
+    "file_url": {
+      "type": "string",
+      "title": "File URL"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "enum": [
+        "item_file",
+        "comment_attachment"
+      ],
+      "default": "item_file"
+    },
+    "comment": {
+      "type": "string",
+      "title": "Comment",
+      "relationType": "Comment"
+    },
+    "created_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created Date"
+    }
+  },
+  "required": [
+    "workspace",
+    "workboard",
+    "item",
+    "uploaded_by",
+    "file_url"
+  ]
+}

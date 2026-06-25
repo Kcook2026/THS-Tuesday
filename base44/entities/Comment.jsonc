@@ -2,6 +2,35 @@
   "name": "Comment",
   "type": "object",
   "properties": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "workboard": {
+      "type": "string",
+      "title": "Workboard",
+      "relationType": "Workboard"
+    },
+    "item": {
+      "type": "string",
+      "title": "Item",
+      "relationType": "WorkboardItem"
+    },
+    "record_type": {
+      "type": "string",
+      "title": "Record Type",
+      "default": "WorkboardItem"
+    },
+    "record_id": {
+      "type": "string",
+      "title": "Record ID"
+    },
+    "parent_comment": {
+      "type": "string",
+      "title": "Parent Comment",
+      "relationType": "Comment"
+    },
     "user": {
       "type": "string",
       "title": "User",
@@ -11,34 +40,54 @@
       "type": "string",
       "title": "User Name"
     },
+    "user_email": {
+      "type": "string",
+      "title": "User Email"
+    },
     "body": {
       "type": "string",
       "title": "Body"
-    },
-    "record_type": {
-      "type": "string",
-      "title": "Record Type"
-    },
-    "record_id": {
-      "type": "string",
-      "title": "Record ID"
     },
     "mentions": {
       "type": "array",
       "title": "Mentions",
       "items": {
-        "type": "string",
-        "relationType": "User"
+        "type": "string"
       }
     },
-    "workspace": {
+    "attachments": {
+      "type": "array",
+      "title": "Attachments",
+      "items": {
+        "type": "string"
+      }
+    },
+    "edited": {
+      "type": "boolean",
+      "title": "Edited",
+      "default": false
+    },
+    "edited_date": {
       "type": "string",
-      "title": "Workspace",
-      "relationType": "Workspace"
+      "format": "date-time",
+      "title": "Edited Date"
+    },
+    "deleted": {
+      "type": "boolean",
+      "title": "Deleted",
+      "default": false
+    },
+    "deleted_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Deleted Date"
     }
   },
   "required": [
-    "body",
-    "record_type"
+    "workspace",
+    "record_type",
+    "record_id",
+    "user",
+    "body"
   ]
 }

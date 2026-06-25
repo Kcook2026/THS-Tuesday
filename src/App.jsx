@@ -35,6 +35,7 @@ import PortfolioDetail from '@/pages/PortfolioDetail';
 import Goals from '@/pages/Goals';
 import PermissionDebug from '@/pages/PermissionDebug';
 import WorkboardQA from '@/pages/WorkboardQA';
+import WorkboardUpdates from '@/pages/WorkboardUpdates';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -95,6 +96,7 @@ const AuthenticatedApp = () => {
           <Route path="/goals" element={<Goals />} />
           <Route path="/permission-debug" element={<PermissionDebug />} />
           <Route path="/workboard-qa" element={<WorkboardQA />} />
+          <Route path="/workboards/:id/updates" element={<WorkboardUpdates />} />
         </Route>
       </Route>
       {/* Backwards compatibility redirect */}
