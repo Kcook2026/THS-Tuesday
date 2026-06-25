@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
-  Plus, Search, MoreHorizontal, Save, X, User, Trash2, Shield, Settings, Archive, Eye, EyeOff, GripVertical, Pencil
+  Plus, Search, MoreHorizontal, Save, X, User, Trash2, Shield, Settings, Archive, Eye, EyeOff, GripVertical, Pencil,
+  LayoutList, LayoutGrid, Calendar as CalendarIcon
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,6 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Breadcrumbs from '@/components/shared/Breadcrumbs';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { useToast } from '@/components/ui/use-toast';
@@ -23,6 +25,9 @@ import usePermissions from '@/hooks/usePermissions';
 import MembersDrawer from '@/components/workboards/MembersDrawer';
 import ColumnManager from '@/components/workboards/ColumnManager';
 import ItemDetailDrawer from '@/components/workboards/ItemDetailDrawer';
+import KanbanBoard from '@/components/workboards/KanbanBoard';
+import CalendarView from '@/components/workboards/CalendarView';
+import UpdatesSection from '@/components/workboards/UpdatesSection';
 import { STATUS_COLORS, PRIORITY_COLORS } from '@/components/workboards/WorkboardConstants';
 import { getUserInitials } from '@/lib/userHelpers';
 
@@ -52,6 +57,7 @@ export default function WorkboardDetail() {
   const [columns, setColumns] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [showItemDetail, setShowItemDetail] = useState(false);
+  const [activeView, setActiveView] = useState('list');
 
   const isLoadingRef = useRef(false);
 
@@ -450,7 +456,24 @@ export default function WorkboardDetail() {
         </DialogContent>
       </Dialog>
 
-      <div className="flex gap-3 mb-4">
+      {/* View Tabs & Search */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-4">
+        <Tabs value={activeView} onValueChange={setActiveView} className="w-full">
+          <TabsList>
+            <TabsTrigger value="list" className="gap-2">
+              <LayoutList className="w-4 h-4" />
+              List
+            </TabsTrigger>
+            <TabsTrigger value="kanban" className="gap-2">
+              <LayoutGrid className="w-4 h-4" />
+              Kanban
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="gap-2">
+              <CalendarIcon className="w-4 h-4" />
+              Calendar
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input className="pl-9" placeholder="Search items..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -477,114 +500,144 @@ export default function WorkboardDetail() {
         </Card>
       )}
 
-      {/* Group-based view */}
-      {groups.length > 0 ? (
-        <div className="space-y-6">
-          {groups.map(group => {
-            const groupItems = filteredItems.filter(item => item.group === group.id);
-            const colorClass = group.color ? `bg-${group.color}-500` : 'bg-gray-500';
-            return (
-              <div key={group.id} className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${colorClass}`} />
-                  <h3 className="font-semibold text-sm">{group.name}</h3>
-                  <Badge variant="secondary" className="text-xs">{groupItems.length}</Badge>
-                </div>
-                <div className="border rounded-xl overflow-hidden bg-card">
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="min-w-[250px]">Item Name</TableHead>
-                          <TableHead className="min-w-[150px]">Owner</TableHead>
-                          <TableHead className="min-w-[120px]">Status</TableHead>
-                          <TableHead className="min-w-[120px]">Priority</TableHead>
-                          <TableHead className="min-w-[120px]">Due Date</TableHead>
-                          <TableHead className="min-w-[120px]">Progress</TableHead>
-                          <TableHead className="w-10"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {groupItems.length === 0 ? (
-                          <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground text-sm">No items in this group</TableCell></TableRow>
-                        ) : (
-                          groupItems.map(item => (
-                            <TableRow key={item.id} className="hover:bg-accent/50 cursor-pointer" onClick={() => handleItemClick(item)}>
-                              <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
-                                  {item.title}
-                                </div>
-                              </TableCell>
-                              <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'owner') : renderCell(item, 'owner')}</TableCell>
-                              <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'status') : renderCell(item, 'status')}</TableCell>
-                              <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'priority') : renderCell(item, 'priority')}</TableCell>
-                              <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'due_date') : renderCell(item, 'due_date')}</TableCell>
-                              <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'progress_percentage') : renderCell(item, 'progress_percentage')}</TableCell>
-                              <TableCell onClick={(e) => e.stopPropagation()}>
-                                {canDelete && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}><Trash2 className="w-3.5 h-3.5" /></Button>}
-                              </TableCell>
+      {/* View Content */}
+      <Tabs value={activeView} onValueChange={setActiveView} className="w-full">
+        <TabsContent value="list" className="mt-0">
+          {/* Group-based List View */}
+          {groups.length > 0 ? (
+            <div className="space-y-6">
+              {groups.map(group => {
+                const groupItems = filteredItems.filter(item => item.group === group.id);
+                const colorClass = group.color ? `bg-${group.color}-500` : 'bg-gray-500';
+                return (
+                  <div key={group.id} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${colorClass}`} />
+                      <h3 className="font-semibold text-sm">{group.name}</h3>
+                      <Badge variant="secondary" className="text-xs">{groupItems.length}</Badge>
+                    </div>
+                    <div className="border rounded-xl overflow-hidden bg-card">
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="min-w-[250px]">Item Name</TableHead>
+                              <TableHead className="min-w-[150px]">Owner</TableHead>
+                              <TableHead className="min-w-[120px]">Status</TableHead>
+                              <TableHead className="min-w-[120px]">Priority</TableHead>
+                              <TableHead className="min-w-[120px]">Due Date</TableHead>
+                              <TableHead className="min-w-[120px]">Progress</TableHead>
+                              <TableHead className="w-10"></TableHead>
                             </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="border rounded-xl overflow-hidden bg-card">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[250px]">Item Name</TableHead>
-                  <TableHead className="min-w-[150px]">Owner</TableHead>
-                  <TableHead className="min-w-[120px]">Status</TableHead>
-                  <TableHead className="min-w-[120px]">Priority</TableHead>
-                  <TableHead className="min-w-[120px]">Due Date</TableHead>
-                  <TableHead className="min-w-[120px]">Progress</TableHead>
-                  <TableHead className="w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredItems.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
-                      <div className="flex flex-col items-center gap-2">
-                        <p>No items yet</p>
-                        {canCreate && <Button size="sm" onClick={() => setShowNewItem(true)}><Plus className="w-4 h-4 mr-1.5" />Add First Item</Button>}
+                          </TableHeader>
+                          <TableBody>
+                            {groupItems.length === 0 ? (
+                              <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground text-sm">No items in this group</TableCell></TableRow>
+                            ) : (
+                              groupItems.map(item => (
+                                <TableRow key={item.id} className="hover:bg-accent/50 cursor-pointer" onClick={() => handleItemClick(item)}>
+                                  <TableCell className="font-medium">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
+                                      {item.title}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'owner') : renderCell(item, 'owner')}</TableCell>
+                                  <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'status') : renderCell(item, 'status')}</TableCell>
+                                  <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'priority') : renderCell(item, 'priority')}</TableCell>
+                                  <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'due_date') : renderCell(item, 'due_date')}</TableCell>
+                                  <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'progress_percentage') : renderCell(item, 'progress_percentage')}</TableCell>
+                                  <TableCell onClick={(e) => e.stopPropagation()}>
+                                    {canDelete && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}><Trash2 className="w-3.5 h-3.5" /></Button>}
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredItems.map(item => (
-                    <TableRow key={item.id} className="hover:bg-accent/50 cursor-pointer" onClick={() => handleItemClick(item)}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
-                          {item.title}
-                        </div>
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'owner') : renderCell(item, 'owner')}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'status') : renderCell(item, 'status')}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'priority') : renderCell(item, 'priority')}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'due_date') : renderCell(item, 'due_date')}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'progress_percentage') : renderCell(item, 'progress_percentage')}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {canDelete && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}><Trash2 className="w-3.5 h-3.5" /></Button>}
-                      </TableCell>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="border rounded-xl overflow-hidden bg-card">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[250px]">Item Name</TableHead>
+                      <TableHead className="min-w-[150px]">Owner</TableHead>
+                      <TableHead className="min-w-[120px]">Status</TableHead>
+                      <TableHead className="min-w-[120px]">Priority</TableHead>
+                      <TableHead className="min-w-[120px]">Due Date</TableHead>
+                      <TableHead className="min-w-[120px]">Progress</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      )}
+                  </TableHeader>
+                  <TableBody>
+                    {filteredItems.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                          <div className="flex flex-col items-center gap-2">
+                            <p>No items yet</p>
+                            {canCreate && <Button size="sm" onClick={() => setShowNewItem(true)}><Plus className="w-4 h-4 mr-1.5" />Add First Item</Button>}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredItems.map(item => (
+                        <TableRow key={item.id} className="hover:bg-accent/50 cursor-pointer" onClick={() => handleItemClick(item)}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
+                              {item.title}
+                            </div>
+                          </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'owner') : renderCell(item, 'owner')}</TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'status') : renderCell(item, 'status')}</TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'priority') : renderCell(item, 'priority')}</TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'due_date') : renderCell(item, 'due_date')}</TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>{canEdit ? renderInlineEdit(item, 'progress_percentage') : renderCell(item, 'progress_percentage')}</TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {canDelete && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}><Trash2 className="w-3.5 h-3.5" /></Button>}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="kanban" className="mt-0">
+          <KanbanBoard
+            groups={groups}
+            items={filteredItems}
+            statusOptions={statusOptions}
+            users={users}
+            canEdit={canEdit}
+            canDelete={canDelete}
+            onAddItem={(groupId) => {
+              setNewItemGroup(groupId);
+              setShowNewItem(true);
+            }}
+            onItemClick={handleItemClick}
+            onDeleteItem={handleDeleteItem}
+          />
+        </TabsContent>
+
+        <TabsContent value="calendar" className="mt-0">
+          <CalendarView
+            items={filteredItems}
+            users={users}
+            onItemClick={handleItemClick}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Item Detail Drawer */}
       {selectedItem && (
@@ -599,6 +652,13 @@ export default function WorkboardDetail() {
           }}
           onUpdate={handleItemUpdate}
         />
+      )}
+
+      {/* Updates Section (for item detail) */}
+      {selectedItem && showItemDetail && (
+        <div className="hidden">
+          <UpdatesSection itemId={selectedItem.id} boardId={id} />
+        </div>
       )}
     </div>
   );
