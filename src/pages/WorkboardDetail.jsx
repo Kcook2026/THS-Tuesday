@@ -127,20 +127,16 @@ export default function WorkboardDetail() {
         base44.entities.WorkboardMember.filter({ workboard: id }).catch(() => []),
       ]);
 
-      // Load comment counts for each item (for Updates column)
-      const commentCounts = {};
-      for (const item of i) {
-        try {
-          const comments = await base44.entities.Comment.filter({
-            record_type: 'WorkboardItem',
-            record_id: item.id,
-            deleted: false,
-          });
-          commentCounts[item.id] = comments?.length || 0;
-        } catch (err) {
-          commentCounts[item.id] = 0;
-        }
-      }
+      // Load all comments for this board in a single query (avoids N+1 rate limit)
+      const allComments = await base44.entities.Comment.filter({
+        workboard: id,
+        record_type: 'WorkboardItem',
+        deleted: false,
+      }).catch(() => []);
+      const commentCounts = (allComments || []).reduce((acc, c) => {
+        acc[c.record_id] = (acc[c.record_id] || 0) + 1;
+        return acc;
+      }, {});
 
       const itemsWithCounts = i.map(item => ({
         ...item,
