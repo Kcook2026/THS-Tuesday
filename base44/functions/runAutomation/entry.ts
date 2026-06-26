@@ -17,7 +17,6 @@ Deno.serve(async (req) => {
     if (itemId) {
       item = await sr.entities.WorkboardItem.get(itemId).catch(() => null);
     }
-    // If no itemId, auto-find a recent item from the rule's workboard or workspace
     if (!item) {
       const query = { workspace: rule.workspace, archived: false };
       if (rule.workboard) query.workboard = rule.workboard;
@@ -26,14 +25,44 @@ Deno.serve(async (req) => {
     }
     if (!item) return Response.json({ error: 'No items found to test with' }, { status: 404 });
 
-    // Delegate to processAutomationEvent with force_rule_id
+    const triggerLabel = {
+      item_created: 'Item is created', item_updated: 'Item is updated',
+      status_changed: 'Status changes', priority_changed: 'Priority changes',
+      owner_changed: 'Owner changes', assignee_changed: 'Assignee changes',
+      due_date_changed: 'Due date changes', item_moved_to_group: 'Item moved to group',
+      sub_item_created: 'Sub-item is created', comment_added: 'Comment is added',
+      file_uploaded: 'File is uploaded', form_submitted: 'Form is submitted',
+      manual: 'Run manually',
+    }[rule.trigger_type] || rule.trigger_type;
+
     const result = await sr.functions.invoke('processAutomationEvent', {
-      event: { type: 'create', entity_name: 'WorkboardItem', entity_id: itemId },
+      event: { type: 'create', entity_name: 'WorkboardItem', entity_id: item.id },
       data: item,
       force_rule_id: ruleId,
     });
 
-    return Response.json({ success: true, result: result?.data || result });
+    const testResult = result?.data || result;
+    const ruleResult = testResult?.results?.[0] || {};
+
+    const status = ruleResult.success ? 'success' : (ruleResult.skipped ? 'skipped' : 'failed');
+
+    return Response.json({
+      success: true,
+      test: {
+        rule_name: rule.name,
+        trigger_type: rule.trigger_type,
+        trigger_label: triggerLabel,
+        item_title: item.title,
+        item_id: item.id,
+        workboard: item.workboard,
+        status,
+        actions_performed: ruleResult.actions || [],
+        skipped_reason: ruleResult.skipped || null,
+        error: ruleResult.error || null,
+        run_id: ruleResult.run_id || null,
+        timestamp: new Date().toISOString(),
+      },
+    });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

@@ -3,6 +3,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TRIGGER_TYPES, getTriggerMeta } from './AutomationConstants';
+import SearchablePicker from './SearchablePicker';
+import { buildStatusOptions, buildPriorityOptions, buildGroupOptions } from './PickerOptions';
 
 export default function TriggerEditor({ triggerType, triggerConfig, onChange, boardData }) {
   const meta = getTriggerMeta(triggerType);
@@ -17,34 +19,37 @@ export default function TriggerEditor({ triggerType, triggerConfig, onChange, bo
     if (!meta.hasValue) return null;
     const val = tc.value ?? tc.days ?? '';
 
-    if (meta.valueType === 'status' && boardData?.statuses?.length > 0) {
+    if (meta.valueType === 'status') {
       return (
-        <Select value={val} onValueChange={v => updateConfig('value', v)}>
-          <SelectTrigger className="h-8 w-full"><SelectValue placeholder="Select status" /></SelectTrigger>
-          <SelectContent>
-            {boardData.statuses.map(s => <SelectItem key={s.id} value={s.label}>{s.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <SearchablePicker
+          value={val}
+          onValueChange={v => updateConfig('value', v)}
+          options={buildStatusOptions(boardData?.statuses, boardData?.boardMap)}
+          placeholder="Select status"
+          emptyMessage="No statuses found for this scope"
+        />
       );
     }
-    if (meta.valueType === 'priority' && boardData?.priorities?.length > 0) {
+    if (meta.valueType === 'priority') {
       return (
-        <Select value={val} onValueChange={v => updateConfig('value', v)}>
-          <SelectTrigger className="h-8 w-full"><SelectValue placeholder="Select priority" /></SelectTrigger>
-          <SelectContent>
-            {boardData.priorities.map(p => <SelectItem key={p.id} value={p.label}>{p.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <SearchablePicker
+          value={val}
+          onValueChange={v => updateConfig('value', v)}
+          options={buildPriorityOptions(boardData?.priorities, boardData?.boardMap)}
+          placeholder="Select priority"
+          emptyMessage="No priorities found for this scope"
+        />
       );
     }
-    if (meta.valueType === 'group' && boardData?.groups?.length > 0) {
+    if (meta.valueType === 'group') {
       return (
-        <Select value={val} onValueChange={v => updateConfig('value', v)}>
-          <SelectTrigger className="h-8 w-full"><SelectValue placeholder="Select group" /></SelectTrigger>
-          <SelectContent>
-            {boardData.groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <SearchablePicker
+          value={val}
+          onValueChange={v => updateConfig('value', v)}
+          options={buildGroupOptions(boardData?.groups, boardData?.boardMap)}
+          placeholder="Select group"
+          emptyMessage="No groups found for this scope"
+        />
       );
     }
     if (meta.valueType === 'number') {

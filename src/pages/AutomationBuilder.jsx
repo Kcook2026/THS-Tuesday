@@ -33,7 +33,7 @@ export default function AutomationBuilder() {
   const [saving, setSaving] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
   const [validationError, setValidationError] = useState('');
-  const [boardData, setBoardData] = useState({ statuses: [], priorities: [], groups: [], users: [] });
+  const [boardData, setBoardData] = useState({ statuses: [], priorities: [], groups: [], columns: [], users: [], teams: [], boards: [], boardMap: {} });
   const { toast } = useToast();
   const [form, setForm] = useState({
     name: '', description: '', status: 'paused', trigger_type: 'status_changed',
@@ -55,17 +55,21 @@ export default function AutomationBuilder() {
   const loadBoardData = useCallback(async () => {
     if (!currentWorkspaceId) return;
     const wbId = form.workboard;
-    const [members] = await Promise.all([
+    const [members, teams, allBoards] = await Promise.all([
       base44.entities.WorkspaceMember.filter({ workspace: currentWorkspaceId, status: 'active' }).catch(() => []),
+      base44.entities.Team.filter({ workspace: currentWorkspaceId }).catch(() => []),
+      base44.entities.Workboard.filter({ workspace: currentWorkspaceId, status: 'active' }, '-updated_date', 100).catch(() => []),
     ]);
-    let statuses = [], priorities = [], groups = [];
+    const boardMap = {};
+    (allBoards || []).forEach(b => { boardMap[b.id] = b.name; });
+    let statuses = [], priorities = [], groups = [], columns = [];
     if (wbId) {
-      [statuses, priorities, groups] = await Promise.all([
+      [statuses, priorities, groups, columns] = await Promise.all([
         base44.entities.StatusOption.filter({ workboard: wbId }).catch(() => []),
         base44.entities.PriorityOption.filter({ workboard: wbId }).catch(() => []),
         base44.entities.BoardGroup.filter({ workboard: wbId, archived: false }).catch(() => []),
+        base44.entities.BoardColumn.filter({ workboard: wbId, hidden: false, system_column: false }).catch(() => []),
       ]);
-      // Auto-create default statuses if none exist
       if (statuses.length === 0 && canManage) {
         const defaultStatuses = [
           { label: 'Not Started', color: 'gray' },
@@ -83,7 +87,6 @@ export default function AutomationBuilder() {
         statuses = await base44.entities.StatusOption.filter({ workboard: wbId }).catch(() => []);
         toast({ title: 'Default statuses created', description: '5 default status options were added to this board.' });
       }
-      // Auto-create default priorities if none exist
       if (priorities.length === 0 && canManage) {
         const defaultPriorities = [
           { label: 'Critical', color: 'red' },
@@ -99,8 +102,15 @@ export default function AutomationBuilder() {
         ));
         priorities = await base44.entities.PriorityOption.filter({ workboard: wbId }).catch(() => []);
       }
+    } else {
+      [statuses, priorities, groups, columns] = await Promise.all([
+        base44.entities.StatusOption.filter({ workspace: currentWorkspaceId }).catch(() => []),
+        base44.entities.PriorityOption.filter({ workspace: currentWorkspaceId }).catch(() => []),
+        base44.entities.BoardGroup.filter({ workspace: currentWorkspaceId, archived: false }).catch(() => []),
+        base44.entities.BoardColumn.filter({ workspace: currentWorkspaceId, hidden: false, system_column: false }).catch(() => []),
+      ]);
     }
-    setBoardData({ statuses, priorities, groups, users: members });
+    setBoardData({ statuses, priorities, groups, columns, users: members, teams: teams || [], boards: allBoards || [], boardMap });
   }, [currentWorkspaceId, form.workboard, canManage, user, toast]);
 
   useEffect(() => { loadRule().finally(() => setLoading(false)); }, [loadRule]);
@@ -127,12 +137,29 @@ export default function AutomationBuilder() {
     try { actions = JSON.parse(form.actions || '[]'); } catch {}
     for (const action of actions) {
       const meta = getActionMeta(action.type);
+      if (action.type === 'set_custom_column') {
+        if (!action.column) { setValidationError('Select a custom column for the action.'); return false; }
+        if (action.value === undefined || action.value === '') { setValidationError('Provide a value for the custom column action.'); return false; }
+        continue;
+      }
+      if (action.type === 'clear_custom_column') {
+        if (!action.column) { setValidationError('Select a custom column to clear.'); return false; }
+        continue;
+      }
       if (meta.hasValue && !action.value) {
         if (meta.valueType === 'status') { setValidationError('Select a status for the action before saving.'); return false; }
         if (meta.valueType === 'priority') { setValidationError('Select a priority for the action before saving.'); return false; }
         if (meta.valueType === 'group') { setValidationError('Select a target group.'); return false; }
         if (meta.valueType === 'user') { setValidationError('Select a notification recipient.'); return false; }
         setValidationError(`Provide a value for the "${meta.label}" action.`);
+        return false;
+      }
+    }
+    let conditions = [];
+    try { conditions = JSON.parse(form.conditions || '[]'); } catch {}
+    for (const cond of conditions) {
+      if (cond.field === 'custom_column' && !cond.column) {
+        setValidationError('Select a custom column for the condition.');
         return false;
       }
     }

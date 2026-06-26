@@ -24,9 +24,10 @@ export const CONDITION_TYPES = [
   { value: 'owner', label: 'Owner', operators: ['equals', 'not_equals'], valueType: 'user' },
   { value: 'assignee', label: 'Assignee', operators: ['equals', 'not_equals'], valueType: 'user' },
   { value: 'group', label: 'Group', operators: ['equals', 'not_equals'], valueType: 'group' },
+  { value: 'team', label: 'Team', operators: ['equals', 'not_equals'], valueType: 'team' },
   { value: 'due_date', label: 'Due Date', operators: ['is_empty', 'is_not_empty', 'is_before_today', 'is_after_today'] },
   { value: 'created_from_form', label: 'Created from form', operators: ['equals'] },
-  { value: 'custom_column', label: 'Custom column', operators: ['equals'] },
+  { value: 'custom_column', label: 'Custom column', operators: ['equals', 'is_empty', 'is_not_empty', 'contains'], valueType: 'custom_column' },
 ];
 
 export const OPERATOR_LABELS = {
@@ -36,6 +37,7 @@ export const OPERATOR_LABELS = {
   is_not_empty: 'is not empty',
   is_before_today: 'is before today',
   is_after_today: 'is after today',
+  contains: 'contains',
 };
 
 export const ACTION_TYPES = [
@@ -47,6 +49,8 @@ export const ACTION_TYPES = [
   { value: 'create_sub_item', label: 'Create sub-item', category: 'item', hasValue: true, valueType: 'text', valueLabel: 'title' },
   { value: 'create_comment', label: 'Create update/comment', category: 'item', hasValue: true, valueType: 'text', valueLabel: 'message' },
   { value: 'archive_item', label: 'Archive item', category: 'item' },
+  { value: 'set_custom_column', label: 'Set custom column value', category: 'item', hasValue: true, valueType: 'custom_column' },
+  { value: 'clear_custom_column', label: 'Clear custom column value', category: 'item' },
   { value: 'notify_owner', label: 'Notify owner', category: 'notification', hasValue: true, valueType: 'text', valueLabel: 'message' },
   { value: 'notify_assignee', label: 'Notify assignee', category: 'notification', hasValue: true, valueType: 'text', valueLabel: 'message' },
   { value: 'notify_specific_user', label: 'Notify specific user', category: 'notification', hasValue: true, valueType: 'user' },

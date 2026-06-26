@@ -28,7 +28,6 @@ Deno.serve(async (req) => {
       return Response.json({ processed: false, reason: 'invalid_payload' });
     }
 
-    // Fetch entity data if payload_too_large
     let entityData = data;
     if (!entityData && event.entity_id) {
       const apis = {
@@ -45,11 +44,9 @@ Deno.serve(async (req) => {
     const workspace = entityData.workspace;
     if (!workspace) return Response.json({ processed: false, reason: 'no_workspace' });
 
-    // Determine which trigger types match
     const triggers = determineTriggers(event, entityData, changed_fields, old_data);
     if (triggers.length === 0) return Response.json({ processed: false, reason: 'no_triggers' });
 
-    // Load related WorkboardItem for Comment / Attachment / FormSubmission events
     let contextData = entityData;
     let contextItemId = null;
     let contextWorkboard = entityData.workboard;
@@ -69,7 +66,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Find matching active rules
     const rules = await sr.entities.AutomationRule.filter({ workspace, status: 'active', archived: false }).catch(() => []);
 
     const matchingRules = rules.filter(rule => {
@@ -105,7 +101,6 @@ Deno.serve(async (req) => {
 function determineTriggers(event, data, changed_fields, old_data) {
   const triggers = [];
   let cf = changed_fields || [];
-  // Fallback: compute changed fields from data vs old_data if not provided
   if (cf.length === 0 && old_data && event.type === 'update') {
     cf = Object.keys(data || {}).filter(k => JSON.stringify(data[k]) !== JSON.stringify(old_data[k]));
   }
@@ -130,12 +125,33 @@ function determineTriggers(event, data, changed_fields, old_data) {
   return triggers;
 }
 
-function evaluateConditions(rule, data) {
+async function evaluateConditions(sr, rule, data, itemId) {
   let conditions = [];
   try { conditions = JSON.parse(rule.conditions || '[]'); } catch {}
   if (!conditions || conditions.length === 0) return true;
+
+  // Pre-fetch board for team conditions
+  let boardTeam = null;
+  const needsBoardTeam = conditions.some(c => c.field === 'team');
+  if (needsBoardTeam && data?.workboard) {
+    const board = await sr.entities.Workboard.get(data.workboard).catch(() => null);
+    boardTeam = board?.team || '';
+  }
+
   for (const cond of conditions) {
-    const val = data ? data[cond.field] : null;
+    let val = data ? data[cond.field] : null;
+
+    // Custom column condition: look up WorkboardItemValue
+    if (cond.field === 'custom_column' && cond.column && itemId) {
+      const itemVals = await sr.entities.WorkboardItemValue.filter({ item: itemId, column: cond.column }).catch(() => []);
+      val = itemVals.length > 0 ? itemVals[0].value : '';
+    }
+
+    // Team condition: check the item's workboard team
+    if (cond.field === 'team') {
+      val = boardTeam;
+    }
+
     switch (cond.operator) {
       case 'equals': if (String(val || '') !== String(cond.value || '')) return false; break;
       case 'not_equals': if (String(val || '') === String(cond.value || '')) return false; break;
@@ -143,25 +159,25 @@ function evaluateConditions(rule, data) {
       case 'is_not_empty': if (!val) return false; break;
       case 'is_before_today': if (!val || new Date(val) >= new Date()) return false; break;
       case 'is_after_today': if (!val || new Date(val) <= new Date()) return false; break;
+      case 'contains': if (!String(val || '').toLowerCase().includes(String(cond.value || '').toLowerCase())) return false; break;
     }
   }
   return true;
 }
 
 async function processRule(sr, rule, itemData, itemId, workboard, workspace, options = {}) {
-  // Cooldown: skip if same rule ran on same item within 60s (prevents loops)
   if (!options.bypassCooldown && itemId) {
     const cooldown = new Date(Date.now() - 60000).toISOString();
     const recent = await sr.entities.AutomationRun.filter({ rule: rule.id, item: itemId, started_date: { $gte: cooldown } }).catch(() => []);
     if (recent.length > 0) return { rule_id: rule.id, rule_name: rule.name, skipped: 'cooldown' };
-    // Also check parent_item to prevent sub-item creation loops
     if (itemData.parent_item) {
       const parentRecent = await sr.entities.AutomationRun.filter({ rule: rule.id, item: itemData.parent_item, started_date: { $gte: cooldown } }).catch(() => []);
       if (parentRecent.length > 0) return { rule_id: rule.id, rule_name: rule.name, skipped: 'cooldown_parent' };
     }
   }
 
-  if (!evaluateConditions(rule, itemData)) {
+  const conditionsMet = await evaluateConditions(sr, rule, itemData, itemId);
+  if (!conditionsMet) {
     return { rule_id: rule.id, rule_name: rule.name, skipped: 'conditions_not_met' };
   }
 
@@ -207,6 +223,8 @@ async function performActions(sr, rule, data, itemId, workboard, workspace, opti
           if (workboard) { const opts = await sr.entities.StatusOption.filter({ workboard }).catch(() => []); const m = opts.find(s => s.label === action.value); if (m) color = m.color; }
           await sr.entities.WorkboardItem.update(itemId, { status: action.value, status_color: color });
           results.push({ action: 'change_status', value: action.value });
+        } else {
+          results.push({ action: 'change_status', value: action.value, skipped: 'already_set' });
         }
         break;
       }
@@ -216,20 +234,40 @@ async function performActions(sr, rule, data, itemId, workboard, workspace, opti
           if (workboard) { const opts = await sr.entities.PriorityOption.filter({ workboard }).catch(() => []); const m = opts.find(p => p.label === action.value); if (m) color = m.color; }
           await sr.entities.WorkboardItem.update(itemId, { priority: action.value, priority_color: color });
           results.push({ action: 'change_priority', value: action.value });
+        } else {
+          results.push({ action: 'change_priority', value: action.value, skipped: 'already_set' });
         }
         break;
       }
       case 'assign_owner': {
         if (itemId && data.owner !== action.value) {
           await sr.entities.WorkboardItem.update(itemId, { owner: action.value });
+          await sr.entities.Notification.create({
+            workspace, workboard, recipient: action.value, sender: rule.created_by || data.created_by,
+            sender_name: 'Automation', type: 'assignment', title: rule.name,
+            message: `You were assigned as owner by automation: ${rule.name}`,
+            record_type: 'WorkboardItem', record_id: itemId,
+            target_url: workboard ? `/workboards/${workboard}?item=${itemId}&tab=overview` : '', read_status: false,
+          }).catch(() => {});
           results.push({ action: 'assign_owner', value: action.value });
+        } else {
+          results.push({ action: 'assign_owner', value: action.value, skipped: 'already_set' });
         }
         break;
       }
       case 'assign_assignee': {
         if (itemId && data.assignee !== action.value) {
           await sr.entities.WorkboardItem.update(itemId, { assignee: action.value });
+          await sr.entities.Notification.create({
+            workspace, workboard, recipient: action.value, sender: rule.created_by || data.created_by,
+            sender_name: 'Automation', type: 'assignment', title: rule.name,
+            message: `You were assigned as assignee by automation: ${rule.name}`,
+            record_type: 'WorkboardItem', record_id: itemId,
+            target_url: workboard ? `/workboards/${workboard}?item=${itemId}&tab=overview` : '', read_status: false,
+          }).catch(() => {});
           results.push({ action: 'assign_assignee', value: action.value });
+        } else {
+          results.push({ action: 'assign_assignee', value: action.value, skipped: 'already_set' });
         }
         break;
       }
@@ -237,16 +275,45 @@ async function performActions(sr, rule, data, itemId, workboard, workspace, opti
         if (itemId && data.group !== action.value) {
           await sr.entities.WorkboardItem.update(itemId, { group: action.value });
           results.push({ action: 'move_to_group', value: action.value });
+        } else {
+          results.push({ action: 'move_to_group', value: action.value, skipped: 'already_set' });
         }
         break;
       }
       case 'create_sub_item': {
         if (itemId) {
+          const targetWb = action.target_workboard || workboard;
+          const targetGroup = action.use_parent_group !== false ? data.group : (action.target_group || data.group);
           await sr.entities.WorkboardItem.create({
-            workspace, workboard, parent_item: itemId, group: data.group, title: action.value,
+            workspace, workboard: targetWb, parent_item: itemId, group: targetGroup, title: action.value,
             item_type: 'sub_item', status: 'Not Started', status_color: 'gray', sort_order: 0, archived: false,
           });
-          results.push({ action: 'create_sub_item', value: action.value });
+          results.push({ action: 'create_sub_item', value: action.value, target_workboard: targetWb });
+        }
+        break;
+      }
+      case 'set_custom_column': {
+        if (itemId && action.column) {
+          const existing = await sr.entities.WorkboardItemValue.filter({ item: itemId, column: action.column }).catch(() => []);
+          if (existing.length > 0) {
+            await sr.entities.WorkboardItemValue.update(existing[0].id, { value: String(action.value || ''), display_value: String(action.value || '') });
+          } else {
+            await sr.entities.WorkboardItemValue.create({
+              workspace, workboard, item: itemId, column: action.column,
+              value: String(action.value || ''), display_value: String(action.value || ''), value_type: 'text',
+            });
+          }
+          results.push({ action: 'set_custom_column', column: action.column, value: action.value });
+        }
+        break;
+      }
+      case 'clear_custom_column': {
+        if (itemId && action.column) {
+          const existing = await sr.entities.WorkboardItemValue.filter({ item: itemId, column: action.column }).catch(() => []);
+          for (const ev of existing) {
+            await sr.entities.WorkboardItemValue.update(ev.id, { value: '', display_value: '' });
+          }
+          results.push({ action: 'clear_custom_column', column: action.column });
         }
         break;
       }
@@ -264,6 +331,8 @@ async function performActions(sr, rule, data, itemId, workboard, workspace, opti
         if (itemId && !data.archived) {
           await sr.entities.WorkboardItem.update(itemId, { archived: true });
           results.push({ action: 'archive_item' });
+        } else {
+          results.push({ action: 'archive_item', skipped: 'already_archived' });
         }
         break;
       }
