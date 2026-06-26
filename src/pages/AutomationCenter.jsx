@@ -56,7 +56,13 @@ export default function AutomationCenter() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, [currentWorkspaceId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { 
+    load();
+    // Listen for automation changes (e.g., after seeding recipes)
+    const handleRefresh = () => load();
+    window.addEventListener('automations-changed', handleRefresh);
+    return () => window.removeEventListener('automations-changed', handleRefresh);
+  }, [load]);
 
   const handleToggle = async (rule) => {
     const newStatus = rule.status === 'active' ? 'paused' : 'active';

@@ -134,6 +134,8 @@ export default function RecipeGallery({ open, onClose, workboards }) {
       });
 
       toast({ title: 'Recipe added', description: 'Review and enable the rule in the builder.' });
+      // Dispatch event to refresh AutomationCenter list
+      window.dispatchEvent(new Event('automations-changed'));
       navigate(`/automations/${rule.id}/edit`);
       onClose();
     } catch (e) {
