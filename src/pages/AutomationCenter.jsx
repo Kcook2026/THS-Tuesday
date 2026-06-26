@@ -35,25 +35,40 @@ export default function AutomationCenter() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [testRule, setTestRule] = useState(null);
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     if (!currentWorkspaceId) return;
     setLoading(true);
-    Promise.all([
-      base44.entities.AutomationRule.filter({ workspace: currentWorkspaceId }, '-updated_date', 100),
-      base44.entities.AutomationRun.filter({ workspace: currentWorkspaceId }, '-started_date', 50),
-      base44.entities.Workboard.filter({ workspace: currentWorkspaceId, status: 'active' }, '-updated_date', 50).catch(() => []),
-      base44.entities.BoardGroup.filter({ workspace: currentWorkspaceId, archived: false }).catch(() => []),
-      base44.entities.WorkspaceMember.filter({ workspace: currentWorkspaceId, status: 'active' }).catch(() => []),
-      base44.entities.Team.filter({ workspace: currentWorkspaceId }).catch(() => []),
-      base44.entities.BoardColumn.filter({ workspace: currentWorkspaceId, hidden: false, system_column: false }).catch(() => []),
-      base44.entities.StatusOption.filter({ workspace: currentWorkspaceId }).catch(() => []),
-      base44.entities.PriorityOption.filter({ workspace: currentWorkspaceId }).catch(() => []),
-    ]).then(([r, rn, wbs, groups, users, teams, columns, statuses, priorities]) => {
-      setRules(r); setRuns(rn); setWorkboards(wbs || []);
+    try {
+      const [r, rn, wbs, groups, users, teams, columns, statuses, priorities] = await Promise.all([
+        base44.entities.AutomationRule.filter({ workspace: currentWorkspaceId }, '-updated_date', 100),
+        base44.entities.AutomationRun.filter({ workspace: currentWorkspaceId }, '-started_date', 50),
+        base44.entities.Workboard.filter({ workspace: currentWorkspaceId, status: 'active' }, '-updated_date', 50).catch(() => []),
+        base44.entities.BoardGroup.filter({ workspace: currentWorkspaceId, archived: false }).catch(() => []),
+        base44.entities.WorkspaceMember.filter({ workspace: currentWorkspaceId, status: 'active' }).catch(() => []),
+        base44.entities.Team.filter({ workspace: currentWorkspaceId }).catch(() => []),
+        base44.entities.BoardColumn.filter({ workspace: currentWorkspaceId, hidden: false, system_column: false }).catch(() => []),
+        base44.entities.StatusOption.filter({ workspace: currentWorkspaceId }).catch(() => []),
+        base44.entities.PriorityOption.filter({ workspace: currentWorkspaceId }).catch(() => []),
+      ]);
+      setRules(r || []); 
+      setRuns(rn || []); 
+      setWorkboards(wbs || []);
       const boardMap = {};
       (wbs || []).forEach(b => { boardMap[b.id] = b.name; });
-      setBoardData({ groups: groups || [], users: users || [], teams: teams || [], columns: columns || [], statuses: statuses || [], priorities: priorities || [], boardMap });
-    }).catch(() => {}).finally(() => setLoading(false));
+      setBoardData({ 
+        groups: groups || [], 
+        users: users || [], 
+        teams: teams || [], 
+        columns: columns || [], 
+        statuses: statuses || [], 
+        priorities: priorities || [], 
+        boardMap 
+      });
+    } catch (error) {
+      console.error('Failed to load automation data:', error);
+    } finally {
+      setLoading(false);
+    }
   }, [currentWorkspaceId]);
 
   useEffect(() => { 
@@ -65,9 +80,13 @@ export default function AutomationCenter() {
   }, [load]);
 
   const handleToggle = async (rule) => {
-    const newStatus = rule.status === 'active' ? 'paused' : 'active';
-    await base44.entities.AutomationRule.update(rule.id, { status: newStatus });
-    load();
+    try {
+      const newStatus = rule.status === 'active' ? 'paused' : 'active';
+      await base44.entities.AutomationRule.update(rule.id, { status: newStatus });
+      await load();
+    } catch (error) {
+      console.error('Failed to toggle automation:', error);
+    }
   };
 
   const handleDelete = async (rule) => {
