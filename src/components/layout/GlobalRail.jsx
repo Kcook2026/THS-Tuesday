@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Home, Search, Bell, Star, Settings,
+  Home, Search, Star, Settings,
 } from 'lucide-react';
 import { useWorkspace } from '@/lib/WorkspaceContext';
 import NotificationBell from '@/components/shared/NotificationBell';
@@ -17,7 +17,6 @@ import { base44 } from '@/api/base44Client';
 const railNav = [
   { label: 'Home', icon: Home, path: '/' },
   { label: 'Search', icon: Search, action: 'search' },
-  { label: 'Notifications', icon: Bell, path: '/notifications' },
   { label: 'Favorites', icon: Star, path: '/workboards?filter=favorites' },
   { label: 'Settings', icon: Settings, path: '/workspace-settings' },
 ];
@@ -79,6 +78,7 @@ export default function GlobalRail({ onSearchOpen }) {
             onSearchOpen={onSearchOpen}
           />
         ))}
+        <NotificationBell />
       </nav>
 
       {/* User Avatar */}
