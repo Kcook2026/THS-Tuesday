@@ -13,13 +13,27 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [appPublicSettings, setAppPublicSettings] = useState(null); // Contains only { id, public_settings }
+  const [hasChecked, setHasChecked] = useState(false); // Prevent multiple checks
+  const [hasAttemptedAuth, setHasAttemptedAuth] = useState(false); // Prevent auth retry
 
   useEffect(() => {
-    checkAppState();
+    if (!hasChecked) {
+      checkAppState();
+      setHasChecked(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
 
   const checkAppState = async () => {
+    // Prevent running multiple times
+    if (hasChecked || authError) {
+      console.log('[AUTH] Skipping check - already checked or has error');
+      setIsLoadingPublicSettings(false);
+      setIsLoadingAuth(false);
+      setAuthChecked(true);
+      return;
+    }
+    
     try {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
@@ -91,6 +105,16 @@ export const AuthProvider = ({ children }) => {
   };
 
   const checkUserAuth = async () => {
+    // Don't retry auth if we already failed once
+    if (hasAttemptedAuth) {
+      console.log('[AUTH] Skipping auth check - already attempted');
+      setIsLoadingAuth(false);
+      setAuthChecked(true);
+      return;
+    }
+    
+    setHasAttemptedAuth(true);
+    
     try {
       console.log('[AUTH] Checking user authentication...');
       // Now check if the user is authenticated
@@ -112,6 +136,7 @@ export const AuthProvider = ({ children }) => {
         console.log('[AUTH] Authentication required - clearing invalid token');
         // Clear the invalid token to prevent redirect loops
         base44.auth.logout();
+        setHasChecked(true); // Prevent retry
         setAuthError({
           type: 'auth_required',
           message: 'Authentication required'
@@ -129,6 +154,16 @@ export const AuthProvider = ({ children }) => {
   const logout = (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
+    setAuthError(null);
+    setAuthChecked(false);
+    setHasChecked(false);
+    setHasAttemptedAuth(false); // Reset auth attempt flag
+    
+    // Explicitly clear token from localStorage to prevent stale token usage
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('base44_access_token');
+      localStorage.removeItem('token');
+    }
     
     if (shouldRedirect) {
       // Use the SDK's logout method which handles token cleanup and redirect
