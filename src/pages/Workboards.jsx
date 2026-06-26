@@ -85,7 +85,11 @@ export default function Workboards() {
       setUser(me);
     } catch (error) {
       console.error('Error loading workboards:', error);
-      toast({ title: 'Error loading workboards', description: error.message, variant: 'destructive', duration: 6000 });
+      // Suppress rate limit errors - they're temporary and auto-retried by the client
+      const isRateLimit = (error.message || '').toLowerCase().includes('rate limit');
+      if (!isRateLimit) {
+        toast({ title: 'Error loading workboards', description: error.message, variant: 'destructive', duration: 6000 });
+      }
     } finally {
       setLoading(false);
       isLoadingRef.current = false;
