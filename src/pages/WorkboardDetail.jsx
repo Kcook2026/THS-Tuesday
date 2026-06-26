@@ -115,12 +115,12 @@ export default function WorkboardDetail() {
 
     try {
       const [b, g, s, p, i, u, cols, t, bm, allComments, allAttachments] = await Promise.all([
-        base44.entities.Workboard.get(id),
-        base44.entities.BoardGroup.filter({ workboard: id, archived: false }),
-        base44.entities.StatusOption.filter({ workboard: id }),
-        base44.entities.PriorityOption.filter({ workboard: id }),
-        base44.entities.WorkboardItem.filter({ workspace: currentWorkspaceId, workboard: id, archived: false }),
-        base44.entities.User.list(),
+        base44.entities.Workboard.get(id).catch(() => null),
+        base44.entities.BoardGroup.filter({ workboard: id, archived: false }).catch(() => []),
+        base44.entities.StatusOption.filter({ workboard: id }).catch(() => []),
+        base44.entities.PriorityOption.filter({ workboard: id }).catch(() => []),
+        base44.entities.WorkboardItem.filter({ workspace: currentWorkspaceId, workboard: id, archived: false }).catch(() => []),
+        base44.entities.User.list().catch(() => []),
         base44.entities.BoardColumn.filter({ workboard: id }).catch(() => []),
         base44.entities.Team.filter({ workspace: currentWorkspaceId }).catch(() => []),
         base44.entities.WorkboardMember.filter({ workboard: id }).catch(() => []),
@@ -138,23 +138,28 @@ export default function WorkboardDetail() {
         return acc;
       }, {});
 
-      const itemsWithCounts = i.map(item => ({
+      const itemsWithCounts = (i || []).map(item => ({
         ...item,
         _commentCount: commentCounts[item.id] || 0,
         _fileCount: fileCounts[item.id] || 0,
       }));
 
       setBoard(b);
-      setGroups(g.sort((a, b) => a.sort_order - b.sort_order));
-      setStatusOptions(s.sort((a, b) => a.sort_order - b.sort_order));
-      setPriorityOptions(p.sort((a, b) => a.sort_order - b.sort_order));
+      setGroups((g || []).sort((a, b) => a.sort_order - b.sort_order));
+      setStatusOptions((s || []).sort((a, b) => a.sort_order - b.sort_order));
+      setPriorityOptions((p || []).sort((a, b) => a.sort_order - b.sort_order));
       setItems(itemsWithCounts);
       setUsers(u);
-      setColumns(cols);
-      setTeams(t);
-      setBoardMembers(bm);
+      setColumns(cols || []);
+      setTeams(t || []);
+      setBoardMembers(bm || []);
     } catch (error) {
-      toast({ title: 'Error loading board', description: error.message, variant: 'destructive', duration: 6000 });
+      console.error('Error loading board:', error);
+      // Suppress rate limit errors - they're temporary and auto-retried by the client
+      const isRateLimit = (error.message || '').toLowerCase().includes('rate limit');
+      if (!isRateLimit) {
+        toast({ title: 'Error loading board', description: error.message, variant: 'destructive', duration: 6000 });
+      }
     } finally {
       setLoading(false);
       isLoadingRef.current = false;
