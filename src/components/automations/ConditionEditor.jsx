@@ -26,7 +26,7 @@ export default function ConditionEditor({ conditions, onChange, boardData }) {
 
   const renderValueInput = (cond, idx) => {
     const meta = getConditionMeta(cond.field);
-    if (!meta.valueType || cond.operator === 'is_empty' || cond.operator === 'is_before_today' || cond.operator === 'is_after_today') {
+    if (!meta.valueType || cond.operator === 'is_empty' || cond.operator === 'is_not_empty' || cond.operator === 'is_before_today' || cond.operator === 'is_after_today') {
       return null;
     }
     if (meta.valueType === 'status' && boardData?.statuses) {

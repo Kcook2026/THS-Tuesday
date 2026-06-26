@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Zap, Pencil, Trash2, Clock, CheckCircle, XCircle, Sparkles } from 'lucide-react';
+import { Plus, Zap, Pencil, Trash2, Clock, CheckCircle, XCircle, Sparkles, Play } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
@@ -21,13 +21,16 @@ export default function AutomationCenter() {
   const { isSystemAdmin, isExecutive, isManager, workspacePermissions } = usePermissions();
   const [rules, setRules] = useState([]);
   const [runs, setRuns] = useState([]);
+  const [workboards, setWorkboards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [testing, setTesting] = useState(null);
   const [filterWorkboard, setFilterWorkboard] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterOwner, setFilterOwner] = useState('all');
   const [failedOnly, setFailedOnly] = useState(false);
 
-  const canManage = isSystemAdmin || isExecutive || workspacePermissions?.canManageWorkspaceAutomations;
+  const canManage = isSystemAdmin || isExecutive || isManager || workspacePermissions?.canManageWorkspaceAutomations;
 
   const load = useCallback(() => {
     if (!currentWorkspaceId) return;
@@ -35,7 +38,8 @@ export default function AutomationCenter() {
     Promise.all([
       base44.entities.AutomationRule.filter({ workspace: currentWorkspaceId }, '-updated_date', 100),
       base44.entities.AutomationRun.filter({ workspace: currentWorkspaceId }, '-started_date', 50),
-    ]).then(([r, rn]) => { setRules(r); setRuns(rn); }).catch(() => {}).finally(() => setLoading(false));
+      base44.entities.Workboard.filter({ workspace: currentWorkspaceId, status: 'active' }, '-updated_date', 50).catch(() => []),
+    ]).then(([r, rn, wbs]) => { setRules(r); setRuns(rn); setWorkboards(wbs || []); }).catch(() => {}).finally(() => setLoading(false));
   }, [currentWorkspaceId]);
 
   useEffect(() => { load(); }, [load]);
@@ -63,8 +67,18 @@ export default function AutomationCenter() {
     if (r.archived) return false;
     if (filterWorkboard !== 'all' && r.workboard !== filterWorkboard) return false;
     if (filterStatus !== 'all' && r.status !== filterStatus) return false;
+    if (filterOwner !== 'all' && r.created_by !== filterOwner) return false;
+    if (failedOnly && !(r.failure_count > 0)) return false;
     return true;
   });
+
+  const handleTest = async (rule) => {
+    setTesting(rule.id);
+    try {
+      await base44.functions.invoke('runAutomation', { ruleId: rule.id });
+      load();
+    } catch {} finally { setTesting(null); }
+  };
 
   const activeCount = rules.filter(r => r.status === 'active' && !r.archived).length;
   const successCount = runs.filter(r => r.status === 'success').length;
@@ -112,6 +126,13 @@ export default function AutomationCenter() {
 
         <TabsContent value="rules" className="space-y-4">
           <div className="flex items-center gap-3 flex-wrap">
+            <Select value={filterWorkboard} onValueChange={setFilterWorkboard}>
+              <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Workboard" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All workboards</SelectItem>
+                {workboards.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="h-8 w-36"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
@@ -119,6 +140,16 @@ export default function AutomationCenter() {
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="paused">Paused</SelectItem>
                 <SelectItem value="draft">Draft</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterOwner} onValueChange={setFilterOwner}>
+              <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Owner" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All owners</SelectItem>
+                {[...new Set(rules.filter(r => !r.archived && r.created_by).map(r => r.created_by))].map(uid => {
+                  const rule = rules.find(r => r.created_by === uid);
+                  return <SelectItem key={uid} value={uid}>{rule.owner_name || rule.created_by || 'Unknown'}</SelectItem>;
+                })}
               </SelectContent>
             </Select>
             <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
@@ -154,13 +185,16 @@ export default function AutomationCenter() {
                     </div>
                     {canManage && (
                       <div className="flex items-center gap-1 mt-3">
-                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => navigate(`/automations/${rule.id}/edit`)}>
-                          <Pencil className="w-3 h-3 mr-1" /> Edit
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleDelete(rule)}>
-                          <Trash2 className="w-3 h-3 mr-1 text-destructive" /> Delete
-                        </Button>
-                      </div>
+                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => navigate(`/automations/${rule.id}/edit`)}>
+                           <Pencil className="w-3 h-3 mr-1" /> Edit
+                         </Button>
+                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleTest(rule)} disabled={testing === rule.id}>
+                           <Play className="w-3 h-3 mr-1" /> {testing === rule.id ? 'Testing...' : 'Test'}
+                         </Button>
+                         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleDelete(rule)}>
+                           <Trash2 className="w-3 h-3 mr-1 text-destructive" /> Delete
+                         </Button>
+                       </div>
                     )}
                   </CardContent>
                 </Card>
@@ -184,13 +218,14 @@ export default function AutomationCenter() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{rule?.name || 'Unknown Rule'}</p>
-                        {run.error_message ? (
-                          <p className="text-xs text-red-500 truncate">{run.error_message}</p>
-                        ) : run.actions_performed ? (
-                          <p className="text-xs text-muted-foreground truncate">{JSON.parse(run.actions_performed || '[]').map(a => a.action).join(', ') || 'No actions'}</p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">{run.trigger_type}</p>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{run.trigger_type?.replace(/_/g, ' ')}</span>
+                          {run.error_message ? (
+                            <p className="text-xs text-red-500 truncate">{run.error_message}</p>
+                          ) : run.actions_performed ? (
+                            <p className="text-xs text-muted-foreground truncate">{JSON.parse(run.actions_performed || '[]').map(a => a.action).join(', ') || 'No actions'}</p>
+                          ) : null}
+                        </div>
                       </div>
                       <Badge variant={run.status === 'success' ? 'default' : run.status === 'failed' ? 'destructive' : 'secondary'} className="text-[10px]">{run.status}</Badge>
                       {run.started_date && <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0"><Clock className="w-3 h-3" />{new Date(run.started_date).toLocaleString()}</span>}

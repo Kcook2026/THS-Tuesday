@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
         itemData = await sr.entities.WorkboardItem.get(event.entity_id).catch(() => null);
       }
       if (!itemData) return Response.json({ processed: false, reason: 'no_data' });
-      const result = await processRule(sr, rule, itemData, itemData.id || event?.entity_id, itemData.workboard, itemData.workspace);
+      const result = await processRule(sr, rule, itemData, itemData.id || event?.entity_id, itemData.workboard, itemData.workspace, { bypassCooldown: true });
       return Response.json({ processed: true, results: [result] });
     }
 
@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     if (!workspace) return Response.json({ processed: false, reason: 'no_workspace' });
 
     // Determine which trigger types match
-    const triggers = determineTriggers(event, entityData, changed_fields);
+    const triggers = determineTriggers(event, entityData, changed_fields, old_data);
     if (triggers.length === 0) return Response.json({ processed: false, reason: 'no_triggers' });
 
     // Load related WorkboardItem for Comment / Attachment / FormSubmission events
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
 
     const results = [];
     for (const rule of matchingRules) {
-      const result = await processRule(sr, rule, contextData, contextItemId, contextWorkboard, workspace);
+      const result = await processRule(sr, rule, contextData, contextItemId, contextWorkboard, workspace, { originalData: entityData });
       results.push(result);
     }
     return Response.json({ processed: true, triggers, results });
@@ -102,9 +102,13 @@ Deno.serve(async (req) => {
 // HELPERS
 // =====================================================
 
-function determineTriggers(event, data, changed_fields) {
+function determineTriggers(event, data, changed_fields, old_data) {
   const triggers = [];
-  const cf = changed_fields || [];
+  let cf = changed_fields || [];
+  // Fallback: compute changed fields from data vs old_data if not provided
+  if (cf.length === 0 && old_data && event.type === 'update') {
+    cf = Object.keys(data || {}).filter(k => JSON.stringify(data[k]) !== JSON.stringify(old_data[k]));
+  }
   if (event.entity_name === 'WorkboardItem') {
     if (event.type === 'create') { triggers.push('item_created'); if (data.parent_item) triggers.push('sub_item_created'); }
     if (event.type === 'update') {
@@ -136,6 +140,7 @@ function evaluateConditions(rule, data) {
       case 'equals': if (String(val || '') !== String(cond.value || '')) return false; break;
       case 'not_equals': if (String(val || '') === String(cond.value || '')) return false; break;
       case 'is_empty': if (val) return false; break;
+      case 'is_not_empty': if (!val) return false; break;
       case 'is_before_today': if (!val || new Date(val) >= new Date()) return false; break;
       case 'is_after_today': if (!val || new Date(val) <= new Date()) return false; break;
     }
@@ -143,12 +148,17 @@ function evaluateConditions(rule, data) {
   return true;
 }
 
-async function processRule(sr, rule, itemData, itemId, workboard, workspace) {
-  // Cooldown: skip if same rule ran on same item within 60s
-  if (itemId) {
+async function processRule(sr, rule, itemData, itemId, workboard, workspace, options = {}) {
+  // Cooldown: skip if same rule ran on same item within 60s (prevents loops)
+  if (!options.bypassCooldown && itemId) {
     const cooldown = new Date(Date.now() - 60000).toISOString();
     const recent = await sr.entities.AutomationRun.filter({ rule: rule.id, item: itemId, started_date: { $gte: cooldown } }).catch(() => []);
     if (recent.length > 0) return { rule_id: rule.id, rule_name: rule.name, skipped: 'cooldown' };
+    // Also check parent_item to prevent sub-item creation loops
+    if (itemData.parent_item) {
+      const parentRecent = await sr.entities.AutomationRun.filter({ rule: rule.id, item: itemData.parent_item, started_date: { $gte: cooldown } }).catch(() => []);
+      if (parentRecent.length > 0) return { rule_id: rule.id, rule_name: rule.name, skipped: 'cooldown_parent' };
+    }
   }
 
   if (!evaluateConditions(rule, itemData)) {
@@ -161,7 +171,7 @@ async function processRule(sr, rule, itemData, itemId, workboard, workspace) {
   });
 
   try {
-    const actionsResult = await performActions(sr, rule, itemData, itemId, workboard, workspace);
+    const actionsResult = await performActions(sr, rule, itemData, itemId, workboard, workspace, options);
     await sr.entities.AutomationRun.update(run.id, {
       status: 'success', completed_date: new Date().toISOString(), actions_performed: JSON.stringify(actionsResult),
     });
@@ -184,7 +194,7 @@ async function processRule(sr, rule, itemData, itemId, workboard, workspace) {
   }
 }
 
-async function performActions(sr, rule, data, itemId, workboard, workspace) {
+async function performActions(sr, rule, data, itemId, workboard, workspace, options = {}) {
   let actions = [];
   try { actions = JSON.parse(rule.actions || '[]'); } catch {}
   const results = [];
@@ -211,7 +221,7 @@ async function performActions(sr, rule, data, itemId, workboard, workspace) {
       }
       case 'assign_owner': {
         if (itemId && data.owner !== action.value) {
-          await sr.entities.WorkboardItem.update(itemId, { owner: action.value, assignee: action.value });
+          await sr.entities.WorkboardItem.update(itemId, { owner: action.value });
           results.push({ action: 'assign_owner', value: action.value });
         }
         break;
@@ -326,10 +336,11 @@ async function performActions(sr, rule, data, itemId, workboard, workspace) {
       }
       case 'add_comment_with_summary': {
         if (itemId) {
+          const summary = options.originalData?.values || action.value || `Automation: ${rule.name}`;
           await sr.entities.Comment.create({
             workspace, workboard, item: itemId, record_type: 'WorkboardItem', record_id: itemId,
             user: rule.created_by || data.created_by, user_name: 'Automation',
-            body: action.value || `Automation: ${rule.name}`,
+            body: summary,
           });
           results.push({ action: 'add_comment_with_summary' });
         }

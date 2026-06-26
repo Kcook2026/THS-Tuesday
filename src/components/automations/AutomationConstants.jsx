@@ -24,7 +24,7 @@ export const CONDITION_TYPES = [
   { value: 'owner', label: 'Owner', operators: ['equals', 'not_equals'], valueType: 'user' },
   { value: 'assignee', label: 'Assignee', operators: ['equals', 'not_equals'], valueType: 'user' },
   { value: 'group', label: 'Group', operators: ['equals', 'not_equals'], valueType: 'group' },
-  { value: 'due_date', label: 'Due Date', operators: ['is_empty', 'is_before_today', 'is_after_today'] },
+  { value: 'due_date', label: 'Due Date', operators: ['is_empty', 'is_not_empty', 'is_before_today', 'is_after_today'] },
   { value: 'created_from_form', label: 'Created from form', operators: ['equals'] },
   { value: 'custom_column', label: 'Custom column', operators: ['equals'] },
 ];
@@ -33,6 +33,7 @@ export const OPERATOR_LABELS = {
   equals: 'equals',
   not_equals: 'does not equal',
   is_empty: 'is empty',
+  is_not_empty: 'is not empty',
   is_before_today: 'is before today',
   is_after_today: 'is after today',
 };

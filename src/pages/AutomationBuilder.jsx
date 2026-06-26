@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronLeft, Save, Zap } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import usePermissions from '@/hooks/usePermissions';
 import TriggerEditor from '@/components/automations/TriggerEditor';
 import ConditionEditor from '@/components/automations/ConditionEditor';
 import ActionEditor from '@/components/automations/ActionEditor';
@@ -21,6 +22,8 @@ export default function AutomationBuilder() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currentWorkspaceId, user } = useWorkspace();
+  const { isSystemAdmin, isExecutive, isManager, workspacePermissions } = usePermissions();
+  const canManage = isSystemAdmin || isExecutive || isManager || workspacePermissions?.canManageWorkspaceAutomations;
   const isNew = !ruleId;
 
   const [loading, setLoading] = useState(!isNew);
@@ -86,6 +89,7 @@ export default function AutomationBuilder() {
   };
 
   if (loading) return <LoadingSpinner />;
+  if (!canManage) return <div className="p-8 text-center text-muted-foreground">You don't have permission to manage automations.</div>;
 
   return (
     <div className="max-w-4xl">

@@ -17,7 +17,14 @@ Deno.serve(async (req) => {
     if (itemId) {
       item = await sr.entities.WorkboardItem.get(itemId).catch(() => null);
     }
-    if (!item) return Response.json({ error: 'Item not found' }, { status: 404 });
+    // If no itemId, auto-find a recent item from the rule's workboard or workspace
+    if (!item) {
+      const query = { workspace: rule.workspace, archived: false };
+      if (rule.workboard) query.workboard = rule.workboard;
+      const items = await sr.entities.WorkboardItem.filter(query, '-updated_date', 1).catch(() => []);
+      if (items.length > 0) item = items[0];
+    }
+    if (!item) return Response.json({ error: 'No items found to test with' }, { status: 404 });
 
     // Delegate to processAutomationEvent with force_rule_id
     const result = await sr.functions.invoke('processAutomationEvent', {
