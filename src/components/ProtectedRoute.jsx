@@ -64,7 +64,7 @@ export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthe
     const currentPath = window.location.pathname;
     const isAuthPage = ['/login', '/register', '/forgot-password', '/reset-password'].includes(currentPath);
     if (isAuthPage) {
-      // Already on auth page, just render nothing (the auth page will handle display)
+      // Already on auth page, render nothing to avoid redirect loops
       return null;
     }
     // Only redirect to login if not already there
