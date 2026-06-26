@@ -27,7 +27,11 @@ export default function FormsPanel({ board, workspaceId, users, items, onItemCli
       const data = await base44.entities.Form.filter({ workboard: board.id });
       setForms(data.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
     } catch (e) {
-      toast({ title: 'Failed to load forms', description: e.message, variant: 'destructive' });
+      // Suppress rate limit errors - they're temporary and auto-retried by the client
+      const isRateLimit = (e.message || '').toLowerCase().includes('rate limit');
+      if (!isRateLimit) {
+        toast({ title: 'Failed to load forms', description: e.message, variant: 'destructive' });
+      }
     } finally {
       setLoading(false);
     }

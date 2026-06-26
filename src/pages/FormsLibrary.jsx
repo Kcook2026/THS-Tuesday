@@ -43,7 +43,11 @@ export default function FormsLibrary() {
       setUsers(u);
       setWorkboards(wb);
     } catch (e) {
-      toast({ title: 'Failed to load forms', description: e.message, variant: 'destructive' });
+      // Suppress rate limit errors - they're temporary and auto-retried by the client
+      const isRateLimit = (e.message || '').toLowerCase().includes('rate limit');
+      if (!isRateLimit) {
+        toast({ title: 'Failed to load forms', description: e.message, variant: 'destructive' });
+      }
     } finally {
       setLoading(false);
     }
