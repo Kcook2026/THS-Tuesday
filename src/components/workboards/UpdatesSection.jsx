@@ -124,7 +124,6 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
         const wsId = item.workspace || workspaceId;
         const targetUrl = `/workboards/${workboardId}?item=${item.id}&tab=updates`;
         for (const mentionedUserId of mentions) {
-          if (mentionedUserId !== me.id) {
             try {
               await base44.entities.Notification.create({
                 workspace: wsId,
@@ -144,7 +143,6 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
             } catch (err) {
               console.error('Failed to create notification:', err);
             }
-          }
         }
       }
     } catch (error) {
