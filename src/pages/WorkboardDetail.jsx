@@ -39,7 +39,7 @@ import FormsPanel from '@/components/forms/FormsPanel';
 export default function WorkboardDetail() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
-  const { currentWorkspaceId } = useWorkspace();
+  const { currentWorkspaceId, user } = useWorkspace();
   const { toast } = useToast();
   const confirm = useConfirm();
   const permissions = usePermissions();
@@ -50,7 +50,6 @@ export default function WorkboardDetail() {
   const [statusOptions, setStatusOptions] = useState([]);
   const [priorityOptions, setPriorityOptions] = useState([]);
   const [users, setUsers] = useState([]);
-  const [user, setUser] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -115,35 +114,25 @@ export default function WorkboardDetail() {
     setLoading(true);
 
     try {
-      const [b, g, s, p, i, u, me, cols, t, bm] = await Promise.all([
+      const [b, g, s, p, i, u, cols, t, bm, allComments, allAttachments] = await Promise.all([
         base44.entities.Workboard.get(id),
         base44.entities.BoardGroup.filter({ workboard: id, archived: false }),
         base44.entities.StatusOption.filter({ workboard: id }),
         base44.entities.PriorityOption.filter({ workboard: id }),
         base44.entities.WorkboardItem.filter({ workspace: currentWorkspaceId, workboard: id, archived: false }),
         base44.entities.User.list(),
-        base44.auth.me(),
         base44.entities.BoardColumn.filter({ workboard: id }).catch(() => []),
         base44.entities.Team.filter({ workspace: currentWorkspaceId }).catch(() => []),
         base44.entities.WorkboardMember.filter({ workboard: id }).catch(() => []),
+        base44.entities.Comment.filter({ workboard: id, record_type: 'WorkboardItem', deleted: false }).catch(() => []),
+        base44.entities.Attachment.filter({ workboard: id, item: { $ne: null }, category: 'item_file' }).catch(() => []),
       ]);
 
-      // Load all comments and attachments for this board in a single query (avoids N+1 rate limit)
-      const allComments = await base44.entities.Comment.filter({
-        workboard: id,
-        record_type: 'WorkboardItem',
-        deleted: false,
-      }).catch(() => []);
       const commentCounts = (allComments || []).reduce((acc, c) => {
         acc[c.record_id] = (acc[c.record_id] || 0) + 1;
         return acc;
       }, {});
 
-      const allAttachments = await base44.entities.Attachment.filter({
-        workboard: id,
-        item: { $ne: null },
-        category: 'item_file',
-      }).catch(() => []);
       const fileCounts = (allAttachments || []).reduce((acc, a) => {
         if (a.item) acc[a.item] = (acc[a.item] || 0) + 1;
         return acc;
@@ -161,7 +150,6 @@ export default function WorkboardDetail() {
       setPriorityOptions(p.sort((a, b) => a.sort_order - b.sort_order));
       setItems(itemsWithCounts);
       setUsers(u);
-      setUser(me);
       setColumns(cols);
       setTeams(t);
       setBoardMembers(bm);
@@ -171,7 +159,7 @@ export default function WorkboardDetail() {
       setLoading(false);
       isLoadingRef.current = false;
     }
-  }, [id, toast]);
+  }, [id, currentWorkspaceId, toast]);
 
   useEffect(() => { load(); }, [load]);
 
