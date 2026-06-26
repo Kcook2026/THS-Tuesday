@@ -13,14 +13,8 @@ const DefaultFallback = () => (
 
 
 export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthenticatedElement }) {
-  const { isAuthenticated, isLoadingAuth, authChecked, authError, checkUserAuth } = useAuth();
+  const { isAuthenticated, isLoadingAuth, authChecked, authError } = useAuth();
   const [loadingTimeout, setLoadingTimeout] = useState(false);
-
-  useEffect(() => {
-    if (!authChecked && !isLoadingAuth) {
-      checkUserAuth();
-    }
-  }, [authChecked, isLoadingAuth, checkUserAuth]);
 
   // Timeout guard: if loading takes more than 15 seconds, show error screen
   useEffect(() => {
@@ -37,7 +31,7 @@ export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthe
   const handleRetry = () => {
     console.log('[PROTECTED_ROUTE] Retrying authentication...');
     setLoadingTimeout(false);
-    checkUserAuth();
+    window.location.reload();
   };
 
   const handleLogout = () => {
@@ -45,10 +39,12 @@ export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthe
     window.location.href = '/login';
   };
 
+  // Show loading only during initial auth check
   if (isLoadingAuth || !authChecked) {
     return fallback;
   }
 
+  // Show timeout error screen
   if (loadingTimeout) {
     return (
       <AuthStatusScreen
@@ -62,16 +58,11 @@ export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthe
     );
   }
 
-  if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    }
+  // Redirect to login if auth error or not authenticated
+  if (authError || !isAuthenticated) {
     return unauthenticatedElement;
   }
 
-  if (!isAuthenticated) {
-    return unauthenticatedElement;
-  }
-
+  // User is authenticated, render protected content
   return <Outlet />;
 }
