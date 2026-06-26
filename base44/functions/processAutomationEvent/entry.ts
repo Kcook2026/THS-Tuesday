@@ -3,10 +3,27 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    
     const sr = base44.asServiceRole;
 
     const body = await req.json();
     const { event, data, old_data, changed_fields, force_rule_id } = body;
+
+    // Validate user has permission to trigger automations for this workspace
+    if (event?.entity_name && data?.workspace) {
+      const membership = await sr.entities.WorkspaceMember.filter({
+        workspace: data.workspace,
+        user: user.id,
+        status: 'active'
+      }).then(m => m[0] || null);
+
+      // Allow if user is workspace member or system admin
+      if (!membership && user.account_role !== 'system_admin' && user.account_role !== 'executive') {
+        return Response.json({ error: 'Forbidden: Not a member of this workspace' }, { status: 403 });
+      }
+    }
 
     // ---- Manual / scheduled trigger: run a specific rule ----
     if (force_rule_id) {

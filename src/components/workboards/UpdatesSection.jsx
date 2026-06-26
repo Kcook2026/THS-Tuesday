@@ -35,6 +35,21 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
     loadComments();
   }, [item?.id]);
 
+  // Subscribe to comment changes for real-time updates
+  useEffect(() => {
+    if (!item?.id) return;
+    const unsubscribe = base44.entities.Comment.subscribe((event) => {
+      if (event.type === 'create' && event.data && event.data.record_id === item.id) {
+        setComments(prev => prev.some(c => c.id === event.data.id) ? prev : [event.data, ...prev]);
+      } else if (event.type === 'update' && event.data && event.data.record_id === item.id) {
+        setComments(prev => prev.map(c => c.id === event.data.id ? { ...c, ...event.data } : c));
+      } else if (event.type === 'delete') {
+        setComments(prev => prev.filter(c => c.id !== event.entity_id));
+      }
+    });
+    return () => unsubscribe();
+  }, [item?.id]);
+
   const loadUser = async () => {
     let me;
     if (currentUserId) {

@@ -17,6 +17,36 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Form is not published' }, { status: 400 });
     }
 
+    // Validate user has access to the form's workspace
+    if (form.workspace) {
+      const membership = await base44.asServiceRole.entities.WorkspaceMember.filter({
+        workspace: form.workspace,
+        user: user.id,
+        status: 'active'
+      }).then(m => m[0] || null);
+
+      // Allow public forms or workspace members
+      if (form.visibility !== 'public' && !membership && user.account_role !== 'system_admin') {
+        return Response.json({ error: 'Forbidden: No access to this form' }, { status: 403 });
+      }
+    }
+
+    // Validate file URLs for security (prevent external URLs)
+    if (fileUrls) {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      for (const fieldId in fileUrls) {
+        const urls = fileUrls[fieldId];
+        if (Array.isArray(urls)) {
+          for (const url of urls) {
+            // Only allow URLs from trusted domains (Base44 storage)
+            if (!url.includes('base44.com') && !url.startsWith('/api/')) {
+              return Response.json({ error: 'Invalid file URL: must be from trusted storage' }, { status: 400 });
+            }
+          }
+        }
+      }
+    }
+
     const fields = await base44.asServiceRole.entities.FormField.filter({ form: formId });
     fields.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 

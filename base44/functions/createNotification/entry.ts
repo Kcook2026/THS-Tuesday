@@ -24,6 +24,28 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required fields: recipient, title' }, { status: 400 });
     }
 
+    // Validate target_url to prevent open redirect vulnerability
+    if (target_url) {
+      const allowedPrefixes = ['/', '/workboards/', '/forms/', '/tasks/', '/projects/', '/calendar/', '/processes/'];
+      const isValidUrl = allowedPrefixes.some(prefix => target_url.startsWith(prefix));
+      if (!isValidUrl) {
+        return Response.json({ error: 'Invalid target_url: must be a relative path' }, { status: 400 });
+      }
+    }
+
+    // Validate workspace access if workspace is provided
+    if (workspace) {
+      const membership = await base44.asServiceRole.entities.WorkspaceMember.filter({
+        workspace,
+        user: user.id,
+        status: 'active'
+      }).then(m => m[0] || null);
+
+      if (!membership && user.account_role !== 'system_admin' && user.account_role !== 'executive') {
+        return Response.json({ error: 'Forbidden: Not a member of this workspace' }, { status: 403 });
+      }
+    }
+
     const notification = await base44.entities.Notification.create({
       recipient,
       sender: sender || user.id,

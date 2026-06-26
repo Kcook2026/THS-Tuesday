@@ -43,9 +43,51 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
     }
   };
 
+  // File upload validation constants
+  const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+  const ALLOWED_FILE_TYPES = [
+    // Images
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    // Documents
+    'application/pdf',
+    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain', 'text/csv',
+    // Archives
+    'application/zip', 'application/x-zip-compressed',
+    // Presentations
+    'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ];
+
+  const validateFile = (file) => {
+    if (!file) throw new Error('No file provided');
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error(`File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`);
+    }
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      throw new Error(`File type "${file.type}" is not allowed. Allowed types: ${ALLOWED_FILE_TYPES.join(', ')}`);
+    }
+    // Check for potentially dangerous file extensions
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.js', '.vbs', '.msi'];
+    const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+    if (dangerousExtensions.includes(fileExt)) {
+      throw new Error('Executable files are not allowed for security reasons');
+    }
+    return true;
+  };
+
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !item?.id) return;
+
+    // Validate file before upload
+    try {
+      validateFile(file);
+    } catch (error) {
+      toast({ title: 'Invalid file', description: error.message, variant: 'destructive', duration: 5000 });
+      e.target.value = '';
+      return;
+    }
 
     setUploading(true);
     try {

@@ -108,19 +108,28 @@ export default function Members() {
 
       const activeBoardIds = new Set(activeBoards.map(b => b.id));
       const archivedCount = getArchivedWorkboards(boards, currentWorkspaceId).length;
-      // Load workboard memberships for each member
+      // Load workboard memberships - BATCH QUERY to avoid N+1
       const wbMemberships = {};
-      const allWbMembers = [];
-      for (const member of mems) {
-        const wbMembers = await base44.entities.WorkboardMember.filter({ 
-          workspace: currentWorkspaceId, 
-          user: member.user 
-        }).catch(() => []);
-        allWbMembers.push(...wbMembers);
-        // Only count memberships for active boards with active membership status
-        wbMemberships[member.id] = wbMembers.filter(wm => activeBoardIds.has(wm.workboard) && wm.status !== 'removed');
-      }
-      setMemberWorkboards(wbMemberships);
+      const allWbMembers = await base44.entities.WorkboardMember.filter({ 
+        workspace: currentWorkspaceId 
+      }).catch(() => []);
+      
+      // Group memberships by member ID in memory
+      allWbMembers.forEach(wm => {
+        if (!wbMemberships[wm.user]) {
+          wbMemberships[wm.user] = [];
+        }
+        wbMemberships[wm.user].push(wm);
+      });
+      
+      // Map to member IDs and filter for active boards
+      const memberWorkboardMap = {};
+      mems.forEach(m => {
+        memberWorkboardMap[m.id] = (wbMemberships[m.user] || []).filter(
+          wm => activeBoardIds.has(wm.workboard) && wm.status !== 'removed'
+        );
+      });
+      setMemberWorkboards(memberWorkboardMap);
 
       // Compute hygiene stats — stale = memberships for deleted/non-existent boards or non-existent users
       const validBoardIds = getValidBoardIds(boards, currentWorkspaceId);
