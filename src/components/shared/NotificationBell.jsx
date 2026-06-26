@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Bell, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -19,15 +19,32 @@ export default function NotificationBell() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const ref = useRef(null);
   const navigate = useNavigate();
+  const prevUnreadRef = useRef(0);
 
-  const load = () => {
+  const playSound = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(1320, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.3);
+    } catch (e) {}
+  }, []);
+
+  const load = useCallback(() => {
     if (!currentUserId) return;
     setLoading(true);
     base44.entities.Notification.filter({ recipient: currentUserId }, '-created_date', 30)
       .then(setNotifications)
       .catch(() => {})
       .finally(() => setLoading(false));
-  };
+  }, [currentUserId]);
 
   useEffect(() => {
     base44.auth.me().then(me => {
@@ -44,7 +61,8 @@ export default function NotificationBell() {
 
     const unsubscribe = base44.entities.Notification.subscribe((event) => {
       if (event.type === 'create') {
-        load();
+        const isForMe = !event.data?.recipient || event.data.recipient === currentUserId;
+        if (isForMe) load();
       }
     });
 
@@ -52,9 +70,17 @@ export default function NotificationBell() {
       clearInterval(interval);
       unsubscribe();
     };
-  }, [currentUserId]);
+  }, [currentUserId, load]);
 
   const unread = notifications.filter(n => !n.read_status).length;
+
+  // Play sound when unread count increases (covers both realtime and polling)
+  useEffect(() => {
+    if (unread > prevUnreadRef.current) {
+      playSound();
+    }
+    prevUnreadRef.current = unread;
+  }, [unread, playSound]);
 
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
