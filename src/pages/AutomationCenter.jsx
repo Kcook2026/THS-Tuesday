@@ -14,24 +14,26 @@ import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import RecipePreview from '@/components/automations/RecipePreview';
 import RecipeGallery from '@/components/automations/RecipeGallery';
+import TestRuleDialog from '@/components/automations/TestRuleDialog';
 import usePermissions from '@/hooks/usePermissions';
 
 export default function AutomationCenter() {
   const navigate = useNavigate();
-  const { currentWorkspaceId } = useWorkspace();
-  const { isSystemAdmin, isExecutive, isManager, workspacePermissions } = usePermissions();
+  const { currentWorkspaceId, user, loading: wsLoading } = useWorkspace();
+  const { isSystemAdmin, isExecutive, isManager, workspacePermissions, loading: permLoading } = usePermissions();
+  const canManage = user?.role === 'admin' || isSystemAdmin || isExecutive || isManager || workspacePermissions?.canManageWorkspaceAutomations;
+
   const [rules, setRules] = useState([]);
   const [runs, setRuns] = useState([]);
   const [workboards, setWorkboards] = useState([]);
+  const [boardData, setBoardData] = useState({});
   const [loading, setLoading] = useState(true);
-  const [testing, setTesting] = useState(null);
   const [filterWorkboard, setFilterWorkboard] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterOwner, setFilterOwner] = useState('all');
   const [failedOnly, setFailedOnly] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
-
-  const canManage = isSystemAdmin || isExecutive || isManager || workspacePermissions?.canManageWorkspaceAutomations;
+  const [testRule, setTestRule] = useState(null);
 
   const load = useCallback(() => {
     if (!currentWorkspaceId) return;
@@ -40,7 +42,18 @@ export default function AutomationCenter() {
       base44.entities.AutomationRule.filter({ workspace: currentWorkspaceId }, '-updated_date', 100),
       base44.entities.AutomationRun.filter({ workspace: currentWorkspaceId }, '-started_date', 50),
       base44.entities.Workboard.filter({ workspace: currentWorkspaceId, status: 'active' }, '-updated_date', 50).catch(() => []),
-    ]).then(([r, rn, wbs]) => { setRules(r); setRuns(rn); setWorkboards(wbs || []); }).catch(() => {}).finally(() => setLoading(false));
+      base44.entities.BoardGroup.filter({ workspace: currentWorkspaceId, archived: false }).catch(() => []),
+      base44.entities.WorkspaceMember.filter({ workspace: currentWorkspaceId, status: 'active' }).catch(() => []),
+      base44.entities.Team.filter({ workspace: currentWorkspaceId }).catch(() => []),
+      base44.entities.BoardColumn.filter({ workspace: currentWorkspaceId, hidden: false, system_column: false }).catch(() => []),
+      base44.entities.StatusOption.filter({ workspace: currentWorkspaceId }).catch(() => []),
+      base44.entities.PriorityOption.filter({ workspace: currentWorkspaceId }).catch(() => []),
+    ]).then(([r, rn, wbs, groups, users, teams, columns, statuses, priorities]) => {
+      setRules(r); setRuns(rn); setWorkboards(wbs || []);
+      const boardMap = {};
+      (wbs || []).forEach(b => { boardMap[b.id] = b.name; });
+      setBoardData({ groups: groups || [], users: users || [], teams: teams || [], columns: columns || [], statuses: statuses || [], priorities: priorities || [], boardMap });
+    }).catch(() => {}).finally(() => setLoading(false));
   }, [currentWorkspaceId]);
 
   useEffect(() => { load(); }, [load]);
@@ -69,19 +82,14 @@ export default function AutomationCenter() {
     return true;
   });
 
-  const handleTest = async (rule) => {
-    setTesting(rule.id);
-    try {
-      await base44.functions.invoke('runAutomation', { ruleId: rule.id });
-      load();
-    } catch {} finally { setTesting(null); }
-  };
-
   const activeCount = rules.filter(r => r.status === 'active' && !r.archived).length;
   const successCount = runs.filter(r => r.status === 'success').length;
   const failedCount = runs.filter(r => r.status === 'failed').length;
 
-  if (loading) return <LoadingSpinner />;
+  if (loading || wsLoading || permLoading) return <LoadingSpinner />;
+  if (!currentWorkspaceId) return (
+    <div className="p-8 text-center text-muted-foreground">No workspace found. Create or select a workspace to continue.</div>
+  );
 
   return (
     <div>
@@ -173,7 +181,7 @@ export default function AutomationCenter() {
                     </div>
                     {rule.description && <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{rule.description}</p>}
                     <div className="mb-3">
-                      <RecipePreview rule={rule} />
+                      <RecipePreview rule={rule} boardData={boardData} />
                     </div>
                     <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-auto pt-3 border-t">
                       <Badge variant={rule.status === 'active' ? 'default' : 'secondary'} className="text-[10px]">{rule.status}</Badge>
@@ -185,8 +193,8 @@ export default function AutomationCenter() {
                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => navigate(`/automations/${rule.id}/edit`)}>
                            <Pencil className="w-3 h-3 mr-1" /> Edit
                          </Button>
-                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleTest(rule)} disabled={testing === rule.id}>
-                           <Play className="w-3 h-3 mr-1" /> {testing === rule.id ? 'Testing...' : 'Test'}
+                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setTestRule(rule)}>
+                           <Play className="w-3 h-3 mr-1" /> Test
                          </Button>
                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleDelete(rule)}>
                            <Trash2 className="w-3 h-3 mr-1 text-destructive" /> Delete
@@ -235,6 +243,15 @@ export default function AutomationCenter() {
         </TabsContent>
       </Tabs>
       <RecipeGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} workboards={workboards} />
+      {testRule && (
+        <TestRuleDialog
+          open={!!testRule}
+          onClose={() => setTestRule(null)}
+          ruleId={testRule.id}
+          workspace={currentWorkspaceId}
+          workboard={testRule.workboard || null}
+        />
+      )}
     </div>
   );
 }

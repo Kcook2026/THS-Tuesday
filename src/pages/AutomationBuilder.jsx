@@ -24,9 +24,9 @@ export default function AutomationBuilder() {
   const { ruleId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { currentWorkspaceId, user } = useWorkspace();
-  const { isSystemAdmin, isExecutive, isManager, workspacePermissions } = usePermissions();
-  const canManage = isSystemAdmin || isExecutive || isManager || workspacePermissions?.canManageWorkspaceAutomations;
+  const { currentWorkspaceId, user, loading: wsLoading } = useWorkspace();
+  const { isSystemAdmin, isExecutive, isManager, workspacePermissions, loading: permLoading } = usePermissions();
+  const canManage = user?.role === 'admin' || isSystemAdmin || isExecutive || isManager || workspacePermissions?.canManageWorkspaceAutomations;
   const isNew = !ruleId;
 
   const [loading, setLoading] = useState(!isNew);
@@ -196,7 +196,8 @@ export default function AutomationBuilder() {
     setTestOpen(true);
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading || wsLoading || permLoading) return <LoadingSpinner />;
+  if (!currentWorkspaceId) return <div className="p-8 text-center text-muted-foreground">No workspace found. Create or select a workspace to continue.</div>;
   if (!canManage) return <div className="p-8 text-center text-muted-foreground">You don't have permission to manage automations.</div>;
 
   return (
@@ -288,7 +289,7 @@ export default function AutomationBuilder() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <RecipePreview rule={form} />
+            <RecipePreview rule={form} boardData={boardData} />
           </CardContent>
         </Card>
       </div>

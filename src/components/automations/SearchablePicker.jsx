@@ -29,9 +29,14 @@ export default function SearchablePicker({
   const selected = options.find(o => o.value === value);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return options;
-    const q = search.toLowerCase();
-    return options.filter(o => o.label.toLowerCase().includes(q));
+    const q = search.toLowerCase().trim();
+    const matches = !q ? options : options.filter(o => o.label.toLowerCase().includes(q));
+    const seen = new Set();
+    return matches.filter(o => {
+      if (seen.has(o.value)) return false;
+      seen.add(o.value);
+      return true;
+    });
   }, [options, search]);
 
   const groups = useMemo(() => {

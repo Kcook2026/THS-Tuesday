@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { TRIGGER_TYPES, ACTION_TYPES, getTriggerMeta, getActionMeta } from './AutomationConstants';
+import { OPERATOR_LABELS, getTriggerMeta, getActionMeta, getConditionMeta } from './AutomationConstants';
 
-export default function RecipePreview({ rule }) {
+export default function RecipePreview({ rule, boardData }) {
   const triggerMeta = getTriggerMeta(rule.trigger_type);
   let tc = {};
   try { tc = JSON.parse(rule.trigger_config || '{}'); } catch {}
@@ -13,18 +13,67 @@ export default function RecipePreview({ rule }) {
   let actions = [];
   try { actions = JSON.parse(rule.actions || '[]'); } catch {}
 
+  const lookups = useMemo(() => {
+    const bd = boardData || {};
+    const groupMap = {};
+    (bd.groups || []).forEach(g => { groupMap[g.id] = g.name; });
+    const userMap = {};
+    (bd.users || []).forEach(u => {
+      const id = u.user || u.id;
+      userMap[id] = u.user_name || u.full_name || u.user_email || u.email || 'Unknown';
+    });
+    const teamMap = {};
+    (bd.teams || []).forEach(t => { teamMap[t.id] = t.name || 'Unnamed Team'; });
+    const columnMap = {};
+    (bd.columns || []).forEach(c => { columnMap[c.id] = c.name; });
+    return { groupMap, userMap, teamMap, columnMap };
+  }, [boardData]);
+
+  const resolveValue = (value, valueType) => {
+    if (!value) return '';
+    if (valueType === 'group') return lookups.groupMap[value] || value;
+    if (valueType === 'user') return lookups.userMap[value] || value;
+    if (valueType === 'team') return lookups.teamMap[value] || value;
+    return value;
+  };
+
   const triggerValueLabel = () => {
     if (!tc.value && !tc.days) return '';
     if (rule.trigger_type === 'due_date_x_days_away') return `${tc.days} day(s) away`;
-    return tc.value || '';
+    return resolveValue(tc.value, triggerMeta.valueType);
   };
 
   const actionLabel = (action) => {
     const meta = getActionMeta(action.type);
     const label = meta.label || action.type;
+    if (action.type === 'set_custom_column') {
+      const colName = lookups.columnMap[action.column] || action.column || 'column';
+      return `${label}: ${colName} → "${action.value || ''}"`;
+    }
+    if (action.type === 'clear_custom_column') {
+      const colName = lookups.columnMap[action.column] || action.column || 'column';
+      return `${label}: ${colName}`;
+    }
+    if (action.type === 'create_sub_item') {
+      return `${label}: "${action.value || ''}"`;
+    }
     if (action.value && meta.valueType === 'text') return `${label}: "${action.value}"`;
-    if (action.value) return `${label} → ${action.value}`;
+    if (action.value) return `${label} → ${resolveValue(action.value, meta.valueType)}`;
     return label;
+  };
+
+  const conditionLabel = (c) => {
+    const meta = getConditionMeta(c.field);
+    const fieldLabel = meta.label || c.field;
+    const opLabel = OPERATOR_LABELS[c.operator] || c.operator.replace(/_/g, ' ');
+    if (['is_empty', 'is_not_empty', 'is_before_today', 'is_after_today'].includes(c.operator)) {
+      return `${fieldLabel} ${opLabel}`;
+    }
+    if (c.field === 'custom_column' && c.column) {
+      const colName = lookups.columnMap[c.column] || c.column;
+      return `${colName} ${opLabel} ${c.value || ''}`;
+    }
+    return `${fieldLabel} ${opLabel} ${resolveValue(c.value, meta.valueType)}`;
   };
 
   return (
@@ -42,7 +91,7 @@ export default function RecipePreview({ rule }) {
             {conditions.map((c, i) => (
               <p key={i} className="text-foreground/80">
                 {i > 0 && <span className="text-muted-foreground font-medium mr-1">AND</span>}
-                {c.field} {c.operator.replace(/_/g, ' ')} {c.value || ''}
+                {conditionLabel(c)}
               </p>
             ))}
           </div>

@@ -1,37 +1,58 @@
+// Dedupe helper: keeps the record with the lowest sort_order (then oldest created_date)
+function dedupe(records, keyFn) {
+  const sorted = [...records].sort((a, b) => {
+    const so = (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    if (so !== 0) return so;
+    return new Date(a.created_date || 0) - new Date(b.created_date || 0);
+  });
+  const seen = new Map();
+  for (const r of sorted) {
+    const key = keyFn(r);
+    if (!seen.has(key)) seen.set(key, r);
+  }
+  return Array.from(seen.values());
+}
+
 export function buildStatusOptions(statuses, boardMap) {
-  return (statuses || []).map(s => ({
+  const deduped = dedupe(statuses || [], s => `${s.workboard || ''}|${s.label}|${s.color}`);
+  return deduped.map(s => ({
     value: s.label, label: s.label, color: s.color,
     group: boardMap?.[s.workboard],
   }));
 }
 
 export function buildPriorityOptions(priorities, boardMap) {
-  return (priorities || []).map(p => ({
+  const deduped = dedupe(priorities || [], p => `${p.workboard || ''}|${p.label}|${p.color}`);
+  return deduped.map(p => ({
     value: p.label, label: p.label, color: p.color,
     group: boardMap?.[p.workboard],
   }));
 }
 
 export function buildGroupOptions(groups, boardMap) {
-  return (groups || []).map(g => ({
+  const deduped = dedupe(groups || [], g => g.id);
+  return deduped.map(g => ({
     value: g.id, label: g.name,
     group: boardMap?.[g.workboard],
   }));
 }
 
 export function buildUserOptions(users) {
-  return (users || []).map(u => ({
+  const deduped = dedupe(users || [], u => u.user || u.id);
+  return deduped.map(u => ({
     value: u.user || u.id,
     label: u.user_name || u.full_name || u.user_email || u.email || 'Unknown',
   }));
 }
 
 export function buildTeamOptions(teams) {
-  return (teams || []).map(t => ({ value: t.id, label: t.name || 'Unnamed Team' }));
+  const deduped = dedupe(teams || [], t => t.id);
+  return deduped.map(t => ({ value: t.id, label: t.name || 'Unnamed Team' }));
 }
 
 export function buildColumnOptions(columns, boardMap) {
-  return (columns || []).filter(c => !c.system_column).map(c => ({
+  const deduped = dedupe(columns || [], c => c.id);
+  return deduped.filter(c => !c.system_column).map(c => ({
     value: c.id, label: c.name,
     group: boardMap?.[c.workboard],
   }));

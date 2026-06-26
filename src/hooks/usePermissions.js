@@ -16,7 +16,9 @@ export default function usePermissions() {
 
   useEffect(() => {
     if (!user || !currentWorkspaceId) {
-      setLoading(false);
+      // Workspace context still hydrating — keep loading true so pages
+      // show a loading spinner instead of a premature "permission denied".
+      setLoading(true);
       return;
     }
 
