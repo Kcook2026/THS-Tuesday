@@ -162,12 +162,20 @@ export default function Members() {
 
   const handleInvite = async (email, accountRole, workspaceRole, department, invitationScope, workboards = []) => {
     try {
+      console.log('[INVITE] Starting invitation process for:', email);
+      
       const appRole = accountRole === 'system_admin' || accountRole === 'executive' || accountRole === 'manager' ? 'admin' : 'user';
+      
+      // Step 1: Invite user via platform (creates User record)
+      console.log('[INVITE] Step 1: Calling base44.users.inviteUser');
       await base44.users.inviteUser(email, appRole);
+      console.log('[INVITE] Step 1 complete: User invitation sent');
       
       const expires = new Date();
       expires.setDate(expires.getDate() + 7);
       
+      // Step 2: Create Invitation record
+      console.log('[INVITE] Step 2: Creating Invitation record');
       await base44.entities.Invitation.create({
         email, 
         invited_by: user.id, 
@@ -183,25 +191,18 @@ export default function Members() {
         status: 'pending', 
         expires_date: expires.toISOString(),
       });
+      console.log('[INVITE] Step 2 complete: Invitation record created');
       
-      await base44.entities.WorkspaceMember.create({
-        workspace: currentWorkspaceId, 
-        workspace_name: currentWorkspace?.workspace_name,
-        user_email: email, 
-        role: workspaceRole, 
-        account_role: accountRole,
-        department, 
-        status: 'invited', 
-        invited_by: user.id,
-        access_type: invitationScope === 'workboards_only' ? 'selected_workboards' : 'all_workboards',
-        accessible_workboards: invitationScope === 'workboards_only' ? workboards.map(w => w.id) : [],
-      });
+      // NOTE: WorkspaceMember is NOT created here because the user doesn't have a User ID yet.
+      // WorkspaceMember will be created when the user accepts the invitation and logs in.
+      // This avoids the "Field required: user" error since WorkspaceMember.schema requires the 'user' field.
       
       logAudit(AUDIT_ACTIONS.INVITE_SENT, { 
         record_type: 'Invitation', 
         after_value: { email, account_role: accountRole, workspace_role: workspaceRole } 
       });
       
+      console.log('[INVITE] Invitation process completed successfully');
       toast({ 
         title: 'Invitation sent', 
         description: `Invited ${email} as ${ACCOUNT_ROLE_LABELS[accountRole]} / ${WORKSPACE_ROLE_LABELS[workspaceRole]}` 
@@ -209,6 +210,7 @@ export default function Members() {
       setInviteOpen(false);
       loadData();
     } catch (e) {
+      console.error('[INVITE] Error during invitation:', e);
       toast({ title: 'Failed to invite', description: e.message, variant: 'destructive' });
     }
   };

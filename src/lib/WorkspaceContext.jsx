@@ -12,6 +12,7 @@ export function WorkspaceProvider({ children }) {
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState(null);
   const [loading, setLoading] = useState(true);
   const isLoadingRef = useRef(false);
+  const loadingTimeoutRef = useRef(null);
 
   const loadWorkspaceData = useCallback(async (userId) => {
     // Prevent duplicate concurrent requests
@@ -50,37 +51,81 @@ export function WorkspaceProvider({ children }) {
     let mounted = true;
     async function init() {
       try {
+        console.log('[WORKSPACE] Initializing workspace context...');
         const me = await base44.auth.me();
         if (!mounted) return;
         setUser(me);
+        console.log('[WORKSPACE] User loaded:', me.email);
+
+        // Check for and accept any pending invitations
+        console.log('[WORKSPACE] Checking for pending invitations...');
+        try {
+          const inviteResult = await base44.functions.invoke('acceptInvitation', {});
+          console.log('[WORKSPACE] Invitation check result:', inviteResult);
+          if (inviteResult?.workspaceMemberCreated) {
+            console.log('[WORKSPACE] WorkspaceMember created/updated, reloading workspace data...');
+          }
+        } catch (inviteError) {
+          console.error('[WORKSPACE] Invitation check failed:', inviteError);
+          // Non-critical error, continue with workspace loading
+        }
 
         const workspaceRecords = await loadWorkspaceData(me.id);
         if (!mounted) return;
+        
+        console.log('[WORKSPACE] Found', workspaceRecords.length, 'workspaces');
 
         // Preserve last selected workspace during refresh - don't switch to null
         const saved = localStorage.getItem(STORAGE_KEY);
         const valid = saved && workspaceRecords.find(w => w.id === saved);
         if (valid) {
+          console.log('[WORKSPACE] Restoring saved workspace:', saved);
           setCurrentWorkspaceId(saved);
         } else if (workspaceRecords.length > 0) {
           const firstValid = workspaceRecords[0].id;
+          console.log('[WORKSPACE] Selecting first workspace:', firstValid);
           setCurrentWorkspaceId(firstValid);
           localStorage.setItem(STORAGE_KEY, firstValid);
+        } else {
+          console.log('[WORKSPACE] No workspaces found for user');
         }
         // If no workspaces found, keep currentWorkspaceId as null but don't clear saved value
       } catch (e) {
-        console.error('Workspace init error:', e);
+        console.error('[WORKSPACE] Workspace init error:', e);
         // On error, preserve saved workspace from localStorage
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved && mounted) {
+          console.log('[WORKSPACE] Error occurred, using saved workspace:', saved);
           setCurrentWorkspaceId(saved);
         }
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          // Clear any existing timeout
+          if (loadingTimeoutRef.current) {
+            clearTimeout(loadingTimeoutRef.current);
+          }
+          
+          console.log('[WORKSPACE] Initialization complete, loading:', false);
+          setLoading(false);
+        }
       }
     }
+    
+    // Start initialization
     init();
-    return () => { mounted = false; };
+    
+    // Safety timeout: force loading to false after 10 seconds to prevent infinite loading
+    loadingTimeoutRef.current = setTimeout(() => {
+      console.warn('[WORKSPACE] Loading timeout reached, forcing loading state to false');
+      if (mounted) setLoading(false);
+    }, 10000);
+    
+    return () => { 
+      mounted = false;
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
   }, []);
 
   const switchWorkspace = useCallback((workspaceId) => {

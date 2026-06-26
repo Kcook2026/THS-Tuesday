@@ -91,24 +91,33 @@ export const AuthProvider = ({ children }) => {
 
   const checkUserAuth = async () => {
     try {
+      console.log('[AUTH] Checking user authentication...');
       // Now check if the user is authenticated
       setIsLoadingAuth(true);
       const currentUser = await base44.auth.me();
+      console.log('[AUTH] User authenticated:', currentUser?.email, currentUser?.id);
       setUser(currentUser);
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
       setAuthChecked(true);
     } catch (error) {
-      console.error('User auth check failed:', error);
+      console.error('[AUTH] User auth check failed:', error);
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
       setAuthChecked(true);
       
       // If user auth fails, it might be an expired token
       if (error.status === 401 || error.status === 403) {
+        console.log('[AUTH] Authentication required - redirecting to login');
         setAuthError({
           type: 'auth_required',
           message: 'Authentication required'
+        });
+      } else {
+        console.error('[AUTH] Unexpected auth error:', error.message);
+        setAuthError({
+          type: 'unknown',
+          message: error.message || 'Authentication failed'
         });
       }
     }
