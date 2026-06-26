@@ -89,6 +89,11 @@
       "title": "Hidden",
       "default": false
     },
+    "column_span": {
+      "type": "number",
+      "title": "Column Span",
+      "default": 1
+    },
     "created_by": {
       "type": "string",
       "title": "Created By",
@@ -98,7 +103,6 @@
   "required": [
     "workspace",
     "form",
-    "workboard",
     "label",
     "field_type"
   ]

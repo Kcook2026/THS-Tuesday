@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home, LayoutGrid, Activity as ActivityIcon, Users, Settings,
   ChevronDown, ChevronRight, Plus, Star, Clock, Search,
-  FolderKanban, Workflow, Building2, Target, MoreHorizontal,
+  FolderKanban, Workflow, Building2, Target, MoreHorizontal, FileText,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
@@ -23,6 +23,7 @@ const primaryNav = [
   { label: 'Home', icon: Home, path: '/' },
   { label: 'My Work', icon: Target, path: '/my-work' },
   { label: 'Workboards', icon: LayoutGrid, path: '/workboards' },
+  { label: 'Forms', icon: FileText, path: '/forms' },
   { label: 'Activity', icon: ActivityIcon, path: '/activity' },
 ];
 

@@ -36,13 +36,19 @@
       "enum": [
         "pending",
         "processed",
-        "failed"
+        "failed",
+        "reopened"
       ],
       "default": "pending"
     },
     "created_item": {
       "type": "string",
       "title": "Created Item",
+      "relationType": "WorkboardItem"
+    },
+    "linked_item": {
+      "type": "string",
+      "title": "Linked Item",
       "relationType": "WorkboardItem"
     },
     "values": {
@@ -57,7 +63,6 @@
   },
   "required": [
     "workspace",
-    "form",
-    "workboard"
+    "form"
   ]
 }

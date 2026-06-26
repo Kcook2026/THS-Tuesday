@@ -2,7 +2,8 @@ import {
   Type, AlignLeft, Hash, DollarSign, Calendar, ChevronDown,
   List, Check, Mail, Phone, Link as LinkIcon,
   User, Users, Building, Upload, Image as ImageIcon,
-  Heading, FileText, GitBranch, Pen, Star, MapPin
+  Heading, FileText, GitBranch, Pen, Star, MapPin,
+  Columns, Minus, Image, AlignCenter, Layout
 } from 'lucide-react';
 
 export const FIELD_TYPES = {
@@ -51,3 +52,33 @@ export const FIELD_TYPES_WITH_OPTIONS = ['dropdown', 'multi_select', 'checkbox']
 export const DISPLAY_ONLY_TYPES = ['section_header', 'description_text'];
 export const FILE_FIELD_TYPES = ['file_upload', 'image_upload'];
 export const PEOPLE_FIELD_TYPES = ['person', 'team', 'department'];
+
+export const CANVAS_BLOCK_TYPES = {
+  field: { label: 'Field', icon: Type },
+  section: { label: 'Section', icon: Heading },
+  columns: { label: 'Columns', icon: Columns },
+  divider: { label: 'Divider', icon: Minus },
+  header: { label: 'Header', icon: Heading },
+  richtext: { label: 'Rich Text', icon: AlignLeft },
+  image: { label: 'Image', icon: Image },
+  spacer: { label: 'Spacer', icon: Layout },
+};
+
+export const STATUS_LABELS = {
+  draft: 'Draft',
+  published: 'Published',
+  archived: 'Archived',
+  active: 'Published',
+};
+
+export const STATUS_COLORS = {
+  draft: 'bg-muted text-muted-foreground',
+  published: 'bg-emerald-100 text-emerald-700',
+  active: 'bg-emerald-100 text-emerald-700',
+  archived: 'bg-amber-100 text-amber-700',
+};
+
+export const FORM_TYPE_LABELS = {
+  workboard_form: 'Workboard',
+  standalone_form: 'Standalone',
+};

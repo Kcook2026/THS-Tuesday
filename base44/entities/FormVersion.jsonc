@@ -1,0 +1,39 @@
+{
+  "name": "FormVersion",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "form": {
+      "type": "string",
+      "title": "Form",
+      "relationType": "Form"
+    },
+    "version_number": {
+      "type": "number",
+      "title": "Version Number",
+      "default": 1
+    },
+    "snapshot": {
+      "type": "string",
+      "title": "Snapshot"
+    },
+    "change_description": {
+      "type": "string",
+      "title": "Change Description"
+    },
+    "created_by": {
+      "type": "string",
+      "title": "Created By",
+      "relationType": "User"
+    }
+  },
+  "required": [
+    "workspace",
+    "form",
+    "version_number"
+  ]
+}

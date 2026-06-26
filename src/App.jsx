@@ -38,6 +38,9 @@ import WorkboardQA from '@/pages/WorkboardQA';
 import WorkboardUpdates from '@/pages/WorkboardUpdates';
 import FormBuilder from '@/pages/FormBuilder';
 import FormSubmit from '@/pages/FormSubmit';
+import FormsLibrary from '@/pages/FormsLibrary';
+import ArchivedForms from '@/pages/ArchivedForms';
+import FormSubmissionsPage from '@/pages/FormSubmissionsPage';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -99,8 +102,11 @@ const AuthenticatedApp = () => {
           <Route path="/permission-debug" element={<PermissionDebug />} />
           <Route path="/workboard-qa" element={<WorkboardQA />} />
           <Route path="/workboards/:id/updates" element={<WorkboardUpdates />} />
+          <Route path="/forms" element={<FormsLibrary />} />
+          <Route path="/forms/archived" element={<ArchivedForms />} />
           <Route path="/forms/:formId/builder" element={<FormBuilder />} />
           <Route path="/forms/:formId/submit" element={<FormSubmit />} />
+          <Route path="/forms/:formId/submissions" element={<FormSubmissionsPage />} />
         </Route>
       </Route>
       {/* Backwards compatibility redirect */}

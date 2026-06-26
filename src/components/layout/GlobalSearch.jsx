@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Hash, FolderKanban, CheckSquare, LayoutGrid, FileText } from 'lucide-react';
+import { Search, Hash, FolderKanban, CheckSquare, LayoutGrid, FileText, Inbox } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
 import { getActiveWorkboards } from '@/lib/workboardHelpers';
@@ -12,6 +12,7 @@ const QUICK_LINKS = [
   { label: 'Home', path: '/', icon: Hash },
   { label: 'My Work', path: '/my-work', icon: CheckSquare },
   { label: 'Workboards', path: '/workboards', icon: LayoutGrid },
+  { label: 'Forms', path: '/forms', icon: FileText },
   { label: 'Projects', path: '/projects', icon: FolderKanban },
   { label: 'Tasks', path: '/tasks/table', icon: CheckSquare },
   { label: 'Documents', path: '/documents', icon: FileText },
@@ -45,10 +46,12 @@ export default function GlobalSearch({ open, onOpenChange }) {
     async function search() {
       try {
         const wsFilter = { workspace: currentWorkspaceId };
-        const [boards, projects, tasks] = await Promise.all([
+        const [boards, projects, tasks, forms, submissions] = await Promise.all([
           base44.entities.Workboard.filter(wsFilter, '-updated_date', 10).catch(() => []),
           base44.entities.Project.filter(wsFilter, '-updated_date', 5).catch(() => []),
           base44.entities.Task.filter(wsFilter, '-updated_date', 5).catch(() => []),
+          base44.entities.Form.filter(wsFilter, '-updated_date', 10).catch(() => []),
+          base44.entities.FormSubmission.filter(wsFilter, '-created_date', 5).catch(() => []),
         ]);
 
         if (cancelled) return;
@@ -65,8 +68,21 @@ export default function GlobalSearch({ open, onOpenChange }) {
           ...tasks.filter(t => t.title?.toLowerCase().includes(q)).map(t => ({
             type: 'Task', label: t.title, path: '/tasks/table', icon: CheckSquare,
           })),
+          ...forms.filter(f => f.status !== 'archived' && (
+            f.title?.toLowerCase().includes(q) ||
+            (f.description || '').toLowerCase().includes(q) ||
+            (f.tags || []).some(t => t.toLowerCase().includes(q))
+          )).map(f => ({
+            type: 'Form', label: f.title, path: `/forms/${f.id}/builder`, icon: FileText,
+          })),
+          ...submissions.filter(s => (
+            (s.submitter_name || '').toLowerCase().includes(q) ||
+            (s.submitter_email || '').toLowerCase().includes(q)
+          )).map(s => ({
+            type: 'Submission', label: s.submitter_name || s.submitter_email || 'Submission', path: `/forms/${s.form}/submissions`, icon: Inbox,
+          })),
         ];
-        setResults(filtered.slice(0, 8));
+        setResults(filtered.slice(0, 10));
       } catch (e) {
         // silent
       } finally {

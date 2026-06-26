@@ -1,29 +1,36 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import { FIELD_TYPES, FIELD_CATEGORIES, SYSTEM_FIELDS, FIELD_TYPES_WITH_OPTIONS, DISPLAY_ONLY_TYPES } from '@/components/forms/FormConstants';
-import FormFieldRenderer from '@/components/forms/FormFieldRenderer';
-import { ChevronLeft, Plus, ArrowUp, ArrowDown, Trash2, Eye, GripVertical, X } from 'lucide-react';
-
-const STATUS_COLORS = {
-  draft: 'bg-muted text-muted-foreground',
-  active: 'bg-emerald-100 text-emerald-700',
-  archived: 'bg-amber-100 text-amber-700',
-};
+import { useConfirm } from '@/components/shared/ConfirmDialog';
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
+} from '@dnd-kit/sortable';
+import {
+  FIELD_TYPES, FIELD_CATEGORIES, STATUS_COLORS, STATUS_LABELS,
+} from '@/components/forms/FormConstants';
+import SortableFieldList from '@/components/forms/SortableFieldList';
+import CanvasBuilder from '@/components/forms/CanvasBuilder';
+import FieldSettings from '@/components/forms/FieldSettings';
+import FormVersionHistory from '@/components/forms/FormVersionHistory';
+import {
+  ChevronLeft, Plus, Eye, X, History, Save, Send, Layout, List, Trash2,
+} from 'lucide-react';
 
 export default function FormBuilder() {
   const { formId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [form, setForm] = useState(null);
   const [fields, setFields] = useState([]);
   const [columns, setColumns] = useState([]);
@@ -32,29 +39,46 @@ export default function FormBuilder() {
   const [loading, setLoading] = useState(true);
   const [selectedFieldId, setSelectedFieldId] = useState(null);
   const [previewMode, setPreviewMode] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('saved');
+  const [canvasBlocks, setCanvasBlocks] = useState([]);
+  const [selectedBlockId, setSelectedBlockId] = useState(null);
+
+  const autosaveTimer = useRef(null);
+  const formChanges = useRef({});
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const load = useCallback(async () => {
     if (!formId) return;
     setLoading(true);
     try {
-      const [f, flds, user] = await Promise.all([
+      const [f, flds] = await Promise.all([
         base44.entities.Form.get(formId),
         base44.entities.FormField.filter({ form: formId }),
-        base44.auth.me(),
       ]);
       setForm(f);
       setFields(flds.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)));
-      setUsers(user ? [user] : []);
 
-      if (f?.workboard) {
-        const [cols, tms, allUsers] = await Promise.all([
-          base44.entities.BoardColumn.filter({ workboard: f.workboard }).catch(() => []),
-          base44.entities.Team.filter({ workspace: f.workspace }).catch(() => []),
-          base44.entities.User.list().catch(() => []),
-        ]);
+      // Parse canvas layout
+      if (f.canvas_layout) {
+        try { setCanvasBlocks(JSON.parse(f.canvas_layout)); } catch { setCanvasBlocks([]); }
+      }
+
+      const [allUsers, allTeams] = await Promise.all([
+        base44.entities.User.list().catch(() => []),
+        base44.entities.Team.filter({ workspace: f.workspace }).catch(() => []),
+      ]);
+      setUsers(allUsers);
+      setTeams(allTeams);
+
+      if (f.workboard) {
+        const cols = await base44.entities.BoardColumn.filter({ workboard: f.workboard }).catch(() => []);
         setColumns(cols.filter(c => !c.hidden && !c.system_column));
-        setTeams(tms);
-        setUsers(allUsers);
       }
     } catch (e) {
       toast({ title: 'Failed to load form', description: e.message, variant: 'destructive' });
@@ -65,13 +89,27 @@ export default function FormBuilder() {
 
   useEffect(() => { load(); }, [load]);
 
-  const updateForm = async (updates) => {
-    try {
-      await base44.entities.Form.update(form.id, updates);
-      setForm({ ...form, ...updates });
-    } catch (e) {
-      toast({ title: 'Failed to save', description: e.message, variant: 'destructive' });
-    }
+  // Autosave
+  const scheduleAutosave = useCallback((changes) => {
+    formChanges.current = { ...formChanges.current, ...changes };
+    setSaveStatus('unsaved');
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(async () => {
+      if (Object.keys(formChanges.current).length === 0) return;
+      setSaveStatus('saving');
+      try {
+        await base44.entities.Form.update(form.id, formChanges.current);
+        setForm(prev => ({ ...prev, ...formChanges.current }));
+        formChanges.current = {};
+        setSaveStatus('saved');
+      } catch {
+        setSaveStatus('error');
+      }
+    }, 3000);
+  }, [form?.id]);
+
+  const updateForm = (updates) => {
+    scheduleAutosave(updates);
   };
 
   const handleAddField = async (fieldType) => {
@@ -80,7 +118,7 @@ export default function FormBuilder() {
       const newField = await base44.entities.FormField.create({
         workspace: form.workspace,
         form: form.id,
-        workboard: form.workboard,
+        workboard: form.workboard || null,
         label: config.label,
         field_type: fieldType,
         sort_order: fields.length,
@@ -88,6 +126,20 @@ export default function FormBuilder() {
         hidden: false,
       });
       setFields(prev => [...prev, newField]);
+
+      // If canvas mode, also add a canvas block
+      if (form.builder_mode === 'canvas') {
+        const newBlock = {
+          id: `block-${Date.now()}`,
+          type: 'field',
+          span: 2,
+          field_id: newField.id,
+        };
+        const updatedBlocks = [...canvasBlocks, newBlock];
+        setCanvasBlocks(updatedBlocks);
+        await base44.entities.Form.update(form.id, { canvas_layout: JSON.stringify(updatedBlocks) });
+      }
+
       setSelectedFieldId(newField.id);
     } catch (e) {
       toast({ title: 'Failed to add field', description: e.message, variant: 'destructive' });
@@ -104,20 +156,37 @@ export default function FormBuilder() {
     }
   };
 
-  const handleReorder = async (index, direction) => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= fields.length) return;
-    const newFields = [...fields];
-    const a = newFields[index];
-    const b = newFields[targetIndex];
-    const tempSort = a.sort_order;
-    newFields[index] = { ...b, sort_order: tempSort };
-    newFields[targetIndex] = { ...a, sort_order: b.sort_order };
+  const handleDragEnd = async (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = fields.findIndex(f => f.id === active.id);
+    const newIndex = fields.findIndex(f => f.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newFields = arrayMove(fields, oldIndex, newIndex);
     setFields(newFields);
-    await Promise.all([
-      base44.entities.FormField.update(b.id, { sort_order: tempSort }),
-      base44.entities.FormField.update(a.id, { sort_order: b.sort_order }),
-    ]).catch(() => load());
+
+    // Update sort orders
+    const updates = newFields.map((f, i) => ({ id: f.id, sort_order: i }));
+    try {
+      await base44.entities.FormField.bulkUpdate(updates);
+    } catch {
+      // silent
+    }
+  };
+
+  const handleCanvasDragEnd = async (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = canvasBlocks.findIndex(b => b.id === active.id);
+    const newIndex = canvasBlocks.findIndex(b => b.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newBlocks = arrayMove(canvasBlocks, oldIndex, newIndex);
+    setCanvasBlocks(newBlocks);
+    await base44.entities.Form.update(form.id, { canvas_layout: JSON.stringify(newBlocks) });
   };
 
   const handleDeleteField = async (fieldId) => {
@@ -125,61 +194,192 @@ export default function FormBuilder() {
       await base44.entities.FormField.delete(fieldId);
       setFields(prev => prev.filter(f => f.id !== fieldId));
       if (selectedFieldId === fieldId) setSelectedFieldId(null);
+      // Also remove from canvas blocks
+      if (form.builder_mode === 'canvas') {
+        const newBlocks = canvasBlocks.filter(b => b.field_id !== fieldId);
+        setCanvasBlocks(newBlocks);
+        await base44.entities.Form.update(form.id, { canvas_layout: JSON.stringify(newBlocks) });
+      }
     } catch (e) {
       toast({ title: 'Failed to delete field', description: e.message, variant: 'destructive' });
     }
   };
 
+  const handleAddCanvasBlock = async (blockType) => {
+    if (blockType === 'field') {
+      await handleAddField('short_text');
+      return;
+    }
+    const newBlock = {
+      id: `block-${Date.now()}`,
+      type: blockType,
+      span: 4,
+      props: {},
+    };
+    if (blockType === 'section' || blockType === 'header') {
+      newBlock.props = { text: blockType === 'section' ? 'New Section' : 'New Header', level: 2 };
+    }
+    if (blockType === 'richtext') {
+      newBlock.props = { content: 'Enter your rich text content here...' };
+    }
+    const newBlocks = [...canvasBlocks, newBlock];
+    setCanvasBlocks(newBlocks);
+    await base44.entities.Form.update(form.id, { canvas_layout: JSON.stringify(newBlocks) });
+  };
+
+  const handleDeleteCanvasBlock = async (blockId) => {
+    const block = canvasBlocks.find(b => b.id === blockId);
+    const newBlocks = canvasBlocks.filter(b => b.id !== blockId);
+    setCanvasBlocks(newBlocks);
+    await base44.entities.Form.update(form.id, { canvas_layout: JSON.stringify(newBlocks) });
+    if (selectedBlockId === blockId) setSelectedBlockId(null);
+  };
+
+  const handleSaveVersion = async (changeDescription = '') => {
+    try {
+      const snapshot = {
+        form: {
+          title: form.title,
+          description: form.description,
+          canvas_layout: form.canvas_layout,
+        },
+        fields: fields.map(f => {
+          const { id, created_date, updated_date, ...rest } = f;
+          return rest;
+        }),
+      };
+      await base44.entities.FormVersion.create({
+        workspace: form.workspace,
+        form: form.id,
+        version_number: (form.version || 1) + 1,
+        snapshot: JSON.stringify(snapshot),
+        change_description: changeDescription,
+        created_by: form.created_by,
+      });
+      await base44.entities.Form.update(form.id, { version: (form.version || 1) + 1 });
+      setForm(prev => ({ ...prev, version: (prev.version || 1) + 1 }));
+    } catch (e) {
+      // silent
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Flush autosave
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+      if (Object.keys(formChanges.current).length > 0) {
+        await base44.entities.Form.update(form.id, formChanges.current);
+        setForm(prev => ({ ...prev, ...formChanges.current }));
+        formChanges.current = {};
+      }
+      await handleSaveVersion('Manual save');
+      setSaveStatus('saved');
+      toast({ title: 'Form saved', duration: 2000 });
+    } catch (e) {
+      toast({ title: 'Failed to save', description: e.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handlePublish = async () => {
-    const newStatus = form.status === 'active' ? 'draft' : 'active';
-    await updateForm({ status: newStatus });
-    toast({ title: newStatus === 'active' ? 'Form published' : 'Form unpublished', duration: 2000 });
+    setSaving(true);
+    try {
+      const newStatus = form.status === 'published' || form.status === 'active' ? 'draft' : 'published';
+      await base44.entities.Form.update(form.id, { status: newStatus });
+      setForm(prev => ({ ...prev, status: newStatus }));
+      await handleSaveVersion(newStatus === 'published' ? 'Published' : 'Unpublished');
+      toast({ title: newStatus === 'published' ? 'Form published' : 'Form unpublished', duration: 2000 });
+    } catch (e) {
+      toast({ title: 'Failed to publish', description: e.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteForm = async () => {
+    const ok = await confirm({
+      title: 'Delete Form?',
+      message: `This will permanently delete "${form.title}" and all its fields and submissions. This cannot be undone.`,
+      confirmLabel: 'Delete Permanently',
+      requireText: form.title,
+    });
+    if (!ok) return;
+
+    setSaving(true);
+    try {
+      // Delete fields
+      await Promise.all(fields.map(f => base44.entities.FormField.delete(f.id).catch(() => {})));
+      // Delete versions
+      const versions = await base44.entities.FormVersion.filter({ form: form.id }).catch(() => []);
+      await Promise.all(versions.map(v => base44.entities.FormVersion.delete(v.id).catch(() => {})));
+      // Delete form
+      await base44.entities.Form.delete(form.id);
+      toast({ title: 'Form deleted', duration: 2000 });
+      navigate(form.workboard ? `/workboards/${form.workboard}` : '/forms');
+    } catch (e) {
+      toast({ title: 'Failed to delete', description: e.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) return <LoadingSpinner />;
   if (!form) return <div className="p-8 text-center text-muted-foreground">Form not found</div>;
 
   const selectedField = fields.find(f => f.id === selectedFieldId);
-
-  const mappingValue = selectedField?.mapped_system_field
-    ? `system:${selectedField.mapped_system_field}`
-    : selectedField?.mapped_column
-      ? `column:${selectedField.mapped_column}`
-      : 'none';
-
-  const handleMappingChange = (val) => {
-    if (val === 'none') {
-      updateField(selectedField.id, { mapped_system_field: null, mapped_column: null });
-    } else if (val.startsWith('system:')) {
-      updateField(selectedField.id, { mapped_system_field: val.replace('system:', ''), mapped_column: null });
-    } else if (val.startsWith('column:')) {
-      updateField(selectedField.id, { mapped_column: val.replace('column:', ''), mapped_system_field: null });
-    }
-  };
+  const isCanvas = form.builder_mode === 'canvas';
+  const backUrl = form.workboard ? `/workboards/${form.workboard}` : '/forms';
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+      <div className="flex items-center justify-between gap-2 border-b px-4 py-2.5 flex-wrap">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate(`/workboards/${form.workboard}`)}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(backUrl)}>
             <ChevronLeft className="w-4 h-4 mr-1" /> Back
           </Button>
-          <div className="flex items-center gap-2">
-            <Input
-              defaultValue={form.title}
-              onBlur={e => { if (e.target.value !== form.title) updateForm({ title: e.target.value }); }}
-              className="text-base font-semibold border-none px-0 h-auto focus-visible:ring-0 w-64"
-            />
-            <Badge variant="secondary" className={STATUS_COLORS[form.status]}>{form.status}</Badge>
-          </div>
+          <Input
+            defaultValue={form.title}
+            onBlur={e => { if (e.target.value !== form.title) updateForm({ title: e.target.value }); }}
+            className="text-base font-semibold border-none px-0 h-auto focus-visible:ring-0 w-48 sm:w-64"
+          />
+          <Badge variant="secondary" className={STATUS_COLORS[form.status] || STATUS_COLORS.draft}>
+            {STATUS_LABELS[form.status] || form.status}
+          </Badge>
+          <span className="text-xs text-muted-foreground hidden sm:inline">
+            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'unsaved' ? 'Unsaved changes' : saveStatus === 'error' ? 'Save failed' : 'Saved'}
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setPreviewMode(!previewMode)}>
-            <Eye className="w-4 h-4 mr-1.5" /> {previewMode ? 'Exit Preview' : 'Preview'}
+        <div className="flex items-center gap-2 flex-wrap">
+          {!previewMode && (
+            <div className="flex items-center rounded-md border p-0.5">
+              <button
+                onClick={() => updateForm({ builder_mode: 'classic' })}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors ${!isCanvas ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                <List className="w-3.5 h-3.5" /> Classic
+              </button>
+              <button
+                onClick={() => updateForm({ builder_mode: 'canvas' })}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors ${isCanvas ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                <Layout className="w-3.5 h-3.5" /> Canvas
+              </button>
+            </div>
+          )}
+          <Button variant="outline" size="sm" onClick={() => setShowVersionHistory(true)}>
+            <History className="w-3.5 h-3.5 mr-1" /> History
           </Button>
-          <Button size="sm" onClick={handlePublish} disabled={fields.length === 0}>
-            {form.status === 'active' ? 'Unpublish' : 'Publish'}
+          <Button variant="outline" size="sm" onClick={() => setPreviewMode(!previewMode)}>
+            <Eye className="w-3.5 h-3.5 mr-1" /> {previewMode ? 'Exit' : 'Preview'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleSave} disabled={saving}>
+            <Save className="w-3.5 h-3.5 mr-1" /> Save
+          </Button>
+          <Button size="sm" onClick={handlePublish} disabled={saving || fields.length === 0}>
+            {form.status === 'published' || form.status === 'active' ? 'Unpublish' : 'Publish'}
           </Button>
         </div>
       </div>
@@ -187,41 +387,93 @@ export default function FormBuilder() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Field Palette */}
         {!previewMode && (
-          <div className="w-56 border-r overflow-auto p-3 space-y-4 shrink-0 hidden md:block">
-            {FIELD_CATEGORIES.map(cat => {
-              const types = Object.entries(FIELD_TYPES).filter(([, c]) => c.category === cat.id);
-              if (types.length === 0) return null;
-              return (
-                <div key={cat.id}>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">{cat.label}</p>
+          <div className="w-52 border-r overflow-auto p-3 space-y-4 shrink-0 hidden md:block">
+            {isCanvas ? (
+              <>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Canvas Blocks</p>
                   <div className="space-y-1">
-                    {types.map(([key, config]) => {
-                      const Icon = config.icon;
-                      return (
-                        <button
-                          key={key}
-                          disabled={config.comingSoon}
-                          onClick={() => handleAddField(key)}
-                          className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <Icon className="w-3.5 h-3.5 shrink-0" />
-                          <span className="flex-1 truncate">{config.label}</span>
-                          {config.comingSoon && <span className="text-[10px] text-muted-foreground">Soon</span>}
-                          {!config.comingSoon && <Plus className="w-3 h-3 text-muted-foreground" />}
-                        </button>
-                      );
+                    <button onClick={() => handleAddCanvasBlock('section')} className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-accent">
+                      <Plus className="w-3 h-3" /> Section
+                    </button>
+                    <button onClick={() => handleAddCanvasBlock('divider')} className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-accent">
+                      <Plus className="w-3 h-3" /> Divider
+                    </button>
+                    <button onClick={() => handleAddCanvasBlock('header')} className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-accent">
+                      <Plus className="w-3 h-3" /> Header
+                    </button>
+                    <button onClick={() => handleAddCanvasBlock('richtext')} className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-accent">
+                      <Plus className="w-3 h-3" /> Rich Text
+                    </button>
+                    <button onClick={() => handleAddCanvasBlock('image')} className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-accent">
+                      <Plus className="w-3 h-3" /> Image
+                    </button>
+                    <button onClick={() => handleAddCanvasBlock('spacer')} className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-accent">
+                      <Plus className="w-3 h-3" /> Spacer
+                    </button>
+                  </div>
+                </div>
+                <div className="border-t pt-3">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Form Fields</p>
+                  <div className="space-y-1">
+                    {FIELD_CATEGORIES.map(cat => {
+                      const types = Object.entries(FIELD_TYPES).filter(([, c]) => c.category === cat.id);
+                      return types.map(([key, config]) => {
+                        if (config.comingSoon) return null;
+                        const Icon = config.icon;
+                        return (
+                          <button key={key} onClick={() => handleAddField(key)} className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-accent transition-colors">
+                            <Icon className="w-3.5 h-3.5 shrink-0" />
+                            <span className="flex-1 truncate">{config.label}</span>
+                            <Plus className="w-3 h-3 text-muted-foreground" />
+                          </button>
+                        );
+                      });
                     })}
                   </div>
                 </div>
-              );
-            })}
+              </>
+            ) : (
+              FIELD_CATEGORIES.map(cat => {
+                const types = Object.entries(FIELD_TYPES).filter(([, c]) => c.category === cat.id);
+                if (types.length === 0) return null;
+                return (
+                  <div key={cat.id}>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">{cat.label}</p>
+                    <div className="space-y-1">
+                      {types.map(([key, config]) => {
+                        const Icon = config.icon;
+                        return (
+                          <button
+                            key={key}
+                            disabled={config.comingSoon}
+                            onClick={() => handleAddField(key)}
+                            className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Icon className="w-3.5 h-3.5 shrink-0" />
+                            <span className="flex-1 truncate">{config.label}</span>
+                            {config.comingSoon && <span className="text-[10px] text-muted-foreground">Soon</span>}
+                            {!config.comingSoon && <Plus className="w-3 h-3 text-muted-foreground" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div className="border-t pt-3">
+              <Button variant="ghost" size="sm" onClick={handleDeleteForm} className="w-full justify-start text-destructive hover:text-destructive">
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete Form
+              </Button>
+            </div>
           </div>
         )}
 
-        {/* Center: Form Preview */}
+        {/* Center: Builder */}
         <div className="flex-1 overflow-auto p-6">
-          <div className="max-w-2xl mx-auto space-y-4">
-            <div className="space-y-2 pb-4 border-b">
+          <div className={isCanvas ? "max-w-4xl mx-auto" : "max-w-2xl mx-auto space-y-4"}>
+            <div className="space-y-2 pb-4 border-b mb-4">
               <Textarea
                 defaultValue={form.description || ''}
                 onBlur={e => { if (e.target.value !== (form.description || '')) updateForm({ description: e.target.value }); }}
@@ -231,7 +483,23 @@ export default function FormBuilder() {
               />
             </div>
 
-            {fields.length === 0 ? (
+            {isCanvas ? (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleCanvasDragEnd}>
+                <SortableContext items={canvasBlocks.map(b => b.id)}>
+                  <CanvasBuilder
+                    blocks={canvasBlocks}
+                    fields={fields}
+                    selectedBlockId={selectedBlockId}
+                    onSelectBlock={setSelectedBlockId}
+                    onDeleteBlock={handleDeleteCanvasBlock}
+                    onAddBlock={handleAddCanvasBlock}
+                    users={users}
+                    teams={teams}
+                    previewMode={previewMode}
+                  />
+                </SortableContext>
+              </DndContext>
+            ) : fields.length === 0 ? (
               <div className="rounded-lg border border-dashed p-12 text-center">
                 <p className="text-sm text-muted-foreground mb-3">No fields yet. Add fields from the left panel.</p>
                 <Button variant="outline" onClick={() => handleAddField('short_text')}>
@@ -239,193 +507,46 @@ export default function FormBuilder() {
                 </Button>
               </div>
             ) : (
-              fields.map((field, index) => (
-                <div
-                  key={field.id}
-                  className={`relative rounded-lg border p-4 transition-colors ${
-                    selectedFieldId === field.id ? 'border-primary ring-1 ring-primary/30' : 'border-border'
-                  } ${!previewMode ? 'cursor-pointer' : ''}`}
-                  onClick={() => !previewMode && setSelectedFieldId(field.id)}
-                >
-                  {!previewMode && (
-                    <div className="absolute right-2 top-2 flex items-center gap-0.5">
-                      <button onClick={(e) => { e.stopPropagation(); handleReorder(index, 'up'); }} disabled={index === 0} className="p-1 hover:bg-accent rounded disabled:opacity-30">
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); handleReorder(index, 'down'); }} disabled={index === fields.length - 1} className="p-1 hover:bg-accent rounded disabled:opacity-30">
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); handleDeleteField(field.id); }} className="p-1 hover:bg-destructive/10 hover:text-destructive rounded">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-                  <FormFieldRenderer
-                    field={field}
-                    value={null}
-                    onChange={() => {}}
-                    readOnly={false}
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={fields.map(f => f.id)} strategy={verticalListSortingStrategy}>
+                  <SortableFieldList
+                    fields={fields}
+                    selectedFieldId={selectedFieldId}
+                    onSelect={setSelectedFieldId}
+                    onDelete={handleDeleteField}
+                    onReorder={() => {}}
                     users={users}
                     teams={teams}
+                    columns={columns}
                   />
-                  {(field.mapped_system_field || field.mapped_column) && !previewMode && (
-                    <p className="text-xs text-primary mt-2">
-                      Maps to: {field.mapped_system_field ? SYSTEM_FIELDS.find(s => s.value === field.mapped_system_field)?.label : columns.find(c => c.id === field.mapped_column)?.name}
-                    </p>
-                  )}
-                </div>
-              ))
+                </SortableContext>
+              </DndContext>
             )}
 
-            {!previewMode && (
-              <Button variant="outline" className="w-full border-dashed" onClick={() => handleAddField('short_text')}>
+            {!previewMode && !isCanvas && (
+              <Button variant="outline" className="w-full border-dashed mt-3" onClick={() => handleAddField('short_text')}>
                 <Plus className="w-4 h-4 mr-1.5" /> Add Field
               </Button>
             )}
           </div>
         </div>
 
-        {/* Right: Field Settings */}
-        {!previewMode && (
+        {/* Right: Settings */}
+        {!previewMode && !isCanvas && (
           <div className="w-72 border-l overflow-auto p-4 space-y-4 shrink-0 hidden md:block">
-            {selectedField ? (
-              <>
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm">Field Settings</h3>
-                  <button onClick={() => setSelectedFieldId(null)} className="p-1 hover:bg-accent rounded">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-xs">Label</Label>
-                    <Input
-                      defaultValue={selectedField.label}
-                      onBlur={e => { if (e.target.value !== selectedField.label) updateField(selectedField.id, { label: e.target.value }); }}
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-xs">Field Type</Label>
-                    <p className="text-sm text-muted-foreground">{FIELD_TYPES[selectedField.field_type]?.label}</p>
-                  </div>
-
-                  {!DISPLAY_ONLY_TYPES.includes(selectedField.field_type) && (
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm">Required</Label>
-                      <Switch
-                        checked={selectedField.required}
-                        onCheckedChange={checked => updateField(selectedField.id, { required: checked })}
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <Label className="text-xs">Help Text</Label>
-                    <Input
-                      defaultValue={selectedField.help_text || ''}
-                      onBlur={e => { if (e.target.value !== (selectedField.help_text || '')) updateField(selectedField.id, { help_text: e.target.value }); }}
-                      placeholder="Shown below field"
-                    />
-                  </div>
-
-                  {!DISPLAY_ONLY_TYPES.includes(selectedField.field_type) && (
-                    <div>
-                      <Label className="text-xs">Placeholder</Label>
-                      <Input
-                        defaultValue={selectedField.placeholder || ''}
-                        onBlur={e => { if (e.target.value !== (selectedField.placeholder || '')) updateField(selectedField.id, { placeholder: e.target.value }); }}
-                        placeholder="e.g. Enter text..."
-                      />
-                    </div>
-                  )}
-
-                  {FIELD_TYPES_WITH_OPTIONS.includes(selectedField.field_type) && (
-                    <OptionsEditor field={selectedField} onUpdate={updateField} />
-                  )}
-
-                  <div>
-                    <Label className="text-xs">Map to Workboard Field</Label>
-                    <Select value={mappingValue} onValueChange={handleMappingChange}>
-                      <SelectTrigger><SelectValue placeholder="No mapping" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No mapping</SelectItem>
-                        <SelectGroup>
-                          <SelectLabel>System Fields</SelectLabel>
-                          {SYSTEM_FIELDS.map(sf => <SelectItem key={sf.value} value={`system:${sf.value}`}>{sf.label}</SelectItem>)}
-                        </SelectGroup>
-                        {columns.length > 0 && (
-                          <SelectGroup>
-                            <SelectLabel>Custom Columns</SelectLabel>
-                            {columns.map(col => <SelectItem key={col.id} value={`column:${col.id}`}>{col.name}</SelectItem>)}
-                          </SelectGroup>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-sm text-muted-foreground">Select a field to edit its settings</p>
-              </div>
-            )}
+            <FieldSettings
+              field={selectedField}
+              onUpdate={updateField}
+              onClose={() => setSelectedFieldId(null)}
+              columns={columns}
+            />
           </div>
         )}
       </div>
-    </div>
-  );
-}
 
-function OptionsEditor({ field, onUpdate }) {
-  const [newOption, setNewOption] = useState('');
-
-  const addOption = () => {
-    if (!newOption.trim()) return;
-    const options = [...(field.options || []), newOption.trim()];
-    onUpdate(field.id, { options });
-    setNewOption('');
-  };
-
-  const removeOption = (index) => {
-    const options = (field.options || []).filter((_, i) => i !== index);
-    onUpdate(field.id, { options });
-  };
-
-  return (
-    <div>
-      <Label className="text-xs">Options</Label>
-      <div className="space-y-1">
-        {(field.options || []).map((opt, i) => (
-          <div key={i} className="flex items-center gap-1">
-            <Input
-              defaultValue={opt}
-              onBlur={e => {
-                const options = [...(field.options || [])];
-                options[i] = e.target.value;
-                onUpdate(field.id, { options });
-              }}
-              className="h-8 text-sm"
-            />
-            <button onClick={() => removeOption(i)} className="p-1 hover:bg-destructive/10 hover:text-destructive rounded">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
-        <div className="flex items-center gap-1">
-          <Input
-            value={newOption}
-            onChange={e => setNewOption(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } }}
-            placeholder="Add option..."
-            className="h-8 text-sm"
-          />
-          <Button size="sm" variant="ghost" onClick={addOption} disabled={!newOption.trim()}>
-            <Plus className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-      </div>
+      {showVersionHistory && (
+        <FormVersionHistory form={form} onClose={() => setShowVersionHistory(false)} />
+      )}
     </div>
   );
 }

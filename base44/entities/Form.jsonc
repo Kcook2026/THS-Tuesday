@@ -25,10 +25,19 @@
       "title": "Status",
       "enum": [
         "draft",
-        "active",
+        "published",
         "archived"
       ],
       "default": "draft"
+    },
+    "form_type": {
+      "type": "string",
+      "title": "Form Type",
+      "enum": [
+        "workboard_form",
+        "standalone_form"
+      ],
+      "default": "workboard_form"
     },
     "owner": {
       "type": "string",
@@ -54,6 +63,39 @@
       "title": "Archived",
       "default": false
     },
+    "tags": {
+      "type": "array",
+      "title": "Tags",
+      "items": {
+        "type": "string"
+      }
+    },
+    "category": {
+      "type": "string",
+      "title": "Category"
+    },
+    "builder_mode": {
+      "type": "string",
+      "title": "Builder Mode",
+      "enum": [
+        "classic",
+        "canvas"
+      ],
+      "default": "classic"
+    },
+    "canvas_layout": {
+      "type": "string",
+      "title": "Canvas Layout"
+    },
+    "version": {
+      "type": "number",
+      "title": "Version",
+      "default": 1
+    },
+    "permissions": {
+      "type": "string",
+      "title": "Permissions"
+    },
     "created_by": {
       "type": "string",
       "title": "Created By",
@@ -62,7 +104,6 @@
   },
   "required": [
     "workspace",
-    "workboard",
     "title"
   ]
 }
