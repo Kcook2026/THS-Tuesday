@@ -62,16 +62,16 @@ export default function Workboards() {
     setLoading(true);
     try {
       const [b, p, t, me, members, users] = await Promise.all([
-        base44.entities.Workboard.filter({ workspace: currentWorkspaceId }),
-        base44.entities.Project.filter({ workspace: currentWorkspaceId }),
-        base44.entities.Team.filter({ workspace: currentWorkspaceId }),
-        base44.auth.me(),
+        base44.entities.Workboard.filter({ workspace: currentWorkspaceId }).catch(() => []),
+        base44.entities.Project.filter({ workspace: currentWorkspaceId }).catch(() => []),
+        base44.entities.Team.filter({ workspace: currentWorkspaceId }).catch(() => []),
+        base44.auth.me().catch(() => null),
         base44.entities.WorkboardMember.filter({ workspace: currentWorkspaceId }).catch(() => []),
         base44.entities.User.list().catch(() => []),
       ]);
-      const validBoards = getActiveWorkboards(b, currentWorkspaceId);
-      setWbMembers(members);
-      setAllUsers(users);
+      const validBoards = getActiveWorkboards(b || [], currentWorkspaceId);
+      setWbMembers(members || []);
+      setAllUsers(users || []);
       // Migrate any legacy client_board records to operations_board
       for (const board of validBoards) {
         if (board.board_type === 'client_board') {
@@ -80,9 +80,9 @@ export default function Workboards() {
         }
       }
       setBoards(validBoards);
-      setArchivedCount(getArchivedWorkboards(b, currentWorkspaceId).length);
-      setProjects(p);
-      setTeams(t);
+      setArchivedCount(getArchivedWorkboards(b || [], currentWorkspaceId).length);
+      setProjects(p || []);
+      setTeams(t || []);
       setUser(me);
     } catch (error) {
       console.error('Error loading workboards:', error);
