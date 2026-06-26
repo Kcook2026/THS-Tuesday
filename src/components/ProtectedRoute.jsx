@@ -60,6 +60,12 @@ export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthe
 
   // Redirect to login if auth error or not authenticated
   if (authError || !isAuthenticated) {
+    // Don't redirect if we're already on an auth page (prevents infinite loops)
+    const currentPath = window.location.pathname;
+    const isAuthPage = ['/login', '/register', '/forgot-password', '/reset-password'].includes(currentPath);
+    if (isAuthPage) {
+      return null;
+    }
     return unauthenticatedElement;
   }
 

@@ -108,7 +108,9 @@ export const AuthProvider = ({ children }) => {
       
       // If user auth fails, it might be an expired token
       if (error.status === 401 || error.status === 403) {
-        console.log('[AUTH] Authentication required - redirecting to login');
+        console.log('[AUTH] Authentication required - clearing invalid token');
+        // Clear the invalid token to prevent redirect loops
+        base44.auth.logout();
         setAuthError({
           type: 'auth_required',
           message: 'Authentication required'
