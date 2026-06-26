@@ -127,7 +127,7 @@ export default function WorkboardDetail() {
         base44.entities.WorkboardMember.filter({ workboard: id }).catch(() => []),
       ]);
 
-      // Load all comments for this board in a single query (avoids N+1 rate limit)
+      // Load all comments and attachments for this board in a single query (avoids N+1 rate limit)
       const allComments = await base44.entities.Comment.filter({
         workboard: id,
         record_type: 'WorkboardItem',
@@ -138,9 +138,20 @@ export default function WorkboardDetail() {
         return acc;
       }, {});
 
+      const allAttachments = await base44.entities.Attachment.filter({
+        workboard: id,
+        item: { $ne: null },
+        category: 'item_file',
+      }).catch(() => []);
+      const fileCounts = (allAttachments || []).reduce((acc, a) => {
+        if (a.item) acc[a.item] = (acc[a.item] || 0) + 1;
+        return acc;
+      }, {});
+
       const itemsWithCounts = i.map(item => ({
         ...item,
         _commentCount: commentCounts[item.id] || 0,
+        _fileCount: fileCounts[item.id] || 0,
       }));
 
       setBoard(b);

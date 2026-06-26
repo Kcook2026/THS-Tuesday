@@ -51,27 +51,15 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
     try {
       const me = currentUser || await base44.auth.me();
       
-      // Upload file - returns file_uri for private storage
+      // Upload file - UploadFile returns { file_url } (public URL)
       const uploadResult = await base44.integrations.Core.UploadFile({ file });
-      const file_uri = uploadResult?.file_uri;
-      
-      if (!file_uri) {
-        throw new Error('Upload failed: file_uri was not returned.');
+      const file_url = uploadResult?.file_url;
+
+      if (!file_url) {
+        throw new Error('Upload failed: file URL was not returned.');
       }
-      
-      // Create signed URL for display/download (optional helper)
-      let signed_url = '';
-      try {
-        const signedRes = await base44.integrations.Core.CreateFileSignedUrl({
-          file_uri,
-          expires_in: 86400,
-        });
-        signed_url = signedRes?.signed_url || '';
-      } catch (e) {
-        // signed_url is optional; file_uri is what matters
-      }
-      
-      // Create attachment record - file_uri is required, file_url is optional
+
+      // Create attachment record - file_url stores the public URL
       const attachment = await base44.entities.Attachment.create({
         workspace: item.workspace || workspaceId,
         workboard: item.workboard || boardId,
@@ -80,8 +68,8 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
         file_name: file.name,
         file_type: file.type,
         file_size: file.size,
-        file_uri,
-        file_url: signed_url,
+        file_uri: file_url,
+        file_url: file_url,
         category: 'item_file',
       });
 
@@ -149,46 +137,27 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
   };
 
   const handlePreview = async (file) => {
-    try {
-      // Must use file_uri, never file_url
-      const fileUri = file.file_uri;
-      if (!fileUri) {
-        toast({ title: 'Preview unavailable', description: 'Legacy file - use download instead', variant: 'destructive', duration: 4000 });
-        return;
-      }
-      const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({
-        file_uri: fileUri,
-        expires_in: 3600,
-      });
-      setPreviewFile(file);
-      setPreviewUrl(signed_url);
-    } catch (error) {
-      toast({ title: 'Preview failed', description: error.message, variant: 'destructive', duration: 5000 });
+    const url = file.file_url || file.file_uri;
+    if (!url) {
+      toast({ title: 'Preview unavailable', description: 'No file URL available', variant: 'destructive', duration: 4000 });
+      return;
     }
+    setPreviewFile(file);
+    setPreviewUrl(url);
   };
 
   const handleDownload = async (file) => {
-    try {
-      // Prefer file_uri, fallback to file_url for legacy files
-      const fileUri = file.file_uri || file.file_url;
-      if (!fileUri) {
-        toast({ title: 'Download failed', description: 'No file URL available', variant: 'destructive', duration: 4000 });
-        return;
-      }
-      const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({
-        file_uri: fileUri,
-        expires_in: 3600,
-      });
-      
-      const link = document.createElement('a');
-      link.href = signed_url;
-      link.download = file.file_name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      toast({ title: 'Download failed', description: error.message, variant: 'destructive', duration: 5000 });
+    const url = file.file_url || file.file_uri;
+    if (!url) {
+      toast({ title: 'Download failed', description: 'No file URL available', variant: 'destructive', duration: 4000 });
+      return;
     }
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.file_name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const getFileIcon = (fileType) => {

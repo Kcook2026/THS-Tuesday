@@ -13,7 +13,7 @@ import {
   Plus, MoreHorizontal, ChevronRight, ChevronDown, Trash2,
   Pencil, ExternalLink, Archive, ArrowUp, ArrowDown, Palette,
   CornerDownRight, MoveVertical, FolderInput, GripVertical, Copy,
-  MessageSquare,
+  MessageSquare, Paperclip,
 } from 'lucide-react';
 import { STATUS_COLORS, PRIORITY_COLORS, GROUP_COLOR_CLASSES } from './WorkboardConstants';
 import { getUserInitials } from '@/lib/userHelpers';
@@ -433,6 +433,18 @@ export default function GroupTable({
               <span className="text-xs text-muted-foreground">{item._commentCount || 0}</span>
             </Button>
           </TableCell>
+          <TableCell onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 gap-1.5"
+              onClick={() => onItemClick?.(item, 'files')}
+              title="View files"
+            >
+              <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">{item._fileCount || 0}</span>
+            </Button>
+          </TableCell>
           {visibleColumns?.status !== false && (
             <TableCell onClick={(e) => e.stopPropagation()}>
               {canEdit ? renderInlineEdit(item, 'status') : renderSystemCell(item, 'status')}
@@ -541,7 +553,7 @@ export default function GroupTable({
             <TableCell className="pl-8 text-xs text-muted-foreground" colSpan={1}>
               <Badge variant="secondary" className="text-[10px]">{subItems.length} sub-item{subItems.length > 1 ? 's' : ''}</Badge>
             </TableCell>
-            <TableCell colSpan={visibleCustomColumns.length + 7}></TableCell>
+            <TableCell colSpan={visibleCustomColumns.length + 8}></TableCell>
           </TableRow>
         )}
 
@@ -564,7 +576,7 @@ export default function GroupTable({
                 autoFocus
               />
             </TableCell>
-            <TableCell colSpan={visibleCustomColumns.length + 7}></TableCell>
+            <TableCell colSpan={visibleCustomColumns.length + 8}></TableCell>
           </TableRow>
         )}
 
@@ -661,6 +673,7 @@ export default function GroupTable({
                   <TableHead className="min-w-[250px]">Item Name</TableHead>
                   {visibleColumns?.owner !== false && <TableHead className="min-w-[150px]">Owner</TableHead>}
                   <TableHead className="min-w-[90px]">Updates</TableHead>
+                  <TableHead className="min-w-[80px]">Files</TableHead>
                   {visibleColumns?.status !== false && <TableHead className="min-w-[120px]">Status</TableHead>}
                   {visibleColumns?.priority !== false && <TableHead className="min-w-[120px]">Priority</TableHead>}
                   {visibleColumns?.due_date !== false && <TableHead className="min-w-[120px]">Due Date</TableHead>}
@@ -674,7 +687,7 @@ export default function GroupTable({
               <TableBody>
                 {mainItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={visibleCustomColumns.length + 8} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={visibleCustomColumns.length + 9} className="py-8 text-center text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
                         <p className="text-sm">This group is empty</p>
                         {canCreate && <Button size="sm" variant="outline" onClick={() => onAddItem?.(group.id)}><Plus className="w-4 h-4 mr-1.5" /> Add Item</Button>}
