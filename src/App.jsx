@@ -47,32 +47,29 @@ import AutomationBuilder from '@/pages/AutomationBuilder';
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError } = useAuth();
 
-  // Only show loading for public settings - auth routes render immediately
-  if (isLoadingPublicSettings) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <img src="https://media.base44.com/images/public/6a3c063e27549006eb32fc77/ac9acccc9_Screenshot2026-06-24at134440.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover" />
-          <div className="w-6 h-6 border-2 border-muted border-t-primary rounded-full animate-spin" />
-        </div>
-      </div>
-    );
-  }
-
-  // Show error screen for user not registered
+  // Show error screen for user not registered (only on protected routes)
   if (authError?.type === 'user_not_registered') {
     return <UserNotRegisteredError />;
   }
 
   return (
     <Routes>
-      {/* Public routes - always accessible */}
+      {/* Public routes - always accessible, even during loading */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       {/* Protected routes */}
-      <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+      <Route element={<ProtectedRoute fallback={
+        isLoadingPublicSettings || isLoadingAuth ? (
+          <div className="fixed inset-0 flex items-center justify-center bg-background">
+            <div className="flex flex-col items-center gap-3">
+              <img src="https://media.base44.com/images/public/6a3c063e27549006eb32fc77/ac9acccc9_Screenshot2026-06-24at134440.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover" />
+              <div className="w-6 h-6 border-2 border-muted border-t-primary rounded-full animate-spin" />
+            </div>
+          </div>
+        ) : null
+      } unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<AppLayout />}>
           {/* Primary */}
           <Route path="/" element={<Home />} />

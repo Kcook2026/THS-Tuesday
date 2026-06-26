@@ -17,10 +17,11 @@ export const AuthProvider = ({ children }) => {
   const [hasAttemptedAuth, setHasAttemptedAuth] = useState(false); // Prevent auth retry
 
   useEffect(() => {
-    if (!hasChecked) {
-      checkAppState();
-      setHasChecked(true);
-    }
+    // Defer auth check - let ProtectedRoute trigger it when needed
+    setHasChecked(true);
+    setIsLoadingAuth(false);
+    setIsLoadingPublicSettings(false);
+    setAuthChecked(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
 
@@ -36,6 +37,7 @@ export const AuthProvider = ({ children }) => {
     
     try {
       setIsLoadingPublicSettings(true);
+      setIsLoadingAuth(true);
       setAuthError(null);
       
       // First, check app public settings (with token if available)
@@ -66,7 +68,7 @@ export const AuthProvider = ({ children }) => {
         console.error('App state check failed:', appError);
         
         // Handle app-level errors
-        if (appError.status === 403 && appError.data?.extra_data?.reason) {
+        if (appError?.status === 403 && appError.data?.extra_data?.reason) {
           const reason = appError.data.extra_data.reason;
           if (reason === 'auth_required') {
             setAuthError({
@@ -92,6 +94,12 @@ export const AuthProvider = ({ children }) => {
         }
         setIsLoadingPublicSettings(false);
         setIsLoadingAuth(false);
+        setAuthChecked(true);
+      } finally {
+        // Ensure loading states are always cleared
+        setIsLoadingPublicSettings(false);
+        setIsLoadingAuth(false);
+        setAuthChecked(true);
       }
     } catch (error) {
       console.error('Unexpected error:', error);
@@ -101,42 +109,40 @@ export const AuthProvider = ({ children }) => {
       });
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
+      setAuthChecked(true);
     }
   };
 
   const checkUserAuth = async () => {
-    // Don't retry auth if we already failed once
-    if (hasAttemptedAuth) {
-      console.log('[AUTH] Skipping auth check - already attempted');
-      setIsLoadingAuth(false);
-      setAuthChecked(true);
+    // Don't run if already checked and authenticated
+    if (authChecked && isAuthenticated) {
+      console.log('[AUTH] Already authenticated, skipping check');
       return;
     }
     
-    setHasAttemptedAuth(true);
-    
     try {
       console.log('[AUTH] Checking user authentication...');
-      // Now check if the user is authenticated
+      console.log('[AUTH] Token in appParams:', appParams.token ? 'present' : 'missing');
       setIsLoadingAuth(true);
+      // Now check if the user is authenticated
       const currentUser = await base44.auth.me();
       console.log('[AUTH] User authenticated:', currentUser?.email, currentUser?.id);
       setUser(currentUser);
       setIsAuthenticated(true);
-      setIsLoadingAuth(false);
-      setAuthChecked(true);
     } catch (error) {
       console.error('[AUTH] User auth check failed:', error);
-      setIsLoadingAuth(false);
       setIsAuthenticated(false);
-      setAuthChecked(true);
       
       // If user auth fails, it might be an expired token
-      if (error.status === 401 || error.status === 403) {
+      if (error?.status === 401 || error?.status === 403) {
         console.log('[AUTH] Authentication required - clearing invalid token');
-        // Clear the invalid token to prevent redirect loops
+        // Clear tokens from localStorage to prevent retry with bad token
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('base44_access_token');
+          localStorage.removeItem('token');
+        }
+        // Clear the invalid token via SDK
         base44.auth.logout();
-        setHasChecked(true); // Prevent retry
         setAuthError({
           type: 'auth_required',
           message: 'Authentication required'
@@ -148,6 +154,10 @@ export const AuthProvider = ({ children }) => {
           message: error.message || 'Authentication failed'
         });
       }
+    } finally {
+      // Always clear loading states
+      setIsLoadingAuth(false);
+      setAuthChecked(true);
     }
   };
 

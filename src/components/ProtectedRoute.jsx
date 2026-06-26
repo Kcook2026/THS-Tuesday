@@ -13,8 +13,17 @@ const DefaultFallback = () => (
 
 
 export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthenticatedElement }) {
-  const { isAuthenticated, isLoadingAuth, authChecked, authError } = useAuth();
+  const { isAuthenticated, isLoadingAuth, authChecked, authError, checkUserAuth } = useAuth();
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const [hasTriggeredAuth, setHasTriggeredAuth] = useState(false);
+
+  // Trigger auth check when entering protected route
+  useEffect(() => {
+    if (!authChecked && !hasTriggeredAuth) {
+      setHasTriggeredAuth(true);
+      checkUserAuth();
+    }
+  }, [authChecked, hasTriggeredAuth, checkUserAuth]);
 
   // Timeout guard: if loading takes more than 15 seconds, show error screen
   useEffect(() => {

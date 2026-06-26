@@ -39,9 +39,18 @@ const getAppParams = () => {
 		storage.removeItem('base44_access_token');
 		storage.removeItem('token');
 	}
+	// Get token from URL first, then fall back to localStorage
+	const tokenFromUrl = getAppParamValue("access_token", { removeFromUrl: true });
+	const tokenFromStorage = storage.getItem('base44_access_token') || storage.getItem('token');
+	const token = tokenFromUrl || tokenFromStorage;
+	
+	if (!isNode && token) {
+		console.log('[APP_PARAMS] Token found:', tokenFromUrl ? 'from URL' : 'from localStorage');
+	}
+	
 	return {
 		appId: getAppParamValue("app_id", { defaultValue: import.meta.env.VITE_BASE44_APP_ID }),
-		token: getAppParamValue("access_token", { removeFromUrl: true }),
+		token: token,
 		fromUrl: getAppParamValue("from_url", { defaultValue: window.location.href }),
 		functionsVersion: getAppParamValue("functions_version", { defaultValue: import.meta.env.VITE_BASE44_FUNCTIONS_VERSION }),
 		appBaseUrl: getAppParamValue("app_base_url", { defaultValue: import.meta.env.VITE_BASE44_APP_BASE_URL }),
