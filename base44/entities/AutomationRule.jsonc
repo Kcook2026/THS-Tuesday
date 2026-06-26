@@ -2,6 +2,16 @@
   "name": "AutomationRule",
   "type": "object",
   "properties": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "workboard": {
+      "type": "string",
+      "title": "Workboard",
+      "relationType": "Workboard"
+    },
     "name": {
       "type": "string",
       "title": "Name"
@@ -23,79 +33,59 @@
     },
     "trigger_type": {
       "type": "string",
-      "title": "Trigger Type",
-      "enum": [
-        "status_changed",
-        "priority_changed",
-        "assignee_changed",
-        "due_date_approaching",
-        "due_date_passed",
-        "task_created",
-        "task_completed",
-        "document_uploaded",
-        "comment_added",
-        "process_step_completed",
-        "manual"
-      ]
+      "title": "Trigger Type"
     },
-    "trigger_entity": {
+    "trigger_config": {
       "type": "string",
-      "title": "Trigger Entity",
-      "enum": [
-        "Task",
-        "Project",
-        "Document",
-        "Comment",
-        "Process",
-        "Client"
-      ]
+      "title": "Trigger Config"
     },
-    "trigger_conditions": {
+    "conditions": {
       "type": "string",
-      "title": "Trigger Conditions"
+      "title": "Conditions"
     },
-    "action_type": {
+    "actions": {
       "type": "string",
-      "title": "Action Type",
-      "enum": [
-        "create_task",
-        "update_status",
-        "assign_user",
-        "send_notification",
-        "create_activity",
-        "create_process_step",
-        "add_comment",
-        "mark_health_at_risk"
-      ]
+      "title": "Actions"
     },
-    "action_config": {
+    "created_by": {
       "type": "string",
-      "title": "Action Config"
+      "title": "Created By",
+      "relationType": "User"
     },
     "owner": {
       "type": "string",
       "title": "Owner",
       "relationType": "User"
     },
-    "related_workboard": {
+    "last_run_date": {
       "type": "string",
-      "title": "Related Workboard",
-      "relationType": "Workboard"
-    },
-    "related_project": {
-      "type": "string",
-      "title": "Related Project",
-      "relationType": "Project"
+      "format": "date-time",
+      "title": "Last Run Date"
     },
     "run_count": {
       "type": "number",
       "title": "Run Count",
       "default": 0
+    },
+    "failure_count": {
+      "type": "number",
+      "title": "Failure Count",
+      "default": 0
+    },
+    "archived": {
+      "type": "boolean",
+      "title": "Archived",
+      "default": false
+    },
+    "is_starter": {
+      "type": "boolean",
+      "title": "Starter Recipe",
+      "default": false
     }
   },
   "required": [
+    "workspace",
     "name",
-    "trigger_type",
-    "action_type"
+    "trigger_type"
   ]
 }

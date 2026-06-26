@@ -2,49 +2,68 @@
   "name": "AutomationRun",
   "type": "object",
   "properties": {
-    "automation_rule": {
+    "workspace": {
       "type": "string",
-      "title": "Automation Rule",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "workboard": {
+      "type": "string",
+      "title": "Workboard",
+      "relationType": "Workboard"
+    },
+    "rule": {
+      "type": "string",
+      "title": "Rule",
       "relationType": "AutomationRule"
     },
-    "automation_rule_name": {
+    "item": {
       "type": "string",
-      "title": "Automation Rule Name"
+      "title": "Item",
+      "relationType": "WorkboardItem"
+    },
+    "form_submission": {
+      "type": "string",
+      "title": "Form Submission",
+      "relationType": "FormSubmission"
+    },
+    "trigger_type": {
+      "type": "string",
+      "title": "Trigger Type"
     },
     "status": {
       "type": "string",
       "title": "Status",
       "enum": [
+        "running",
         "success",
         "failed",
         "skipped"
       ],
-      "default": "success"
+      "default": "running"
     },
-    "trigger_record_type": {
-      "type": "string",
-      "title": "Trigger Record Type"
-    },
-    "trigger_record_id": {
-      "type": "string",
-      "title": "Trigger Record ID"
-    },
-    "result_message": {
-      "type": "string",
-      "title": "Result Message"
-    },
-    "executed_actions": {
-      "type": "string",
-      "title": "Executed Actions"
-    },
-    "run_date": {
+    "started_date": {
       "type": "string",
       "format": "date-time",
-      "title": "Run Date"
+      "title": "Started Date"
+    },
+    "completed_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Completed Date"
+    },
+    "error_message": {
+      "type": "string",
+      "title": "Error Message"
+    },
+    "actions_performed": {
+      "type": "string",
+      "title": "Actions Performed"
     }
   },
   "required": [
-    "automation_rule",
+    "workspace",
+    "rule",
     "status"
   ]
 }

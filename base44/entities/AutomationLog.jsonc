@@ -1,0 +1,45 @@
+{
+  "name": "AutomationLog",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "workboard": {
+      "type": "string",
+      "title": "Workboard",
+      "relationType": "Workboard"
+    },
+    "rule": {
+      "type": "string",
+      "title": "Rule",
+      "relationType": "AutomationRule"
+    },
+    "run": {
+      "type": "string",
+      "title": "Run",
+      "relationType": "AutomationRun"
+    },
+    "message": {
+      "type": "string",
+      "title": "Message"
+    },
+    "level": {
+      "type": "string",
+      "title": "Level",
+      "enum": [
+        "info",
+        "warn",
+        "error"
+      ],
+      "default": "info"
+    }
+  },
+  "required": [
+    "workspace",
+    "rule",
+    "message"
+  ]
+}

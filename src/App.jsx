@@ -41,6 +41,8 @@ import FormSubmit from '@/pages/FormSubmit';
 import FormsLibrary from '@/pages/FormsLibrary';
 import ArchivedForms from '@/pages/ArchivedForms';
 import FormSubmissionsPage from '@/pages/FormSubmissionsPage';
+import AutomationCenter from '@/pages/AutomationCenter';
+import AutomationBuilder from '@/pages/AutomationBuilder';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -107,6 +109,9 @@ const AuthenticatedApp = () => {
           <Route path="/forms/:formId/builder" element={<FormBuilder />} />
           <Route path="/forms/:formId/submit" element={<FormSubmit />} />
           <Route path="/forms/:formId/submissions" element={<FormSubmissionsPage />} />
+          <Route path="/automations" element={<AutomationCenter />} />
+          <Route path="/automations/builder" element={<AutomationBuilder />} />
+          <Route path="/automations/:ruleId/edit" element={<AutomationBuilder />} />
         </Route>
       </Route>
       {/* Backwards compatibility redirect */}
