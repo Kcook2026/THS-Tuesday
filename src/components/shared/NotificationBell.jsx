@@ -19,11 +19,36 @@ export default function NotificationBell() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const ref = useRef(null);
   const navigate = useNavigate();
-  const prevUnreadRef = useRef(0);
+  const prevUnreadRef = useRef(null);
+  const audioCtxRef = useRef(null);
+
+  const ensureAudio = useCallback(() => {
+    if (!audioCtxRef.current) {
+      try {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (e) { return null; }
+    }
+    if (audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  }, []);
+
+  // Unlock audio context on first user interaction (browser security requirement)
+  useEffect(() => {
+    const unlock = () => ensureAudio();
+    document.addEventListener('click', unlock, { once: true });
+    document.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      document.removeEventListener('click', unlock);
+      document.removeEventListener('keydown', unlock);
+    };
+  }, [ensureAudio]);
 
   const playSound = useCallback(() => {
+    const ctx = ensureAudio();
+    if (!ctx || ctx.state !== 'running') return;
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -35,7 +60,7 @@ export default function NotificationBell() {
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.3);
     } catch (e) {}
-  }, []);
+  }, [ensureAudio]);
 
   const load = useCallback(() => {
     if (!currentUserId) return;
@@ -76,10 +101,14 @@ export default function NotificationBell() {
 
   // Play sound when unread count increases (covers both realtime and polling)
   useEffect(() => {
-    if (unread > prevUnreadRef.current) {
+    if (prevUnreadRef.current !== null && unread > prevUnreadRef.current) {
       playSound();
     }
-    prevUnreadRef.current = unread;
+    if (prevUnreadRef.current === null) {
+      prevUnreadRef.current = unread;
+    } else {
+      prevUnreadRef.current = unread;
+    }
   }, [unread, playSound]);
 
   useEffect(() => {
@@ -135,9 +164,9 @@ export default function NotificationBell() {
         onClick={() => { setOpen(o => !o); if (!open) load(); }}
         className={`relative p-2 rounded-lg transition-colors ${unread > 0 ? 'bg-primary/10 hover:bg-primary/20' : 'hover:bg-muted'}`}
       >
-        <Bell className={`w-4.5 h-4.5 ${unread > 0 ? 'text-primary' : 'text-foreground/70'}`} />
+        <Bell className={`w-5 h-5 ${unread > 0 ? 'text-primary' : 'text-foreground/70'}`} />
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center animate-pulse">
+          <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center animate-pulse ring-2 ring-background">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
