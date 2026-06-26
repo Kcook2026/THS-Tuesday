@@ -30,12 +30,21 @@ export default function Processes() {
   const { currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
 
-  const load = () => {
+  const load = async () => {
     if (!currentWorkspaceId) return;
     setLoading(true);
-    Promise.all([base44.entities.Process.filter({ workspace: currentWorkspaceId }), base44.auth.me()])
-      .then(([p, me]) => { setProcesses(p); setUser(me); })
-      .finally(() => setLoading(false));
+    try {
+      const [p, me] = await Promise.all([
+        base44.entities.Process.filter({ workspace: currentWorkspaceId }).catch(() => []),
+        base44.auth.me().catch(() => null),
+      ]);
+      setProcesses(p || []);
+      setUser(me);
+    } catch (error) {
+      console.error('Error loading processes:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

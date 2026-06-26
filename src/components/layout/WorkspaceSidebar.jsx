@@ -23,6 +23,7 @@ const primaryNav = [
   { label: 'Home', icon: Home, path: '/' },
   { label: 'My Work', icon: Target, path: '/my-work' },
   { label: 'Workboards', icon: LayoutGrid, path: '/workboards' },
+  { label: 'Processes', icon: Workflow, path: '/processes' },
   { label: 'Forms', icon: FileText, path: '/forms' },
   { label: 'Automations', icon: Zap, path: '/automations' },
   { label: 'Activity', icon: ActivityIcon, path: '/activity' },
