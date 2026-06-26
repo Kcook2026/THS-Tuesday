@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChevronLeft, Save, Zap, Play } from 'lucide-react';
+import { ChevronLeft, Save, Zap, Play, Clock } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { useToast } from '@/components/ui/use-toast';
 import usePermissions from '@/hooks/usePermissions';
@@ -29,11 +29,12 @@ export default function AutomationBuilder() {
   const canManage = user?.role === 'admin' || isSystemAdmin || isExecutive || isManager || workspacePermissions?.canManageWorkspaceAutomations;
   const isNew = !ruleId;
 
-  const [loading, setLoading] = useState(!isNew);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
   const [validationError, setValidationError] = useState('');
   const [boardData, setBoardData] = useState({ statuses: [], priorities: [], groups: [], columns: [], users: [], teams: [], boards: [], boardMap: {} });
+  const [rule, setRule] = useState(null);
   const { toast } = useToast();
   const [form, setForm] = useState({
     name: '', description: '', status: 'paused', trigger_type: 'status_changed',
@@ -44,6 +45,7 @@ export default function AutomationBuilder() {
     if (!ruleId) return;
     try {
       const rule = await base44.entities.AutomationRule.get(ruleId);
+      setRule(rule);
       setForm({
         name: rule.name || '', description: rule.description || '', status: rule.status || 'paused',
         trigger_type: rule.trigger_type || 'status_changed', trigger_config: rule.trigger_config || '{}',
@@ -55,8 +57,31 @@ export default function AutomationBuilder() {
   const loadBoardData = useCallback(async () => {
     if (!currentWorkspaceId) return;
     const wbId = form.workboard;
-    const [members, teams, allBoards] = await Promise.all([
-      base44.entities.WorkspaceMember.filter({ workspace: currentWorkspaceId, status: 'active' }).catch(() => []),
+    
+    // Load WorkspaceMember records first
+    const members = await base44.entities.WorkspaceMember.filter({ workspace: currentWorkspaceId, status: 'active' }).catch(() => []);
+    
+    // Resolve to actual User records where possible
+    const userIds = [...new Set(members.map(m => m.user).filter(Boolean))];
+    let users = [];
+    if (userIds.length > 0) {
+      // Try to load User entity records
+      const userRecords = await Promise.all(
+        userIds.map(uid => base44.entities.User.get(uid).catch(() => null))
+      ).catch(() => []);
+      users = userRecords.filter(u => u);
+      
+      // Fallback: if User entity unavailable, use WorkspaceMember data
+      if (users.length === 0) {
+        users = members.map(m => ({
+          id: m.user || m.id,
+          full_name: m.user_name,
+          email: m.user_email,
+        }));
+      }
+    }
+    
+    const [teams, allBoards] = await Promise.all([
       base44.entities.Team.filter({ workspace: currentWorkspaceId }).catch(() => []),
       base44.entities.Workboard.filter({ workspace: currentWorkspaceId, status: 'active' }, '-updated_date', 100).catch(() => []),
     ]);
@@ -110,11 +135,16 @@ export default function AutomationBuilder() {
         base44.entities.BoardColumn.filter({ workspace: currentWorkspaceId, hidden: false, system_column: false }).catch(() => []),
       ]);
     }
-    setBoardData({ statuses, priorities, groups, columns, users: members, teams: teams || [], boards: allBoards || [], boardMap });
+    setBoardData({ statuses, priorities, groups, columns, users, teams: teams || [], boards: allBoards || [], boardMap });
   }, [currentWorkspaceId, form.workboard, canManage, user, toast]);
 
-  useEffect(() => { loadRule().finally(() => setLoading(false)); }, [loadRule]);
-  useEffect(() => { loadBoardData(); }, [loadBoardData]);
+  useEffect(() => { 
+    loadRule().finally(() => {});
+  }, [loadRule]);
+  
+  useEffect(() => { 
+    loadBoardData().finally(() => setLoading(false));
+  }, [loadBoardData]);
 
   const validate = () => {
     setValidationError('');
@@ -196,8 +226,16 @@ export default function AutomationBuilder() {
     setTestOpen(true);
   };
 
-  if (loading || wsLoading || permLoading) return <LoadingSpinner />;
-  if (!currentWorkspaceId) return <div className="p-8 text-center text-muted-foreground">No workspace found. Create or select a workspace to continue.</div>;
+  if (loading || wsLoading || permLoading || !user || !currentWorkspaceId) {
+    return (
+      <div className="p-8 text-center">
+        <LoadingSpinner />
+        <p className="mt-4 text-sm text-muted-foreground">
+          {!user ? 'Loading user...' : !currentWorkspaceId ? 'Loading workspace...' : loading ? 'Loading automation data...' : 'Loading permissions...'}
+        </p>
+      </div>
+    );
+  }
   if (!canManage) return <div className="p-8 text-center text-muted-foreground">You don't have permission to manage automations.</div>;
 
   return (
@@ -301,13 +339,28 @@ export default function AutomationBuilder() {
         </div>
       )}
 
-      <div className="flex justify-end gap-2 mt-6">
-        <Button variant="outline" onClick={() => navigate('/automations')}>Cancel</Button>
-        {ruleId && (
-          <Button variant="outline" onClick={handleTest}>
-            <Play className="w-4 h-4 mr-1.5" /> Test Rule
-          </Button>
-        )}
+      <div className="flex justify-between items-center mt-6">
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate('/automations')}>Cancel</Button>
+          {ruleId && (
+            <Button variant="outline" onClick={handleTest}>
+              <Play className="w-4 h-4 mr-1.5" /> Test Rule
+            </Button>
+          )}
+          {/* Date automation test button - visible for date triggers */}
+          {['due_date_arrives', 'due_date_overdue', 'due_date_x_days_away'].includes(form.trigger_type) && (
+            <Button variant="outline" onClick={async () => {
+              try {
+                const res = await base44.functions.invoke('runDateAutomations', { workspace: currentWorkspaceId, workboard: form.workboard || null });
+                toast({ title: 'Date automations run', description: `Processed ${res.data?.processed || 0} items` });
+              } catch (e) {
+                toast({ title: 'Failed', description: e.message, variant: 'destructive' });
+              }
+            }}>
+              <Clock className="w-4 h-4 mr-1.5" /> Run Date Automations Now
+            </Button>
+          )}
+        </div>
         <Button onClick={handleSave} disabled={saving || !form.name.trim()}>
           <Save className="w-4 h-4 mr-1.5" /> {saving ? 'Saving...' : 'Save Automation'}
         </Button>

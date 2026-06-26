@@ -19,14 +19,19 @@ export default function RecipePreview({ rule, boardData }) {
     (bd.groups || []).forEach(g => { groupMap[g.id] = g.name; });
     const userMap = {};
     (bd.users || []).forEach(u => {
-      const id = u.user || u.id;
-      userMap[id] = u.user_name || u.full_name || u.user_email || u.email || 'Unknown';
+      const id = u.id || u.user;
+      userMap[id] = u.full_name || u.user_name || u.email || u.user_email || 'Unknown';
     });
     const teamMap = {};
     (bd.teams || []).forEach(t => { teamMap[t.id] = t.name || 'Unnamed Team'; });
     const columnMap = {};
     (bd.columns || []).forEach(c => { columnMap[c.id] = c.name; });
-    return { groupMap, userMap, teamMap, columnMap };
+    // Status and priority maps: ID -> label
+    const statusMap = {};
+    (bd.statuses || []).forEach(s => { statusMap[s.id] = s.label; });
+    const priorityMap = {};
+    (bd.priorities || []).forEach(p => { priorityMap[p.id] = p.label; });
+    return { groupMap, userMap, teamMap, columnMap, statusMap, priorityMap };
   }, [boardData]);
 
   const resolveValue = (value, valueType) => {
@@ -34,6 +39,8 @@ export default function RecipePreview({ rule, boardData }) {
     if (valueType === 'group') return lookups.groupMap[value] || value;
     if (valueType === 'user') return lookups.userMap[value] || value;
     if (valueType === 'team') return lookups.teamMap[value] || value;
+    if (valueType === 'status') return lookups.statusMap[value] || value;
+    if (valueType === 'priority') return lookups.priorityMap[value] || value;
     return value;
   };
 

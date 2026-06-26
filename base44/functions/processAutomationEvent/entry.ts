@@ -75,8 +75,15 @@ Deno.serve(async (req) => {
       let tc = {};
       try { tc = JSON.parse(rule.trigger_config || '{}'); } catch {}
 
-      if (rule.trigger_type === 'status_changed' && tc.value) return contextData.status === tc.value;
-      if (rule.trigger_type === 'priority_changed' && tc.value) return contextData.priority === tc.value;
+      if (rule.trigger_type === 'status_changed' && tc.value) {
+        // Support both ID and label for backward compatibility
+        const matchVal = tc.value;
+        return contextData.status === matchVal || (tc.value_label && contextData.status === tc.value_label);
+      }
+      if (rule.trigger_type === 'priority_changed' && tc.value) {
+        const matchVal = tc.value;
+        return contextData.priority === matchVal || (tc.value_label && contextData.priority === tc.value_label);
+      }
       if (rule.trigger_type === 'item_moved_to_group' && tc.value) return contextData.group === tc.value;
       return true;
     });
@@ -220,9 +227,18 @@ async function performActions(sr, rule, data, itemId, workboard, workspace, opti
       case 'change_status': {
         if (itemId && data.status !== action.value) {
           let color = data.status_color;
-          if (workboard) { const opts = await sr.entities.StatusOption.filter({ workboard }).catch(() => []); const m = opts.find(s => s.label === action.value); if (m) color = m.color; }
-          await sr.entities.WorkboardItem.update(itemId, { status: action.value, status_color: color });
-          results.push({ action: 'change_status', value: action.value });
+          let statusLabel = action.value;
+          if (workboard) {
+            const opts = await sr.entities.StatusOption.filter({ workboard }).catch(() => []);
+            // Try to find by ID first, then by label for backward compatibility
+            const m = opts.find(s => s.id === action.value || s.label === action.value);
+            if (m) {
+              color = m.color;
+              statusLabel = m.label;  // Use label for display
+            }
+          }
+          await sr.entities.WorkboardItem.update(itemId, { status: statusLabel, status_color: color });
+          results.push({ action: 'change_status', value: statusLabel });
         } else {
           results.push({ action: 'change_status', value: action.value, skipped: 'already_set' });
         }
@@ -231,9 +247,18 @@ async function performActions(sr, rule, data, itemId, workboard, workspace, opti
       case 'change_priority': {
         if (itemId && data.priority !== action.value) {
           let color = data.priority_color;
-          if (workboard) { const opts = await sr.entities.PriorityOption.filter({ workboard }).catch(() => []); const m = opts.find(p => p.label === action.value); if (m) color = m.color; }
-          await sr.entities.WorkboardItem.update(itemId, { priority: action.value, priority_color: color });
-          results.push({ action: 'change_priority', value: action.value });
+          let priorityLabel = action.value;
+          if (workboard) {
+            const opts = await sr.entities.PriorityOption.filter({ workboard }).catch(() => []);
+            // Try to find by ID first, then by label for backward compatibility
+            const m = opts.find(p => p.id === action.value || p.label === action.value);
+            if (m) {
+              color = m.color;
+              priorityLabel = m.label;  // Use label for display
+            }
+          }
+          await sr.entities.WorkboardItem.update(itemId, { priority: priorityLabel, priority_color: color });
+          results.push({ action: 'change_priority', value: priorityLabel });
         } else {
           results.push({ action: 'change_priority', value: action.value, skipped: 'already_set' });
         }

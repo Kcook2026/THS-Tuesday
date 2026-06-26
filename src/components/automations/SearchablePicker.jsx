@@ -30,7 +30,11 @@ export default function SearchablePicker({
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    const matches = !q ? options : options.filter(o => o.label.toLowerCase().includes(q));
+    const matches = !q ? options : options.filter(o => {
+      // Search in label, email, fullName, and username
+      const searchText = `${o.label} ${o.email || ''} ${o.fullName || ''} ${o.username || ''}`.toLowerCase();
+      return searchText.includes(q);
+    });
     const seen = new Set();
     return matches.filter(o => {
       if (seen.has(o.value)) return false;

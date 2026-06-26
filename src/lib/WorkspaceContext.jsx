@@ -57,16 +57,24 @@ export function WorkspaceProvider({ children }) {
         const workspaceRecords = await loadWorkspaceData(me.id);
         if (!mounted) return;
 
+        // Preserve last selected workspace during refresh - don't switch to null
         const saved = localStorage.getItem(STORAGE_KEY);
         const valid = saved && workspaceRecords.find(w => w.id === saved);
         if (valid) {
           setCurrentWorkspaceId(saved);
         } else if (workspaceRecords.length > 0) {
-          setCurrentWorkspaceId(workspaceRecords[0].id);
-          localStorage.setItem(STORAGE_KEY, workspaceRecords[0].id);
+          const firstValid = workspaceRecords[0].id;
+          setCurrentWorkspaceId(firstValid);
+          localStorage.setItem(STORAGE_KEY, firstValid);
         }
+        // If no workspaces found, keep currentWorkspaceId as null but don't clear saved value
       } catch (e) {
         console.error('Workspace init error:', e);
+        // On error, preserve saved workspace from localStorage
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved && mounted) {
+          setCurrentWorkspaceId(saved);
+        }
       } finally {
         if (mounted) setLoading(false);
       }

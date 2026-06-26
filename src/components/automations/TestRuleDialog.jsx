@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Play, CheckCircle, XCircle, Loader2, Clock, AlertTriangle, SkipForward } from 'lucide-react';
+import { Play, CheckCircle, XCircle, Loader2, Clock, AlertTriangle, SkipForward, Calendar } from 'lucide-react';
 import SearchablePicker from './SearchablePicker';
 import { buildItemOptions } from './PickerOptions';
 import { getTriggerMeta } from './AutomationConstants';
@@ -13,10 +13,15 @@ export default function TestRuleDialog({ open, onClose, ruleId, workspace, workb
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [boardMap, setBoardMap] = useState({});
+  const [rule, setRule] = useState(null);
 
   useEffect(() => {
-    if (!open || !workspace) return;
-    setItems([]); setSelectedItem(''); setResult(null);
+    if (!open || !workspace || !ruleId) return;
+    setItems([]); setSelectedItem(''); setResult(null); setRule(null);
+    
+    // Load the rule to check trigger type
+    base44.entities.AutomationRule.get(ruleId).then(setRule).catch(() => {});
+    
     const query = { workspace, archived: false };
     if (workboard) query.workboard = workboard;
     Promise.all([
@@ -28,17 +33,36 @@ export default function TestRuleDialog({ open, onClose, ruleId, workspace, workb
       (boards || []).forEach(b => { map[b.id] = b.name; });
       setBoardMap(map);
     });
-  }, [open, workspace, workboard]);
+  }, [open, workspace, workboard, ruleId]);
 
   const itemOptions = useMemo(() => buildItemOptions(items, boardMap), [items, boardMap]);
+  
+  const isDateTrigger = rule && ['due_date_arrives', 'due_date_overdue', 'due_date_x_days_away'].includes(rule.trigger_type);
 
   const handleRun = async () => {
-    if (!selectedItem) return;
+    if (!selectedItem && !isDateTrigger) return;
     setLoading(true);
     setResult(null);
     try {
-      const res = await base44.functions.invoke('runAutomation', { ruleId, itemId: selectedItem });
-      setResult(res.data?.error ? { error: res.data.error } : res.data);
+      let res;
+      if (isDateTrigger) {
+        // For date triggers, run the date automation runner
+        res = await base44.functions.invoke('runDateAutomations', { workspace, workboard: workboard || null });
+        setResult({
+          test: {
+            status: 'success',
+            rule_name: rule?.name,
+            trigger_type: rule?.trigger_type,
+            item_title: 'All matching items',
+            run_id: `date-${Date.now()}`,
+            actions_performed: (res.data?.results || []).map(r => ({ action: r.rule, value: `${r.success ? '✓' : '✗'} ${r.item}` })),
+            timestamp: new Date().toISOString(),
+          }
+        });
+      } else {
+        res = await base44.functions.invoke('runAutomation', { ruleId, itemId: selectedItem });
+        setResult(res.data?.error ? { error: res.data.error } : res.data);
+      }
     } catch (e) {
       setResult({ error: e.response?.data?.error || e.message });
     } finally {
@@ -152,23 +176,38 @@ export default function TestRuleDialog({ open, onClose, ruleId, workspace, workb
           <DialogTitle>Test Automation Rule</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Select an item to test against</label>
-            <SearchablePicker
-              value={selectedItem}
-              onValueChange={setSelectedItem}
-              options={itemOptions}
-              placeholder="Search items..."
-              emptyMessage="No items found. Create an item in a workboard first."
-            />
-          </div>
+          {!isDateTrigger && (
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Select an item to test against</label>
+              <SearchablePicker
+                value={selectedItem}
+                onValueChange={setSelectedItem}
+                options={itemOptions}
+                placeholder="Search items..."
+                emptyMessage="No items found. Create an item in a workboard first."
+              />
+            </div>
+          )}
+          {isDateTrigger && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+              <div className="flex items-start gap-2">
+                <Calendar className="w-5 h-5 text-amber-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-amber-800">Date-Based Automation</p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    This automation triggers based on due dates. Testing will run all matching date automations for items with due dates in the selected scope.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           {renderResult()}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Close</Button>
-          <Button onClick={handleRun} disabled={loading || !selectedItem}>
-            {loading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Play className="w-4 h-4 mr-1.5" />}
-            Run Test
+          <Button onClick={handleRun} disabled={loading || (!selectedItem && !isDateTrigger)}>
+            {loading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : isDateTrigger ? <Calendar className="w-4 h-4 mr-1.5" /> : <Play className="w-4 h-4 mr-1.5" />}
+            {isDateTrigger ? 'Run Date Automations' : 'Run Test'}
           </Button>
         </DialogFooter>
       </DialogContent>
