@@ -22,9 +22,9 @@ export default function Home() {
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [wsDialogOpen, setWsDialogOpen] = useState(false);
+  const isLoadingRef = useRef(false);
 
   useEffect(() => {
-    const isLoadingRef = { current: false };
     if (!currentWorkspaceId || !user || isLoadingRef.current) return;
     isLoadingRef.current = true;
     

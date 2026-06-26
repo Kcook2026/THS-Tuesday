@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
 import { ACCOUNT_ROLE_PERMISSIONS, WORKSPACE_ROLE_PERMISSIONS, WORKBOARD_ROLE_PERMISSIONS } from '@/config/PermissionConfig';
@@ -13,6 +13,7 @@ export default function usePermissions() {
   const [workboardMemberships, setWorkboardMemberships] = useState({});
   const [loading, setLoading] = useState(true);
   const [accessibleWorkboards, setAccessibleWorkboards] = useState([]);
+  const isLoadingRef = useRef(false);
 
   useEffect(() => {
     if (!user || !currentWorkspaceId) {
@@ -22,7 +23,6 @@ export default function usePermissions() {
       return;
     }
 
-    const isLoadingRef = { current: false };
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
 
