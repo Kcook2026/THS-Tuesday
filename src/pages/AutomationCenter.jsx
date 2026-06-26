@@ -13,6 +13,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import RecipePreview from '@/components/automations/RecipePreview';
+import RecipeGallery from '@/components/automations/RecipeGallery';
 import usePermissions from '@/hooks/usePermissions';
 
 export default function AutomationCenter() {
@@ -23,12 +24,12 @@ export default function AutomationCenter() {
   const [runs, setRuns] = useState([]);
   const [workboards, setWorkboards] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
   const [testing, setTesting] = useState(null);
   const [filterWorkboard, setFilterWorkboard] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterOwner, setFilterOwner] = useState('all');
   const [failedOnly, setFailedOnly] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
 
   const canManage = isSystemAdmin || isExecutive || isManager || workspacePermissions?.canManageWorkspaceAutomations;
 
@@ -55,12 +56,8 @@ export default function AutomationCenter() {
     load();
   };
 
-  const handleSeed = async () => {
-    setSeeding(true);
-    try {
-      await base44.functions.invoke('seedStarterRecipes', { workspace: currentWorkspaceId });
-      load();
-    } catch {} finally { setSeeding(false); }
+  const handleSeed = () => {
+    setGalleryOpen(true);
   };
 
   const filtered = rules.filter(r => {
@@ -89,8 +86,8 @@ export default function AutomationCenter() {
   return (
     <div>
       <PageHeader title="Automation Center" subtitle={`${activeCount} active · ${rules.filter(r => !r.archived).length} total rules`}>
-        <Button variant="outline" onClick={handleSeed} disabled={seeding || !canManage}>
-          <Sparkles className="w-4 h-4 mr-1.5" /> {seeding ? 'Seeding...' : 'Starter Recipes'}
+        <Button variant="outline" onClick={handleSeed} disabled={!canManage}>
+          <Sparkles className="w-4 h-4 mr-1.5" /> Starter Recipes
         </Button>
         {canManage && (
           <Button onClick={() => navigate('/automations/builder')}>
@@ -237,6 +234,7 @@ export default function AutomationCenter() {
           )}
         </TabsContent>
       </Tabs>
+      <RecipeGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} workboards={workboards} />
     </div>
   );
 }

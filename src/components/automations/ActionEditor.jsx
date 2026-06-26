@@ -28,7 +28,7 @@ export default function ActionEditor({ actions, onChange, boardData }) {
     const meta = getActionMeta(action.type);
     if (!meta.hasValue) return null;
 
-    if (meta.valueType === 'status' && boardData?.statuses) {
+    if (meta.valueType === 'status' && boardData?.statuses?.length > 0) {
       return (
         <Select value={action.value || ''} onValueChange={v => update(idx, 'value', v)}>
           <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Select status" /></SelectTrigger>
@@ -38,7 +38,7 @@ export default function ActionEditor({ actions, onChange, boardData }) {
         </Select>
       );
     }
-    if (meta.valueType === 'priority' && boardData?.priorities) {
+    if (meta.valueType === 'priority' && boardData?.priorities?.length > 0) {
       return (
         <Select value={action.value || ''} onValueChange={v => update(idx, 'value', v)}>
           <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Select priority" /></SelectTrigger>
@@ -48,7 +48,7 @@ export default function ActionEditor({ actions, onChange, boardData }) {
         </Select>
       );
     }
-    if (meta.valueType === 'user' && boardData?.users) {
+    if (meta.valueType === 'user' && boardData?.users?.length > 0) {
       return (
         <Select value={action.value || ''} onValueChange={v => update(idx, 'value', v)}>
           <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Select user" /></SelectTrigger>
@@ -58,7 +58,7 @@ export default function ActionEditor({ actions, onChange, boardData }) {
         </Select>
       );
     }
-    if (meta.valueType === 'group' && boardData?.groups) {
+    if (meta.valueType === 'group' && boardData?.groups?.length > 0) {
       return (
         <Select value={action.value || ''} onValueChange={v => update(idx, 'value', v)}>
           <SelectTrigger className="h-8 w-40"><SelectValue placeholder="Select group" /></SelectTrigger>

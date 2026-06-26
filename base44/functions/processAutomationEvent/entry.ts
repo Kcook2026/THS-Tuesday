@@ -11,8 +11,8 @@ Deno.serve(async (req) => {
     // ---- Manual / scheduled trigger: run a specific rule ----
     if (force_rule_id) {
       const rule = await sr.entities.AutomationRule.get(force_rule_id).catch(() => null);
-      if (!rule || rule.status !== 'active' || rule.archived) {
-        return Response.json({ processed: false, reason: 'rule_not_found_or_inactive' });
+      if (!rule || rule.archived) {
+        return Response.json({ processed: false, reason: 'rule_not_found_or_archived' });
       }
       let itemData = data;
       if (!itemData && event?.entity_id) {

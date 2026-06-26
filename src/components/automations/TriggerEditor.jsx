@@ -17,7 +17,7 @@ export default function TriggerEditor({ triggerType, triggerConfig, onChange, bo
     if (!meta.hasValue) return null;
     const val = tc.value ?? tc.days ?? '';
 
-    if (meta.valueType === 'status' && boardData?.statuses) {
+    if (meta.valueType === 'status' && boardData?.statuses?.length > 0) {
       return (
         <Select value={val} onValueChange={v => updateConfig('value', v)}>
           <SelectTrigger className="h-8 w-full"><SelectValue placeholder="Select status" /></SelectTrigger>
@@ -27,7 +27,7 @@ export default function TriggerEditor({ triggerType, triggerConfig, onChange, bo
         </Select>
       );
     }
-    if (meta.valueType === 'priority' && boardData?.priorities) {
+    if (meta.valueType === 'priority' && boardData?.priorities?.length > 0) {
       return (
         <Select value={val} onValueChange={v => updateConfig('value', v)}>
           <SelectTrigger className="h-8 w-full"><SelectValue placeholder="Select priority" /></SelectTrigger>
@@ -37,7 +37,7 @@ export default function TriggerEditor({ triggerType, triggerConfig, onChange, bo
         </Select>
       );
     }
-    if (meta.valueType === 'group' && boardData?.groups) {
+    if (meta.valueType === 'group' && boardData?.groups?.length > 0) {
       return (
         <Select value={val} onValueChange={v => updateConfig('value', v)}>
           <SelectTrigger className="h-8 w-full"><SelectValue placeholder="Select group" /></SelectTrigger>

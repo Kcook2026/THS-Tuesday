@@ -29,7 +29,7 @@ export default function ConditionEditor({ conditions, onChange, boardData }) {
     if (!meta.valueType || cond.operator === 'is_empty' || cond.operator === 'is_not_empty' || cond.operator === 'is_before_today' || cond.operator === 'is_after_today') {
       return null;
     }
-    if (meta.valueType === 'status' && boardData?.statuses) {
+    if (meta.valueType === 'status' && boardData?.statuses?.length > 0) {
       return (
         <Select value={cond.value || ''} onValueChange={v => update(idx, 'value', v)}>
           <SelectTrigger className="h-8 w-32"><SelectValue placeholder="Value" /></SelectTrigger>
@@ -39,7 +39,7 @@ export default function ConditionEditor({ conditions, onChange, boardData }) {
         </Select>
       );
     }
-    if (meta.valueType === 'priority' && boardData?.priorities) {
+    if (meta.valueType === 'priority' && boardData?.priorities?.length > 0) {
       return (
         <Select value={cond.value || ''} onValueChange={v => update(idx, 'value', v)}>
           <SelectTrigger className="h-8 w-32"><SelectValue placeholder="Value" /></SelectTrigger>
@@ -49,7 +49,7 @@ export default function ConditionEditor({ conditions, onChange, boardData }) {
         </Select>
       );
     }
-    if (meta.valueType === 'user' && boardData?.users) {
+    if (meta.valueType === 'user' && boardData?.users?.length > 0) {
       return (
         <Select value={cond.value || ''} onValueChange={v => update(idx, 'value', v)}>
           <SelectTrigger className="h-8 w-32"><SelectValue placeholder="User" /></SelectTrigger>
@@ -59,7 +59,7 @@ export default function ConditionEditor({ conditions, onChange, boardData }) {
         </Select>
       );
     }
-    if (meta.valueType === 'group' && boardData?.groups) {
+    if (meta.valueType === 'group' && boardData?.groups?.length > 0) {
       return (
         <Select value={cond.value || ''} onValueChange={v => update(idx, 'value', v)}>
           <SelectTrigger className="h-8 w-32"><SelectValue placeholder="Group" /></SelectTrigger>
