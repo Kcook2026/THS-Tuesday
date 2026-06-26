@@ -3,16 +3,18 @@ import { Outlet } from 'react-router-dom';
 import GlobalRail from './GlobalRail';
 import WorkspaceSidebar from './WorkspaceSidebar';
 import GlobalSearch from './GlobalSearch';
-import { WorkspaceProvider } from '@/lib/WorkspaceContext';
+import { WorkspaceProvider, useWorkspace } from '@/lib/WorkspaceContext';
 import useTheme from '@/hooks/useTheme';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import AuthLoadingScreen from '@/components/shared/AuthLoadingScreen';
 
-export default function AppLayout() {
+function AppLayoutContent() {
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const { loading } = useWorkspace();
 
   useEffect(() => {
     const handler = (e) => {
@@ -24,6 +26,11 @@ export default function AppLayout() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  // Show loading screen while workspace is initializing
+  if (loading) {
+    return <AuthLoadingScreen message="Loading your workspace..." />;
+  }
 
   return (
     <WorkspaceProvider>
@@ -71,6 +78,14 @@ export default function AppLayout() {
 
         <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
       </div>
+    </WorkspaceProvider>
+  );
+}
+
+export default function AppLayout() {
+  return (
+    <WorkspaceProvider>
+      <AppLayoutContent />
     </WorkspaceProvider>
   );
 }

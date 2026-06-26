@@ -49,6 +49,8 @@ export function WorkspaceProvider({ children }) {
 
   useEffect(() => {
     let mounted = true;
+    let workspaceRecords = [];
+    
     async function init() {
       try {
         console.log('[WORKSPACE] Initializing workspace context...');
@@ -70,7 +72,7 @@ export function WorkspaceProvider({ children }) {
           // Non-critical error, continue with workspace loading
         }
 
-        const workspaceRecords = await loadWorkspaceData(me.id);
+        workspaceRecords = await loadWorkspaceData(me.id);
         if (!mounted) return;
         
         console.log('[WORKSPACE] Found', workspaceRecords.length, 'workspaces');
@@ -114,10 +116,18 @@ export function WorkspaceProvider({ children }) {
     // Start initialization
     init();
     
-    // Safety timeout: force loading to false after 10 seconds to prevent infinite loading
+    // Safety timeout: force loading to false after 10 seconds with fallback workspace selection
     loadingTimeoutRef.current = setTimeout(() => {
       console.warn('[WORKSPACE] Loading timeout reached, forcing loading state to false');
-      if (mounted) setLoading(false);
+      if (mounted) {
+        setLoading(false);
+        // If still no workspace selected but we have workspaces, select the first one
+        if (!currentWorkspaceId && workspaceRecords && workspaceRecords.length > 0) {
+          console.log('[WORKSPACE] Timeout: selecting first available workspace');
+          setCurrentWorkspaceId(workspaceRecords[0].id);
+          localStorage.setItem(STORAGE_KEY, workspaceRecords[0].id);
+        }
+      }
     }, 10000);
     
     return () => { 
