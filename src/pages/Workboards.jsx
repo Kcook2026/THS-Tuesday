@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useWorkspace } from '@/lib/WorkspaceContext';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,7 @@ const BOARD_TYPES = {
 };
 
 export default function Workboards() {
+  const [searchParams] = useSearchParams();
   const [boards, setBoards] = useState([]);
   const [projects, setProjects] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -98,6 +99,12 @@ export default function Workboards() {
 
   useEffect(() => {
     load();
+    // Open create dialog if URL has ?create=true
+    if (searchParams.get('create') === 'true') {
+      setDialogOpen(true);
+      // Clean up the URL parameter
+      window.history.replaceState({}, document.title, '/workboards');
+    }
   }, [load]);
 
   const openForm = (board) => {
