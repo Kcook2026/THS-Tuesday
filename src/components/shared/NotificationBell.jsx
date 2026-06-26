@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Bell } from 'lucide-react';
+import { Bell, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const ROUTE_MAP = {
@@ -16,33 +16,43 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const ref = useRef(null);
   const navigate = useNavigate();
 
   const load = () => {
+    if (!currentUserId) return;
     setLoading(true);
-    base44.entities.Notification.filter({}, '-created_date', 20)
+    base44.entities.Notification.filter({ recipient: currentUserId }, '-created_date', 30)
       .then(setNotifications)
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
+    base44.auth.me().then(me => {
+      if (me?.id) {
+        setCurrentUserId(me.id);
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!currentUserId) return;
     load();
     const interval = setInterval(load, 30000);
-    
-    // Subscribe to real-time notification changes
+
     const unsubscribe = base44.entities.Notification.subscribe((event) => {
       if (event.type === 'create') {
         load();
       }
     });
-    
+
     return () => {
       clearInterval(interval);
       unsubscribe();
     };
-  }, []);
+  }, [currentUserId]);
 
   const unread = notifications.filter(n => !n.read_status).length;
 
@@ -54,12 +64,15 @@ export default function NotificationBell() {
 
   const markRead = async (n) => {
     if (!n.read_status) {
-      await base44.entities.Notification.update(n.id, { read_status: true });
+      await base44.entities.Notification.update(n.id, { read_status: true, read_date: new Date().toISOString() });
       load();
     }
-    
-    // Route to the correct page
-    if (n.record_type === 'WorkboardItem' && n.workboard && n.record_id) {
+
+    // Route to target_url if available
+    if (n.target_url) {
+      navigate(n.target_url);
+      setOpen(false);
+    } else if (n.record_type === 'WorkboardItem' && n.workboard && n.record_id) {
       navigate(`/workboards/${n.workboard}?item=${n.record_id}&tab=updates`);
       setOpen(false);
     } else if (n.record_type && ROUTE_MAP[n.record_type]) {
@@ -69,9 +82,11 @@ export default function NotificationBell() {
   };
 
   const markAllRead = async () => {
-    const unreadIds = notifications.filter(n => !n.read_status);
-    if (unreadIds.length === 0) return;
-    await base44.entities.Notification.bulkUpdate(unreadIds.map(n => ({ id: n.id, read_status: true })));
+    const unreadNotifs = notifications.filter(n => !n.read_status);
+    if (unreadNotifs.length === 0) return;
+    await base44.entities.Notification.bulkUpdate(
+      unreadNotifs.map(n => ({ id: n.id, read_status: true, read_date: new Date().toISOString() }))
+    );
     load();
   };
 
@@ -82,9 +97,9 @@ export default function NotificationBell() {
   };
 
   const clearAllRead = async () => {
-    const readIds = notifications.filter(n => n.read_status);
+    const readIds = notifications.filter(n => n.read_status).map(n => n.id);
     if (readIds.length === 0) return;
-    await base44.entities.Notification.deleteMany({ id: { $in: readIds.map(n => n.id) } });
+    await base44.entities.Notification.deleteMany({ id: { $in: readIds } });
     load();
   };
 
@@ -135,16 +150,17 @@ export default function NotificationBell() {
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{n.title}</p>
                         {n.message && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>}
+                        {n.sender_name && <p className="text-[11px] text-muted-foreground mt-0.5">From {n.sender_name}</p>}
                         <p className="text-[11px] text-muted-foreground mt-1">{new Date(n.created_date).toLocaleString()}</p>
                       </div>
                     </div>
                   </button>
                   <button
                     onClick={(e) => deleteNotification(n, e)}
-                    className="text-muted-foreground hover:text-destructive p-1"
+                    className="text-muted-foreground hover:text-destructive p-1 shrink-0"
                     title="Delete notification"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               ))

@@ -34,13 +34,13 @@
       "type": "number",
       "title": "File Size"
     },
-    "file_url": {
-      "type": "string",
-      "title": "File URL"
-    },
     "file_uri": {
       "type": "string",
       "title": "File URI"
+    },
+    "file_url": {
+      "type": "string",
+      "title": "File URL"
     },
     "category": {
       "type": "string",
@@ -67,6 +67,6 @@
     "workboard",
     "item",
     "uploaded_by",
-    "file_url"
+    "file_uri"
   ]
 }

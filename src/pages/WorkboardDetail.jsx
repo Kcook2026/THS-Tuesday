@@ -1063,6 +1063,13 @@ export default function WorkboardDetail() {
             setSelectedItemTab('overview');
           }}
           onUpdate={(updatedItem) => handleItemUpdateById(updatedItem.id, updatedItem)}
+          onCommentCountChange={(itemId, countUpdater) => {
+            setItems(prev => prev.map(i => {
+              if (i.id !== itemId) return i;
+              const newCount = typeof countUpdater === 'function' ? countUpdater(i._commentCount) : countUpdater;
+              return { ...i, _commentCount: newCount };
+            }));
+          }}
           initialTab={selectedItemTab}
         />
       )}

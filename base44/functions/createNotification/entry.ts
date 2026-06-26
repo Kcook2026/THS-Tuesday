@@ -6,20 +6,36 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { type, userId, title, message, record_type, record_id, workspace } = await req.json();
+    const {
+      recipient,
+      sender,
+      sender_name,
+      type,
+      title,
+      message,
+      record_type,
+      record_id,
+      target_url,
+      workspace,
+      workboard,
+    } = await req.json();
 
-    if (!type || !userId || !title) {
-      return Response.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!recipient || !title) {
+      return Response.json({ error: 'Missing required fields: recipient, title' }, { status: 400 });
     }
 
     const notification = await base44.entities.Notification.create({
-      user: userId,
+      recipient,
+      sender: sender || user.id,
+      sender_name: sender_name || user.full_name || user.email || 'User',
       type: type || 'system',
       title,
       message: message || '',
       record_type: record_type || '',
       record_id: record_id || '',
+      target_url: target_url || '',
       workspace: workspace || '',
+      workboard: workboard || '',
       read_status: false,
     });
 

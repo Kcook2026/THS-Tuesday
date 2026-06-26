@@ -52,15 +52,26 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
       const me = currentUser || await base44.auth.me();
       
       // Upload file - returns file_uri for private storage
-      const { file_uri } = await base44.integrations.Core.UploadFile({ file });
+      const uploadResult = await base44.integrations.Core.UploadFile({ file });
+      const file_uri = uploadResult?.file_uri;
       
-      // Create signed URL for display/download
-      const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({
-        file_uri,
-        expires_in: 86400,
-      });
+      if (!file_uri) {
+        throw new Error('Upload failed: file_uri was not returned.');
+      }
       
-      // Create attachment record - store both file_uri (for preview) and file_url (for display)
+      // Create signed URL for display/download (optional helper)
+      let signed_url = '';
+      try {
+        const signedRes = await base44.integrations.Core.CreateFileSignedUrl({
+          file_uri,
+          expires_in: 86400,
+        });
+        signed_url = signedRes?.signed_url || '';
+      } catch (e) {
+        // signed_url is optional; file_uri is what matters
+      }
+      
+      // Create attachment record - file_uri is required, file_url is optional
       const attachment = await base44.entities.Attachment.create({
         workspace: item.workspace || workspaceId,
         workboard: item.workboard || boardId,
@@ -69,9 +80,9 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
         file_name: file.name,
         file_type: file.type,
         file_size: file.size,
-        file_url: signed_url,
         file_uri,
-        category: 'item_attachment',
+        file_url: signed_url,
+        category: 'item_file',
       });
 
       setFiles(prev => [attachment, ...prev]);
@@ -139,7 +150,7 @@ export default function FilesSection({ item, boardId, workspaceId, canEdit }) {
 
   const handlePreview = async (file) => {
     try {
-      // Always use file_uri for signed URL creation
+      // Must use file_uri, never file_url
       const fileUri = file.file_uri;
       if (!fileUri) {
         toast({ title: 'Preview unavailable', description: 'Legacy file - use download instead', variant: 'destructive', duration: 4000 });

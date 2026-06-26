@@ -27,7 +27,7 @@ import ActivitySection from './ActivitySection';
 import WatchersSection from './WatchersSection';
 import usePermissions from '@/hooks/usePermissions';
 
-export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, onClose, onUpdate, initialTab = 'overview' }) {
+export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, onClose, onUpdate, onCommentCountChange, initialTab = 'overview' }) {
   const { user, currentWorkspaceId } = useWorkspace();
   const { toast } = useToast();
   const permissions = usePermissions();
@@ -295,11 +295,12 @@ export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, o
               workspaceId={workspaceId}
               users={users}
               currentUserId={user?.id}
+              onCommentCountChange={onCommentCountChange}
             />
           </TabsContent>
 
           <TabsContent value="files" className="mt-4">
-            <FilesSection item={localItem} canEdit={canEdit} />
+            <FilesSection item={localItem} boardId={boardId} workspaceId={workspaceId} canEdit={canEdit} />
           </TabsContent>
 
           <TabsContent value="activity" className="mt-4">

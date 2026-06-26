@@ -2,10 +2,29 @@
   "name": "Notification",
   "type": "object",
   "properties": {
-    "user": {
+    "workspace": {
       "type": "string",
-      "title": "User",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "workboard": {
+      "type": "string",
+      "title": "Workboard",
+      "relationType": "Workboard"
+    },
+    "recipient": {
+      "type": "string",
+      "title": "Recipient",
       "relationType": "User"
+    },
+    "sender": {
+      "type": "string",
+      "title": "Sender",
+      "relationType": "User"
+    },
+    "sender_name": {
+      "type": "string",
+      "title": "Sender Name"
     },
     "type": {
       "type": "string",
@@ -36,19 +55,28 @@
       "type": "string",
       "title": "Record ID"
     },
+    "target_url": {
+      "type": "string",
+      "title": "Target URL"
+    },
     "read_status": {
       "type": "boolean",
       "title": "Read",
       "default": false
     },
-    "workspace": {
+    "read_date": {
       "type": "string",
-      "title": "Workspace",
-      "relationType": "Workspace"
+      "format": "date-time",
+      "title": "Read Date"
+    },
+    "created_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created Date"
     }
   },
   "required": [
     "title",
-    "user"
+    "recipient"
   ]
 }

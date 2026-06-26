@@ -15,7 +15,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import UserAvatar from '@/components/shared/UserAvatar';
 
-export default function UpdatesSection({ item, boardId, workspaceId, users, currentUserId }) {
+export default function UpdatesSection({ item, boardId, workspaceId, users, currentUserId, onCommentCountChange }) {
   const { toast } = useToast();
   const confirm = useConfirm();
   const [comments, setComments] = useState([]);
@@ -98,6 +98,7 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
       setEditText('');
       setReplyingTo(null);
       toast({ title: 'Comment posted', duration: 2000 });
+      onCommentCountChange?.(item.id, (prevCount) => (prevCount || 0) + 1);
 
       // Log activity
       try {
@@ -119,18 +120,24 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
 
       // Create notifications for mentioned users (do NOT auto-add as watchers)
       if (mentions.length > 0) {
+        const workboardId = item.workboard || boardId;
+        const wsId = item.workspace || workspaceId;
+        const targetUrl = `/workboards/${workboardId}?item=${item.id}&tab=updates`;
         for (const mentionedUserId of mentions) {
           if (mentionedUserId !== me.id) {
             try {
               await base44.entities.Notification.create({
-                workspace: item.workspace || workspaceId,
-                workboard: item.workboard || boardId,
-                user: mentionedUserId,
+                workspace: wsId,
+                workboard: workboardId,
+                recipient: mentionedUserId,
+                sender: me.id,
+                sender_name: meName,
                 type: 'mention',
                 title: 'You were mentioned',
-                message: `${meName} mentioned you in a comment on "${item.title}"`,
+                message: `${meName} mentioned you in a comment`,
                 record_type: 'WorkboardItem',
                 record_id: item.id,
+                target_url: targetUrl,
                 read_status: false,
                 created_date: new Date().toISOString(),
               });
@@ -221,6 +228,7 @@ export default function UpdatesSection({ item, boardId, workspaceId, users, curr
       });
       setComments(prev => prev.map(c => c.id === commentId ? { ...c, deleted: true, body: '[Deleted]', deleted_date: new Date().toISOString() } : c));
       toast({ title: 'Comment deleted', duration: 2000 });
+      onCommentCountChange?.(item.id, (prevCount) => Math.max((prevCount || 0) - 1, 0));
 
       // Log activity
       try {
