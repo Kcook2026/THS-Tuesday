@@ -17,7 +17,9 @@ function CanvasBlock({ block, field, isSelected, onSelect, onDelete, onChangeBlo
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 50 : 'auto',
+    scale: isDragging ? '1.02' : '1',
   };
   const span = SPAN_CLASSES[block.span || 1] || SPAN_CLASSES[1];
 

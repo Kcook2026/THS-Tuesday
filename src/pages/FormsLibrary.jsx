@@ -11,7 +11,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { useWorkspace } from '@/lib/WorkspaceContext';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import FormLibraryCard from '@/components/forms/FormLibraryCard';
-import { Search, Plus, FileText, Archive } from 'lucide-react';
+import WorkboardPicker from '@/components/forms/WorkboardPicker';
+import { Search, Plus, FileText, Archive, LayoutGrid } from 'lucide-react';
 
 export default function FormsLibrary() {
   const navigate = useNavigate();
@@ -26,6 +27,7 @@ export default function FormsLibrary() {
   const [createForm, setCreateForm] = useState({ title: '', description: '', form_type: 'standalone_form', workboard: '' });
   const [saving, setSaving] = useState(false);
   const [workboards, setWorkboards] = useState([]);
+  const [showWorkboardPicker, setShowWorkboardPicker] = useState(false);
 
   const load = useCallback(async () => {
     if (!currentWorkspaceId) return;
@@ -234,12 +236,15 @@ export default function FormsLibrary() {
             {createForm.form_type === 'workboard_form' && (
               <div>
                 <Label>Target Workboard</Label>
-                <Select value={createForm.workboard} onValueChange={v => setCreateForm({ ...createForm, workboard: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select workboard..." /></SelectTrigger>
-                  <SelectContent>
-                    {workboards.map(wb => <SelectItem key={wb.id} value={wb.id}>{wb.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <button
+                  onClick={() => setShowWorkboardPicker(true)}
+                  className="w-full flex items-center gap-2 rounded-md border border-input px-3 py-2 text-sm text-left hover:bg-accent transition-colors"
+                >
+                  <LayoutGrid className="w-4 h-4 text-muted-foreground" />
+                  <span className={createForm.workboard ? '' : 'text-muted-foreground'}>
+                    {workboards.find(wb => wb.id === createForm.workboard)?.name || 'Search workboards...'}
+                  </span>
+                </button>
               </div>
             )}
           </div>
@@ -249,6 +254,20 @@ export default function FormsLibrary() {
               {saving ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : 'Create & Build'}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showWorkboardPicker} onOpenChange={setShowWorkboardPicker}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Workboard</DialogTitle>
+          </DialogHeader>
+          <WorkboardPicker
+            workspaceId={currentWorkspaceId}
+            value={createForm.workboard}
+            onPick={(wb) => setCreateForm(prev => ({ ...prev, workboard: wb.id }))}
+            onClose={() => setShowWorkboardPicker(false)}
+          />
         </DialogContent>
       </Dialog>
     </div>

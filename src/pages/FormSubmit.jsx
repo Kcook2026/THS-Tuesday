@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { useWorkspace } from '@/lib/WorkspaceContext';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { DISPLAY_ONLY_TYPES, FILE_FIELD_TYPES, FORM_TYPE_LABELS } from '@/components/forms/FormConstants';
 import FormFieldRenderer from '@/components/forms/FormFieldRenderer';
 import ItemPicker from '@/components/forms/ItemPicker';
+import WorkboardPicker from '@/components/forms/WorkboardPicker';
 import { ChevronLeft, Send, CheckCircle2, ExternalLink, Link2 } from 'lucide-react';
 
 export default function FormSubmit() {
@@ -241,35 +241,14 @@ export default function FormSubmit() {
               />
             )}
             {!form.workboard && (
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">Select a workboard to search items:</p>
-                <WorkboardItemSearch onSelect={(item) => { setLinkedItem(item); setShowItemPicker(false); }} />
-              </div>
+              <WorkboardPicker
+                workspaceId={form.workspace}
+                onPick={(wb) => setForm(prev => ({ ...prev, workboard: wb.id }))}
+              />
             )}
           </DialogContent>
         </Dialog>
       )}
-    </div>
-  );
-}
-
-function WorkboardItemSearch({ onSelect }) {
-  const { currentWorkspaceId } = useWorkspace();
-  const [workboards, setWorkboards] = useState([]);
-  const [selectedBoard, setSelectedBoard] = useState('');
-
-  useEffect(() => {
-    if (!currentWorkspaceId) return;
-    base44.entities.Workboard.filter({ workspace: currentWorkspaceId, status: 'active' }).then(setWorkboards).catch(() => {});
-  }, [currentWorkspaceId]);
-
-  return (
-    <div className="space-y-2">
-      <select value={selectedBoard} onChange={e => setSelectedBoard(e.target.value)} className="w-full text-sm rounded-md border border-input px-3 py-2">
-        <option value="">Select a workboard...</option>
-        {workboards.map(wb => <option key={wb.id} value={wb.id}>{wb.name}</option>)}
-      </select>
-      {selectedBoard && <ItemPicker workboardId={selectedBoard} onPick={onSelect} />}
     </div>
   );
 }

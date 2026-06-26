@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { useWorkspace } from '@/lib/WorkspaceContext';
 import {
   Plus, MoreHorizontal, ChevronRight, ChevronDown, Trash2,
   Pencil, ExternalLink, Archive, ArrowUp, ArrowDown, Palette,
@@ -40,6 +41,8 @@ export default function GroupTable({
 }) {
   const { toast } = useToast();
   const confirm = useConfirm();
+  const { user: currentUser } = useWorkspace();
+  const currentUserId = currentUser?.id;
   const [collapsed, setCollapsed] = useState(group.collapsed || false);
   const [editingCell, setEditingCell] = useState(null);
   const [expandedItems, setExpandedItems] = useState({});
@@ -91,8 +94,23 @@ export default function GroupTable({
     setSaving(true);
     try {
       let updateData = {};
+      let assignmentRecipient = null;
+      const currentItem = items.find(i => i.id === itemId);
+
       if (field === 'owner') {
-        updateData.owner = value === 'unassigned' ? null : value;
+        const newOwner = value === 'unassigned' ? null : value;
+        updateData.owner = newOwner;
+        // Only notify if owner actually changed and is not the current user
+        if (newOwner && newOwner !== currentItem?.owner && newOwner !== currentUserId) {
+          assignmentRecipient = newOwner;
+        }
+      } else if (field === 'assignee') {
+        const newAssignee = value === 'unassigned' ? null : value;
+        updateData.assignee = newAssignee;
+        // Only notify if assignee actually changed and is not the current user
+        if (newAssignee && newAssignee !== currentItem?.assignee && newAssignee !== currentUserId) {
+          assignmentRecipient = newAssignee;
+        }
       } else if (field === 'status') {
         const status = statusOptions.find(s => s.label === value);
         updateData.status = value;
@@ -111,6 +129,24 @@ export default function GroupTable({
 
       await base44.entities.WorkboardItem.update(itemId, updateData);
       onItemUpdate?.(itemId, updateData);
+
+      // Create assignment notification (dedup: only when value actually changed)
+      if (assignmentRecipient) {
+        await base44.functions.invoke('createNotification', {
+          recipient: assignmentRecipient,
+          sender: currentUserId,
+          sender_name: currentUser?.full_name || currentUser?.email || 'User',
+          type: 'assignment',
+          title: 'You were assigned',
+          message: `${currentUser?.full_name || currentUser?.email || 'Someone'} assigned you to ${currentItem?.title || 'an item'}`,
+          record_type: 'WorkboardItem',
+          record_id: itemId,
+          target_url: `/workboards/${group.workboard}?item=${itemId}&tab=overview`,
+          workspace: group.workspace,
+          workboard: group.workboard,
+        }).catch(() => {});
+      }
+
       toast({ title: 'Updated', duration: 2000 });
     } catch (error) {
       toast({ title: 'Update failed', description: error.message, variant: 'destructive', duration: 5000 });

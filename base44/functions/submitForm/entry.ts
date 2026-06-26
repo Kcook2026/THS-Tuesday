@@ -196,32 +196,46 @@ Deno.serve(async (req) => {
       submission_count: (form.submission_count || 0) + 1,
     });
 
-    // Create notifications
-    const recipients = new Set();
+    // Create assignment notification for the assigned owner/assignee
+    if (item?.owner && item.owner !== user.id) {
+      await base44.asServiceRole.entities.Notification.create({
+        workspace: form.workspace,
+        workboard: form.workboard || null,
+        recipient: item.owner,
+        sender: user.id,
+        sender_name: user.full_name || user.email,
+        type: 'assignment',
+        title: 'You were assigned',
+        message: `${user.full_name || user.email} assigned you to ${itemTitle || 'an item'}`,
+        record_type: 'WorkboardItem',
+        record_id: item.id,
+        target_url: `/workboards/${form.workboard}?item=${item.id}&tab=overview`,
+        read_status: false,
+      }).catch(() => {});
+    }
+
+    // Create system notification for board owner and form owner (skip duplicates with assignment recipient)
+    const systemRecipients = new Set();
     if (form.workboard) {
       const board = await base44.asServiceRole.entities.Workboard.get(form.workboard).catch(() => null);
-      if (board?.owner) recipients.add(board.owner);
+      if (board?.owner && board.owner !== user.id && board.owner !== item?.owner) systemRecipients.add(board.owner);
     }
-    if (form.owner) recipients.add(form.owner);
-    if (item?.owner) recipients.add(item.owner);
+    if (form.owner && form.owner !== user.id && form.owner !== item?.owner) systemRecipients.add(form.owner);
 
-    for (const recipientId of recipients) {
-      if (recipientId === user.id) continue;
-      const isOwnerAssign = item?.owner === recipientId;
+    for (const recipientId of systemRecipients) {
       await base44.asServiceRole.entities.Notification.create({
         workspace: form.workspace,
         workboard: form.workboard || null,
         recipient: recipientId,
         sender: user.id,
         sender_name: user.full_name || user.email,
-        type: isOwnerAssign ? 'assignment' : 'system',
-        title: isOwnerAssign ? 'You have been assigned' : `New form submission: ${form.title}`,
-        message: isOwnerAssign
-          ? `You have been assigned to an item created from form "${form.title}"${itemTitle ? `: "${itemTitle}"` : ''}`
-          : `${user.full_name || user.email} submitted "${form.title}"${itemTitle ? `, creating item "${itemTitle}"` : ''}`,
+        type: 'system',
+        title: `New form submission: ${form.title}`,
+        message: `${user.full_name || user.email} submitted "${form.title}"${itemTitle ? `, creating item "${itemTitle}"` : ''}`,
         record_type: 'FormSubmission',
         record_id: submission.id,
         target_url: item ? `/workboards/${form.workboard}` : `/forms/${formId}/submissions`,
+        read_status: false,
       }).catch(() => {});
     }
 

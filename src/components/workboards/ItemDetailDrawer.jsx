@@ -72,9 +72,15 @@ export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, o
     setSaving(true);
     try {
       let updateData = {};
+      let assignmentRecipient = null;
 
       if (field === 'owner') {
-        updateData.owner = value === 'unassigned' ? null : value;
+        const newOwner = value === 'unassigned' ? null : value;
+        updateData.owner = newOwner;
+        // Only notify if owner actually changed and is not the current user
+        if (newOwner && newOwner !== localItem.owner && newOwner !== user?.id) {
+          assignmentRecipient = newOwner;
+        }
       } else if (field === 'status') {
         const status = statusOptions.find(s => s.label === value);
         updateData.status = value;
@@ -94,6 +100,24 @@ export default function ItemDetailDrawer({ item, boardId, workspaceId, isOpen, o
       await base44.entities.WorkboardItem.update(item.id, updateData);
       setLocalItem(prev => ({ ...prev, ...updateData }));
       onUpdate?.({ ...item, ...updateData });
+
+      // Create assignment notification (dedup: only when value actually changed)
+      if (assignmentRecipient) {
+        await base44.functions.invoke('createNotification', {
+          recipient: assignmentRecipient,
+          sender: user.id,
+          sender_name: user.full_name || user.email,
+          type: 'assignment',
+          title: 'You were assigned',
+          message: `${user.full_name || user.email} assigned you to ${localItem.title}`,
+          record_type: 'WorkboardItem',
+          record_id: item.id,
+          target_url: `/workboards/${boardId}?item=${item.id}&tab=overview`,
+          workspace: currentWorkspaceId,
+          workboard: boardId,
+        }).catch(() => {});
+      }
+
       toast({ title: 'Updated', duration: 2000 });
     } catch (error) {
       toast({ title: 'Update failed', description: error.message, variant: 'destructive', duration: 5000 });

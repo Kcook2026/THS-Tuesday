@@ -10,10 +10,10 @@ import { useToast } from '@/components/ui/use-toast';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
 import {
-  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
+  DndContext, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
 import {
-  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove,
+  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, rectSortingStrategy, arrayMove,
 } from '@dnd-kit/sortable';
 import {
   FIELD_TYPES, FIELD_CATEGORIES, STATUS_COLORS, STATUS_LABELS,
@@ -484,8 +484,8 @@ export default function FormBuilder() {
             </div>
 
             {isCanvas ? (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleCanvasDragEnd}>
-                <SortableContext items={canvasBlocks.map(b => b.id)}>
+              <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleCanvasDragEnd}>
+                <SortableContext items={canvasBlocks.map(b => b.id)} strategy={rectSortingStrategy}>
                   <CanvasBuilder
                     blocks={canvasBlocks}
                     fields={fields}
@@ -507,7 +507,7 @@ export default function FormBuilder() {
                 </Button>
               </div>
             ) : (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
                 <SortableContext items={fields.map(f => f.id)} strategy={verticalListSortingStrategy}>
                   <SortableFieldList
                     fields={fields}
