@@ -49,14 +49,16 @@ export default function CommentSection({ recordType, recordId, recordName }) {
     });
     mentions.forEach(uid => {
       base44.entities.Notification.create({
-        user: uid,
+        recipient: uid,
+        sender: user?.id,
+        sender_name: user?.full_name,
         type: 'mention',
         title: `${user?.full_name} mentioned you`,
         message: body.trim().slice(0, 100),
         record_type: recordType,
         record_id: recordId,
         read_status: false,
-      });
+      }).catch(() => {});
     });
     logActivity(user, 'commented on', recordType, recordId, recordName);
     setBody('');
