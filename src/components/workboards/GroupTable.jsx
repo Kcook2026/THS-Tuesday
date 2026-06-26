@@ -13,6 +13,7 @@ import {
   Plus, MoreHorizontal, ChevronRight, ChevronDown, Trash2,
   Pencil, ExternalLink, Archive, ArrowUp, ArrowDown, Palette,
   CornerDownRight, MoveVertical, FolderInput, GripVertical, Copy,
+  MessageSquare,
 } from 'lucide-react';
 import { STATUS_COLORS, PRIORITY_COLORS, GROUP_COLOR_CLASSES } from './WorkboardConstants';
 import { getUserInitials } from '@/lib/userHelpers';
@@ -420,6 +421,18 @@ export default function GroupTable({
               {canEdit ? renderInlineEdit(item, 'owner') : renderSystemCell(item, 'owner')}
             </TableCell>
           )}
+          <TableCell onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 gap-1.5"
+              onClick={() => onItemClick?.(item, 'updates')}
+              title="View updates"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">{item._commentCount || 0}</span>
+            </Button>
+          </TableCell>
           {visibleColumns?.status !== false && (
             <TableCell onClick={(e) => e.stopPropagation()}>
               {canEdit ? renderInlineEdit(item, 'status') : renderSystemCell(item, 'status')}
@@ -647,6 +660,7 @@ export default function GroupTable({
                   <TableHead className="w-10"></TableHead>
                   <TableHead className="min-w-[250px]">Item Name</TableHead>
                   {visibleColumns?.owner !== false && <TableHead className="min-w-[150px]">Owner</TableHead>}
+                  <TableHead className="min-w-[90px]">Updates</TableHead>
                   {visibleColumns?.status !== false && <TableHead className="min-w-[120px]">Status</TableHead>}
                   {visibleColumns?.priority !== false && <TableHead className="min-w-[120px]">Priority</TableHead>}
                   {visibleColumns?.due_date !== false && <TableHead className="min-w-[120px]">Due Date</TableHead>}

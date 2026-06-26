@@ -324,7 +324,6 @@ export default function WorkboardDetail() {
   const handleItemClick = (item, tab = 'overview') => {
     setSelectedItem(item);
     setShowItemDetail(true);
-    // Store active tab preference for this item
     setSelectedItemTab(tab);
   };
 
