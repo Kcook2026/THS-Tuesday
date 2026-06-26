@@ -1,0 +1,63 @@
+{
+  "name": "FormSubmission",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "form": {
+      "type": "string",
+      "title": "Form",
+      "relationType": "Form"
+    },
+    "workboard": {
+      "type": "string",
+      "title": "Workboard",
+      "relationType": "Workboard"
+    },
+    "submitted_by": {
+      "type": "string",
+      "title": "Submitted By",
+      "relationType": "User"
+    },
+    "submitter_name": {
+      "type": "string",
+      "title": "Submitter Name"
+    },
+    "submitter_email": {
+      "type": "string",
+      "title": "Submitter Email"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "pending",
+        "processed",
+        "failed"
+      ],
+      "default": "pending"
+    },
+    "created_item": {
+      "type": "string",
+      "title": "Created Item",
+      "relationType": "WorkboardItem"
+    },
+    "values": {
+      "type": "string",
+      "title": "Values Summary"
+    },
+    "source": {
+      "type": "string",
+      "title": "Source",
+      "default": "internal"
+    }
+  },
+  "required": [
+    "workspace",
+    "form",
+    "workboard"
+  ]
+}

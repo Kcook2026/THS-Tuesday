@@ -25,7 +25,7 @@ import { useItemValues } from '@/hooks/useItemValues';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
 import {
   Plus, Search, Settings, Archive, Trash2, Save, X, Tag,
-  LayoutList, LayoutGrid, Calendar as CalendarIcon, Copy, UserPlus, AlertTriangle
+  LayoutList, LayoutGrid, Calendar as CalendarIcon, Copy, UserPlus, AlertTriangle, FileText
 } from 'lucide-react';
 import DuplicateBoardDialog from '@/components/workboards/DuplicateBoardDialog';
 import AddGroupDialog from '@/components/workboards/AddGroupDialog';
@@ -34,6 +34,7 @@ import { isOrphanedBoard, safeDeleteBoardData, assignBoardToMe } from '@/lib/boa
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import CustomCellRenderer from '@/components/workboards/CustomCellRenderer';
+import FormsPanel from '@/components/forms/FormsPanel';
 
 export default function WorkboardDetail() {
   const { id } = useParams();
@@ -873,6 +874,10 @@ export default function WorkboardDetail() {
               <CalendarIcon className="w-4 h-4" />
               Calendar
             </TabsTrigger>
+            <TabsTrigger value="forms" className="gap-2">
+              <FileText className="w-4 h-4" />
+              Forms
+            </TabsTrigger>
           </TabsList>
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -1052,6 +1057,16 @@ export default function WorkboardDetail() {
           <CalendarView
             items={filteredItems}
             users={users}
+            onItemClick={handleItemClick}
+          />
+        </TabsContent>
+
+        <TabsContent value="forms" className="mt-0">
+          <FormsPanel
+            board={board}
+            workspaceId={currentWorkspaceId}
+            users={users}
+            items={items}
             onItemClick={handleItemClick}
           />
         </TabsContent>

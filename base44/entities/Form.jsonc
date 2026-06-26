@@ -1,0 +1,68 @@
+{
+  "name": "Form",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "workboard": {
+      "type": "string",
+      "title": "Workboard",
+      "relationType": "Workboard"
+    },
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "draft",
+        "active",
+        "archived"
+      ],
+      "default": "draft"
+    },
+    "owner": {
+      "type": "string",
+      "title": "Owner",
+      "relationType": "User"
+    },
+    "visibility": {
+      "type": "string",
+      "title": "Visibility",
+      "enum": [
+        "internal",
+        "public"
+      ],
+      "default": "internal"
+    },
+    "submission_count": {
+      "type": "number",
+      "title": "Submission Count",
+      "default": 0
+    },
+    "archived": {
+      "type": "boolean",
+      "title": "Archived",
+      "default": false
+    },
+    "created_by": {
+      "type": "string",
+      "title": "Created By",
+      "relationType": "User"
+    }
+  },
+  "required": [
+    "workspace",
+    "workboard",
+    "title"
+  ]
+}

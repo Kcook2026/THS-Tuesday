@@ -1,0 +1,40 @@
+{
+  "name": "FormSubmissionValue",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "relationType": "Workspace"
+    },
+    "form": {
+      "type": "string",
+      "title": "Form",
+      "relationType": "Form"
+    },
+    "submission": {
+      "type": "string",
+      "title": "Submission",
+      "relationType": "FormSubmission"
+    },
+    "field": {
+      "type": "string",
+      "title": "Field",
+      "relationType": "FormField"
+    },
+    "value": {
+      "type": "string",
+      "title": "Value"
+    },
+    "display_value": {
+      "type": "string",
+      "title": "Display Value"
+    }
+  },
+  "required": [
+    "workspace",
+    "form",
+    "submission",
+    "field"
+  ]
+}
