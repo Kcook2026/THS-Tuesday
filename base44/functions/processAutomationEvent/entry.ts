@@ -166,6 +166,16 @@ async function evaluateConditions(sr, rule, data, itemId) {
 }
 
 async function processRule(sr, rule, itemData, itemId, workboard, workspace, options = {}) {
+  if (!options.bypassCooldown && itemId) {
+    const cooldown = new Date(Date.now() - 60000).toISOString();
+    const recent = await sr.entities.AutomationRun.filter({ rule: rule.id, item: itemId, started_date: { $gte: cooldown } }).catch(() => []);
+    if (recent.length > 0) return { rule_id: rule.id, rule_name: rule.name, skipped: 'cooldown' };
+    if (itemData.parent_item) {
+      const parentRecent = await sr.entities.AutomationRun.filter({ rule: rule.id, item: itemData.parent_item, started_date: { $gte: cooldown } }).catch(() => []);
+      if (parentRecent.length > 0) return { rule_id: rule.id, rule_name: rule.name, skipped: 'cooldown_parent' };
+    }
+  }
+
   const conditionsMet = await evaluateConditions(sr, rule, itemData, itemId);
   if (!conditionsMet) {
     return { rule_id: rule.id, rule_name: rule.name, skipped: 'conditions_not_met' };
