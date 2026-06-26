@@ -13,12 +13,22 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [appPublicSettings, setAppPublicSettings] = useState(null); // Contains only { id, public_settings }
+  const [hasAuthError, setHasAuthError] = useState(false); // Prevent repeated auth checks after error
 
   useEffect(() => {
     checkAppState();
   }, []);
 
   const checkAppState = async () => {
+    // Skip auth check if we already have an auth error (prevents loops)
+    if (hasAuthError) {
+      console.log('[AUTH] Skipping auth check - already has auth error');
+      setIsLoadingPublicSettings(false);
+      setIsLoadingAuth(false);
+      setAuthChecked(true);
+      return;
+    }
+    
     try {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
@@ -98,6 +108,7 @@ export const AuthProvider = ({ children }) => {
       console.log('[AUTH] User authenticated:', currentUser?.email, currentUser?.id);
       setUser(currentUser);
       setIsAuthenticated(true);
+      setHasAuthError(false); // Reset error flag on successful auth
       setIsLoadingAuth(false);
       setAuthChecked(true);
     } catch (error) {
@@ -111,6 +122,7 @@ export const AuthProvider = ({ children }) => {
         console.log('[AUTH] Authentication required - clearing invalid token');
         // Clear the invalid token to prevent redirect loops
         base44.auth.logout();
+        setHasAuthError(true);
         setAuthError({
           type: 'auth_required',
           message: 'Authentication required'
