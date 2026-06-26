@@ -34,20 +34,25 @@ export default function NotificationBell() {
     return audioCtxRef.current;
   }, []);
 
-  // Unlock audio context on first user interaction (browser security requirement)
+  // Unlock audio context on user interaction (browser security requirement)
+  // Keep listeners active so the context can be re-resumed if suspended again
   useEffect(() => {
     const unlock = () => ensureAudio();
-    document.addEventListener('click', unlock, { once: true });
-    document.addEventListener('keydown', unlock, { once: true });
+    document.addEventListener('click', unlock);
+    document.addEventListener('keydown', unlock);
     return () => {
       document.removeEventListener('click', unlock);
       document.removeEventListener('keydown', unlock);
     };
   }, [ensureAudio]);
 
-  const playSound = useCallback(() => {
+  const playSound = useCallback(async () => {
     const ctx = ensureAudio();
-    if (!ctx || ctx.state !== 'running') return;
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+    if (ctx.state !== 'running') return;
     try {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -82,12 +87,11 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!currentUserId) return;
     load();
-    const interval = setInterval(load, 30000);
+    const interval = setInterval(load, 10000);
 
     const unsubscribe = base44.entities.Notification.subscribe((event) => {
       if (event.type === 'create') {
-        const isForMe = !event.data?.recipient || event.data.recipient === currentUserId;
-        if (isForMe) load();
+        load();
       }
     });
 
