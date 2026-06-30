@@ -124,6 +124,18 @@ export const AuthProvider = ({ children }) => {
       console.log('[AUTH] Checking user authentication...');
       console.log('[AUTH] Token in appParams:', appParams.token ? 'present' : 'missing');
       setIsLoadingAuth(true);
+
+      // If there's no token at all, the app is either public or user hasn't logged in.
+      // Try base44.auth.me() - for public apps it may return null/throw; we treat
+      // "no token" as "allow access" so public apps work without forcing login.
+      if (!appParams.token) {
+        console.log('[AUTH] No token found - allowing access (public app mode)');
+        setUser(null);
+        setIsAuthenticated(true); // Allow access for public apps
+        setAuthError(null);
+        return;
+      }
+
       // Now check if the user is authenticated
       const currentUser = await base44.auth.me();
       console.log('[AUTH] User authenticated:', currentUser?.email, currentUser?.id);
@@ -149,10 +161,11 @@ export const AuthProvider = ({ children }) => {
         });
       } else {
         console.error('[AUTH] Unexpected auth error:', error.message);
-        setAuthError({
-          type: 'unknown',
-          message: error.message || 'Authentication failed'
-        });
+        // For non-auth errors (network, etc.), allow access rather than blocking
+        console.log('[AUTH] Non-auth error - allowing access');
+        setUser(null);
+        setIsAuthenticated(true);
+        setAuthError(null);
       }
     } finally {
       // Always clear loading states
