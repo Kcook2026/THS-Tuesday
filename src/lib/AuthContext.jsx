@@ -17,8 +17,13 @@ export const AuthProvider = ({ children }) => {
   const [hasAttemptedAuth, setHasAttemptedAuth] = useState(false); // Prevent auth retry
 
   useEffect(() => {
-    // Defer auth check - let ProtectedRoute trigger it when needed
+    // Auth is turned off (public app) - allow access immediately without requiring login.
+    // If a token exists, we still validate it; otherwise we let the user through.
     setHasChecked(true);
+    if (!appParams.token) {
+      console.log('[AUTH] No token - public app mode, allowing access');
+      setIsAuthenticated(true);
+    }
     setIsLoadingAuth(false);
     setIsLoadingPublicSettings(false);
     setAuthChecked(true);
