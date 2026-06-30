@@ -17,16 +17,25 @@ export const AuthProvider = ({ children }) => {
   const [hasAttemptedAuth, setHasAttemptedAuth] = useState(false); // Prevent auth retry
 
   useEffect(() => {
-    // Auth is turned off (public app) - allow access immediately without requiring login.
-    // If a token exists, we still validate it; otherwise we let the user through.
+    // Default to allowing access. Auth is turned off for this app, so we let the
+    // user through immediately. If a token exists we still try to load the user
+    // in the background, but we never block rendering on it.
     setHasChecked(true);
-    if (!appParams.token) {
-      console.log('[AUTH] No token - public app mode, allowing access');
-      setIsAuthenticated(true);
-    }
+    setIsAuthenticated(true);
     setIsLoadingAuth(false);
     setIsLoadingPublicSettings(false);
     setAuthChecked(true);
+
+    if (appParams.token) {
+      base44.auth.me()
+        .then((currentUser) => {
+          console.log('[AUTH] User loaded:', currentUser?.email, currentUser?.id);
+          setUser(currentUser);
+        })
+        .catch((err) => {
+          console.log('[AUTH] Optional user load skipped:', err?.message);
+        });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
 
